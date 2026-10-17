@@ -1,5 +1,5 @@
 // يخزّن واجهة النظام ومكتباته حتى يفتح ويشتغل حتى بدون نت (البيانات آخر نسخة محفوظة بالجهاز)
-var CACHE = 'amirat2-v2';
+var CACHE = 'amirat2-v3';
 var SHELL = ['./', './index.html', './app.js', './config.js', './manifest.json', './icon-192.webp', './icon-512.webp'];
 var LIBS = /^https:\/\/(www\.gstatic\.com\/firebasejs\/|cdn\.jsdelivr\.net\/npm\/xlsx@|fonts\.googleapis\.com\/|fonts\.gstatic\.com\/)/;
 self.addEventListener('install', function (e) { e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(SHELL); }).then(function () { return self.skipWaiting(); })); });

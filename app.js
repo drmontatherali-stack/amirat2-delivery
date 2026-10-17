@@ -24,7 +24,12 @@ var USERS = [
 var DEFAULT_CONTRACTORS = ['أحمد عواد', 'عادل عرار', 'محمد عرار', 'جاسم زراك', 'دياري كريم', 'علي الكوفي', 'علي هويدي', 'علي محمد حسين', 'طه عبد الله', 'اكام بهاء', 'ثامر عطار', 'سمير حنون', 'عمر بولات', 'اسعد هادي', 'اوات جمال', 'يوسف حسن'];
 var AR_MONTHS = ['', 'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 var AR_MONTHS_SHORT = ['', 'كانون٢', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران', 'تموز', 'آب', 'أيلول', 'تشرين١', 'تشرين٢', 'كانون١'];
-var VERSION = '1.0.0';
+var VERSION = '1.1.0';
+var ADMIN_UID = 'PsrknBOyOxUU3PM0xqXZvBhRaul1'; // حساب منتظر علي (مدير النظام)
+var BAKROOT = 'amirat2_backups';
+var ACLROOT = 'amirat2_acl';
+function acctEmail(id) { return id + '@amirat2-delivery.app'; }
+function legacyPass(pin) { return 'Am2#' + pin + '#tslim-office'; } // كلمة السر القديمة — تُستخدم بس لنقل الحساب لكلمة سر قوية
 
 /* ================= أدوات ================= */
 function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -247,7 +252,7 @@ function crossovers() { // دور وقّعت محضر استلام وما زال
   return out;
 }
 function alertBadgeCount() { var a = computeAlerts(); return a.wsOverdue10.length + a.rvOverdue.length; }
-function noticeCount() { return pendingNew().length + crossovers().length; }
+function noticeCount() { return noticeCountAll(); }
 
 /* ================= البحث الشامل ================= */
 function matchQ(field, q, q2) { var f = normH(field); if (!q) return false; if (f.indexOf(q) >= 0) return true; return !!q2 && f.replace(/[.\-\/\s]/g, '').indexOf(q2) >= 0; }
@@ -315,20 +320,58 @@ function listen() {
     S.db = snap.val() || {};
     S.remoteReady = true;
     lsSet('a2_dbcache', S.db);
+    setTimeout(autoBackup, 3000);
     detectNew();
     scheduleRender();
-  }, function (err) { toast('⚠️ تعذّر قراءة قاعدة البيانات: ' + (err.code || err.message), false); });
+  }, function (err) { toast(/permission|denied/i.test(String(err.code || err.message)) ? '⛔ هذا الحساب مو مفعّل للوصول للبيانات — المدير يفعّله من الإعدادات' : '⚠️ تعذّر قراءة قاعدة البيانات: ' + (err.code || err.message), false); });
 }
 function logActivity(houseNo, action, notes) {
   try {
     var key = normH(houseNo); if (!key || !LR) return;
     var now = new Date();
     var e = { by: S.user ? S.user.name : 'غير معروف', action: action, notes: notes || '', date: todayStr(), time: now.toLocaleTimeString('ar-IQ'), ts: now.getTime() };
-    LR.child('edit/' + enc(key)).push(e);
-    LR.child('global').push(Object.assign({ houseNo: String(houseNo || '') }, e));
+    W('set', LOGROOT + '/edit/' + enc(key) + '/' + LR.child('edit/' + enc(key)).push().key, e);
+    W('set', LOGROOT + '/global/' + LR.child('global').push().key, Object.assign({ houseNo: String(houseNo || '') }, e));
     S.agenda = null; delete S.logsFor[key];
   } catch (e) {}
 }
+
+/* ================= طابور الحفظ: كل تعديل ينحفظ بالجهاز أولاً ويبقى لحد ما السحابة تأكّد استلامه
+   (حتى لو انقطع النت وانسدّ التطبيق — أول ما ينفتح وفيه نت يرفع الباقي) ================= */
+var OB = lsGet('a2_outbox', []);
+function obSave() { lsSet('a2_outbox', OB); }
+function localApply(op, path, val) {
+  var ps = String(path).split('/').filter(Boolean); if (ps[0] !== ROOT) return;
+  ps = ps.slice(1);
+  if (op === 'update') { Object.keys(val || {}).forEach(function (k) { localApply('set', path + '/' + k, val[k]); }); return; }
+  var v = op === 'remove' ? null : (val == null ? null : clean(val));
+  if (!ps.length) { S.db = v || {}; return; }
+  var o = S.db = S.db || {};
+  for (var i = 0; i < ps.length - 1; i++) { if (o[ps[i]] == null || typeof o[ps[i]] !== 'object') { if (v === null) return; o[ps[i]] = {}; } o = o[ps[i]]; }
+  if (v === null) delete o[ps[ps.length - 1]]; else o[ps[ps.length - 1]] = v;
+}
+function W(op, path, val, onDone) {
+  var it = { i: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), op: op, p: path, v: val === undefined ? null : clean(val), t: Date.now() };
+  OB.push(it); obSave();
+  localApply(op, path, it.v); lsSet('a2_dbcache', S.db);
+  obSend(it, onDone);
+  renderTopSafe();
+  return it.i;
+}
+function obSend(it, onDone) {
+  if (!fb) return;
+  var ref = firebase.database().ref(it.p);
+  var pr = it.op === 'set' ? ref.set(it.v) : (it.op === 'update' ? ref.update(it.v || {}) : ref.remove());
+  pr.then(function () { obDrop(it.i); if (onDone) onDone(null); }, function (err) {
+    var m = String((err && (err.code || err.message)) || '');
+    if (/permission|denied|invalid|validation/i.test(m)) { obDrop(it.i); toast('⚠️ ما انحفظ التعديل بالسحابة: ' + m, false); }
+    if (onDone) onDone(err);
+  });
+}
+function obDrop(id) { var n = OB.length; OB = OB.filter(function (x) { return x.i !== id; }); if (OB.length !== n) { obSave(); renderTopSafe(); } }
+var replayed = false;
+function obReplay() { if (replayed) return; replayed = true; var list = OB.slice(); if (list.length) toast('⏫ جاري رفع ' + list.length + ' تعديل محفوظ بالجهاز من قبل', 'info'); list.forEach(function (it) { localApply(it.op, it.p, it.v); obSend(it); }); }
+function renderTopSafe() { try { if (S.user) renderTop(); } catch (e) {} }
 
 /* ================= مزامنة الشيتات ================= */
 function settingsUrl(k) { var s = D().settings || {}; return s[k + 'Url'] || DEFAULT_URLS[k]; }
@@ -473,7 +516,8 @@ function nhConfirm(key, u, how) {
   var cur = nhStatusMap()[key];
   if (cur && cur.status === 'confirmed') return;
   var obj = clean(Object.assign({}, cur || { unit: u || { unit: key } }, { status: 'confirmed', confirmedAt: Date.now(), confirmedBy: S.user.name, confirmedHow: how, rev: ((cur && cur.rev) || 0) + 1 }));
-  nhRef(key).set(obj, function (err) { if (err) toast('⚠️ تعذّر حفظ تأكيد الدار ' + key + ': ' + (err.code || err.message), false); else toast('✅ تم تأكيد الدار ' + ((u && u.unit) || key) + ' ودخلت النظام'); });
+  W('set', ROOT + '/newHouseState/units/' + enc(key), obj);
+  toast('✅ تم تأكيد الدار ' + ((u && u.unit) || key) + ' ودخلت النظام' + (S.online ? '' : ' (محفوظ بالجهاز — ينرفع أول ما يرجع النت)'));
   logActivity((u && u.unit) || key, how === 'whatsapp' ? 'أرسل تبليغ دار جديدة وأكّد دخولها للنظام' : 'ضغط "تم الإعلام" لدار جديدة (دخلت النظام)');
 }
 function nhReopen(unit) {
@@ -481,7 +525,8 @@ function nhReopen(unit) {
   if (!u) { toast('الدار غير موجودة بشيت الموقف الأسبوعي حالياً.', false); return; }
   confirmBox('إعادة الدار (' + u.unit + ') كإشعار "دار جديدة"؟', 'ستُسحب من قيد التسليم حتى تفتح بياناتها وتوافق وترسل الواتساب.', function () {
     var by = S.user.name, at = Date.now();
-    nhRef(k).transaction(function (cur) { return clean(Object.assign({}, cur || {}, { status: 'pending', unit: u, detectedAt: at, marked: true, reopenedAt: at, reopenedBy: by, rev: ((cur && cur.rev) || 0) + 1 })); });
+    var cur = ((D().newHouseState || {}).units || {})[enc(k)];
+    W('set', ROOT + '/newHouseState/units/' + enc(k), Object.assign({}, cur || {}, { status: 'pending', unit: u, detectedAt: at, marked: true, reopenedAt: at, reopenedBy: by, rev: ((cur && cur.rev) || 0) + 1 }));
     logActivity(u.unit, 'أعاد الدار كإشعار "دار جديدة"');
     closeModal();
   });
@@ -497,14 +542,13 @@ function toggleReady(unit, val) {
   var k = normH(unit), cur = isReady(unit), v = (typeof val === 'boolean') ? val : !cur;
   if (v === cur) return;
   var upd = {}; upd[enc(k)] = v;
-  S.db.readyMap = Object.assign({}, S.db.readyMap || {}, upd);
-  R.child('readyMap').update(upd, function (err) { if (err) toast('⚠️ ما انحفظ التغيير: ' + (err.code || err.message), false); });
+  W('update', ROOT + '/readyMap', upd);
   logActivity(unit, v ? 'بدّل حالة الدار إلى جاهز' : 'بدّل حالة الدار إلى غير جاهز');
   scheduleRender();
 }
-function saveRecFields(id, fields) { R.child('oldRecords/' + id).update(clean(fields)); }
-function deleteRecDB(id) { R.child('oldRecords/' + id).remove(); }
-function dismissHouse(unit) { R.child('dismissed/' + enc(normH(unit))).set(true); }
+function saveRecFields(id, fields) { W('update', ROOT + '/oldRecords/' + id, fields); }
+function deleteRecDB(id) { W('remove', ROOT + '/oldRecords/' + id); }
+function dismissHouse(unit) { W('set', ROOT + '/dismissed/' + enc(normH(unit)), true); }
 function blockReviewIfWithinPeriod(houseNo) {
   var u = wsByKey(houseNo); if (!u) return false;
   var diff = daysDiff(u.deliveryDate);
@@ -514,25 +558,48 @@ function blockReviewIfWithinPeriod(houseNo) {
 }
 
 /* ================= الواتساب ================= */
-function waDialog(msg, commitFn) {
+function waDialog(msg, commitFn, meta) {
   openModal('<header><h3>💬 إرسال إلى كروب الواتساب</h3><button class="iconbtn" data-act="closeModal" aria-label="إغلاق">' + ico('close') + '</button></header>' +
     '<div class="bd"><p class="muted" style="margin:0">يُفتح الواتساب والرسالة جاهزة، اختر الكروب من قائمة المحادثات ثم اضغط إرسال. ' + (commitFn ? '<b>الحفظ يصير بس بعد ما تضغط إرسال.</b>' : '') + '</p><div class="pre">' + esc(msg) + '</div></div>' +
     '<footer><button class="btn wa" data-act="waSend">📢 إرسال إلى كروب واتساب</button><button class="btn" data-act="closeModal">إلغاء</button></footer>');
-  MODAL.wa = { msg: msg, commit: commitFn };
+  MODAL.wa = { msg: msg, commit: commitFn, meta: meta || {} };
 }
-function waSend() {
-  var st = MODAL.wa; if (!st) return;
-  if (typeof st.commit === 'function') { try { st.commit(); } catch (e) { console.error(e); toast('⚠️ تعذّر الحفظ: ' + e.message, false); } }
-  var msg = st.msg || '';
-  try { if (navigator.clipboard) navigator.clipboard.writeText(msg).catch(function () {}); } catch (e) {}
-  closeModal();
+var WA_KIND = { newHouse: 'تبليغ دار جديدة', review: 'تسجيل مراجعة', round: 'مراجعة جديدة', other: 'رسالة' };
+function waList() { var o = D().waOutbox || {}; return Object.keys(o).map(function (k) { return Object.assign({ id: k }, o[k]); }); }
+function waUnsent() { var lim = Date.now() - 30 * 86400000; return waList().filter(function (x) { return x.status === 'opened' && (x.at || 0) > lim; }).sort(function (a, b) { return (b.at || 0) - (a.at || 0); }); }
+function waOpen(msg) {
   var encd = encodeURIComponent(msg), hidden = false;
+  try { if (navigator.clipboard) navigator.clipboard.writeText(msg).catch(function () {}); } catch (e) {}
   var onVis = function () { if (document.hidden) hidden = true; };
   document.addEventListener('visibilitychange', onVis, { once: true });
   setTimeout(function () {
     window.location.href = 'whatsapp://send?text=' + encd;
     setTimeout(function () { document.removeEventListener('visibilitychange', onVis); if (!hidden) window.open('https://wa.me/?text=' + encd, '_blank'); }, 1200);
   }, 500);
+}
+var WA_AWAIT = null;
+function waArmConfirm(id) {
+  WA_AWAIT = id; var shown = false, armedAt = Date.now();
+  function ask() { if (shown || WA_AWAIT !== id || document.hidden) return; shown = true; document.removeEventListener('visibilitychange', onv); window.removeEventListener('focus', onf); waConfirmBox(id); }
+  function onv() { if (!document.hidden && Date.now() - armedAt > 1500) setTimeout(ask, 400); }
+  function onf() { if (Date.now() - armedAt > 2500) setTimeout(ask, 400); }
+  document.addEventListener('visibilitychange', onv); window.addEventListener('focus', onf);
+  setTimeout(function () { if (!document.hidden) ask(); }, 6000); // إذا انفتح الواتساب بتبويب ثاني
+}
+function waConfirmBox(id) {
+  var x = (D().waOutbox || {})[id]; if (!x || x.status !== 'opened') return;
+  openModal('<header><h3>📲 هل انرسلت الرسالة للكروب؟</h3></header><div class="bd"><p style="margin:0">' + esc(WA_KIND[x.kind] || 'رسالة') + (x.house ? ' — الدار <b class="ltr">' + esc(x.house) + '</b>' : '') + '</p><p class="muted" style="margin:8px 0 0;font-size:13px">إذا ما انرسلت تبقى بقائمة "رسائل ما تأكد إرسالها" بالبحث السريع وتگدر تعيد إرسالها.</p></div>' +
+    '<footer><button class="btn pri" data-act="waMark" data-id="' + esc(id) + '">✅ إي، انرسلت</button><button class="btn wa" data-act="waResend" data-id="' + esc(id) + '">🔁 لا، افتح الواتساب مرة ثانية</button><button class="btn" data-act="closeModal">بعدين</button></footer>');
+}
+function waSend() {
+  var st = MODAL.wa; if (!st) return;
+  if (typeof st.commit === 'function') { try { st.commit(); } catch (e) { console.error(e); toast('⚠️ تعذّر الحفظ: ' + e.message, false); } }
+  var msg = st.msg || '', meta = st.meta || {};
+  var id = R.child('waOutbox').push().key;
+  W('set', ROOT + '/waOutbox/' + id, { text: msg, kind: meta.kind || 'other', house: meta.house || '', by: S.user.name, at: Date.now(), status: 'opened' });
+  closeModal();
+  waOpen(msg);
+  waArmConfirm(id);
 }
 
 /* ================= النوافذ ================= */
@@ -694,16 +761,16 @@ function saveRec() {
     if (!existed) logActivity(houseNo, 'أضاف الدار لقائمة المراجعة (دار جديدة)', rec.notes || '');
     else if (baseline && baseline.status !== rec.status) logActivity(houseNo, 'غيّر حالة الدار من "' + (baseline.status || '-') + '" إلى "' + (rec.status || '-') + '"', rec.notes || '');
     else logActivity(houseNo, 'عدّل بيانات الدار', rec.notes || '');
-    if (!existed || !baseline) { R.child('oldRecords/' + rec.id).set(clean(rec)); }
+    if (!existed || !baseline) { W('set', ROOT + '/oldRecords/' + rec.id, rec); }
     else {
       var changed = {}, keys = {};
       Object.keys(rec).concat(Object.keys(baseline)).forEach(function (k) { keys[k] = 1; });
       Object.keys(keys).forEach(function (k) { if (JSON.stringify(rec[k]) !== JSON.stringify(baseline[k])) changed[k] = rec[k] === undefined ? null : rec[k]; });
-      if (Object.keys(changed).length) R.child('oldRecords/' + rec.id).update(clean(changed));
+      if (Object.keys(changed).length) W('update', ROOT + '/oldRecords/' + rec.id, changed);
     }
     toast('✅ انحفظت بيانات المراجعة');
   };
-  waDialog(msg, commit);
+  waDialog(msg, commit, { kind: 'review', house: houseNo });
 }
 function newRoundForm(id) {
   var rec = oldRecs().find(function (r) { return String(r.id) === String(id); }); if (!rec) return;
@@ -735,7 +802,7 @@ function saveNewRound() {
     saveRecFields(rec.id, f);
     logActivity(rec.houseNo, 'أضاف مراجعة جديدة (مراجعة ' + all.length + ')', notes || '');
     toast('✅ انضافت المراجعة ' + all.length);
-  });
+  }, { kind: 'round', house: rec.houseNo });
 }
 function deleteRound(id, idx) {
   var rec = oldRecs().find(function (r) { return String(r.id) === String(id); }); if (!rec) return;
@@ -798,11 +865,12 @@ function renderTop() {
   var n = alertBadgeCount();
   top.innerHTML = '<h1>' + esc(TITLES[S.view] || '') + '<small>' + todayStr() + ' · آخر مزامنة للشيت: ' + esc(S.wsLast || 'لم تتم بعد') + '</small></h1>' +
     '<span class="chip net' + (S.online ? ' on' : ' off') + '" role="status"><span class="dot' + (S.online ? '' : ' off') + '"></span>' + (S.online ? '🟢 متصل بالسحابة (مزامنة فورية)' : '🔴 غير متصل حالياً — البيانات محفوظة بالجهاز وتنرفع أول ما يرجع النت') + '</span>' +
+    (OB.length ? '<span class="chip warn" role="status" title="محفوظة بالجهاز وتنرفع تلقائياً">⏫ ' + OB.length + ' تعديل بانتظار الرفع للسحابة</span>' : '') +
     '<span class="credit ltr">✨ Design by: <b>Montather Ali</b></span>' +
     '<button class="iconbtn" data-act="syncAll" aria-label="تحديث من الشيتات" title="تحديث من الشيتات">' + ico('refresh') + '</button>' +
     '<button class="iconbtn" data-act="go" data-v="today" aria-label="التنبيهات" title="التنبيهات">' + ico('today') + (n ? '<span class="bdg">' + n + '</span>' : '') + '</button>' +
     '<button class="iconbtn" data-act="theme" aria-label="تبديل الوضع الليلي" title="الوضع الليلي">' + ico('sun') + '</button>' +
-    '<button class="chip" data-act="logout" title="تسجيل خروج">👤 ' + esc(S.user.name) + ' ' + ico('logout', 16) + '</button>';
+    '<button class="chip" data-act="logout" title="تبديل المستخدم">👤 ' + esc(S.user.name) + ' ' + ico('logout', 16) + '</button>';
 }
 
 /* ----- عرض: البحث السريع ----- */
@@ -825,8 +893,15 @@ VIEWS.search = function () {
   return h;
 };
 /* ----- إشعارات خانة البحث: دور جديدة + وقّعت محضر استلام ----- */
+function noticeCountAll() { return pendingNew().length + crossovers().length + waUnsent().length; }
 function noticesHTML() {
-  var pend = pendingNew(), cr = crossovers(), h = '';
+  var pend = pendingNew(), cr = crossovers(), wu = waUnsent(), h = '';
+  if (isAdmin() && !accountsSecured()) h += '<div class="banner wa"><h3>🔐 أكمل تأمين حسابات السحابة (كلمات سر قوية) من الإعدادات</h3><button class="btn sm pri" data-act="go" data-v="settings">فتح الإعدادات</button></div>';
+  if (wu.length) {
+    h += '<div class="banner wa"><h3>📲 ' + wu.length + ' رسالة واتساب ما تأكد إرسالها للكروب:</h3><div class="plist">' + wu.map(function (x) {
+      return '<div class="aitem"><span class="m"><b>' + esc(WA_KIND[x.kind] || 'رسالة') + (x.house ? ' — <span class="ltr">' + esc(x.house) + '</span>' : '') + '</b><small>👤 ' + esc(x.by || '-') + ' · 🕒 ' + esc(new Date(x.at || 0).toLocaleString('ar-IQ')) + '</small></span><button class="btn sm wa" data-act="waResend" data-id="' + esc(x.id) + '">🔁 إعادة إرسال</button><button class="btn sm pri" data-act="waMark" data-id="' + esc(x.id) + '">✅ انرسلت</button><button class="btn sm" data-act="waView" data-id="' + esc(x.id) + '">👁️ النص</button><button class="btn sm" data-act="waDrop" data-id="' + esc(x.id) + '">🙈</button></div>';
+    }).join('') + '</div></div>';
+  }
   if (pend.length) {
     h += '<div class="banner new"><h3>🏠 ' + pend.length + ' دار جديدة انضافت بشيت "الموقف الاسبوعي" — افتح بياناتها وأرسل التبليغ حتى تدخل النظام:</h3><div class="plist">' + pend.map(function (u) {
       return '<button class="aitem" data-act="newHouse" data-h="' + esc(u.unit) + '"><span class="m"><b class="ltr" style="text-align:right">' + esc(u.unit) + '</b><small>📥 ' + esc(u.incomingDate || '-') + ' · 📤 ' + esc(u.deliveryDate || '-') + (u.sector ? ' · 📍 ' + esc(u.sector) : '') + (u.detectedAt ? ' · 🕒 ' + esc(new Date(u.detectedAt).toLocaleString('ar-IQ')) : '') + '</small></span><span class="btn sm pri">📋 فتح بيانات الدار</span></button>';
@@ -1135,15 +1210,16 @@ VIEWS.settings = function () {
   return '<div class="card"><h2>🔄 بيانات النظام الحالي <small>نسخ فقط — النظام الحالي ما يتغيّر بيه أي شي</small></h2>' +
     '<p style="margin:0 0 12px">' + (meta.importedAt ? '✅ آخر نسخ للبيانات: <b>' + esc(new Date(meta.importedAt).toLocaleString('ar-IQ')) + '</b> بواسطة ' + esc(meta.importedBy || '-') + (meta.counts ? ' — ' + esc(meta.counts) : '') : '⚠️ لم يتم نسخ بيانات النظام الحالي بعد.') + '</p>' +
     '<div class="row"><button class="btn pri" data-act="importOld">⬇️ نسخ البيانات من النظام الحالي الآن</button></div>' +
-    '<p class="muted" style="font-size:13px;margin:10px 0 0">ينسخ: حالة جاهز/غير جاهز، المراجعات وجولاتها، حالة الدور الجديدة، المقاولين، وسجل الحركات. استخدمه قبل يوم التبديل حتى تكون آخر نسخة.</p></div>' +
+    '<p class="muted" style="font-size:13px;margin:10px 0 0">ينسخ كل شي: حالة جاهز/غير جاهز، المراجعات وجولاتها، الدور الجديدة، الدور القديمة المضافة يدوياً، المقاولين، فريق العمل، روابط الشيتات، وسجل الحركات كامل — وتنحفظ نسخة أصلية كاملة من النظام الحالي بالنسخ الاحتياطي. استخدمه قبل يوم التبديل حتى تكون آخر نسخة.</p></div>' +
     '<div class="card"><h2>🔗 روابط ملفات الشيت <small>كل الأجهزة تستخدم نفس الروابط</small></h2><div style="display:flex;flex-direction:column;gap:12px">' +
     urlField('weekly', 'الموقف الاسبوعي (قيد التسليم)', st) + urlField('dates', 'تواريخ الاستلام (الدور المسلّمة)', st) + urlField('contractors', 'موقف المقاولين', st) + '</div></div>' +
+    securityCard() + backupCard() +
     '<div class="card"><h2>عن النظام</h2><dl class="kv">' + kv('الإصدار', VERSION) + kv('المستخدم', S.user.name) + kv('قيد التسليم', S.wsAll.length + ' دار') + kv('المسلّمة', S.del.length + ' صف') + kv('المراجعات', oldRecs().length) + '</dl><p class="muted ltr" style="margin:14px 0 0;text-align:center">Design by: Montather Ali</p></div>';
 };
 function urlField(k, label, st) { return '<label class="fld">' + esc(label) + '<div class="row"><input class="inp ltr" id="url-' + k + '" value="' + esc(st[k + 'Url'] || DEFAULT_URLS[k]) + '" style="flex:1"><button class="btn sm" data-act="saveUrl" data-k="' + k + '">حفظ</button></div></label>'; }
 function importOld() {
   confirmBox('نسخ البيانات من النظام الحالي؟', 'راح أقرأ البيانات من النظام الحالي (قراءة فقط) وأكتبها بالنظام الجديد. أي تغييرات سويتها بالنظام الجديد على نفس الدور راح تنستبدل بنسخة النظام الحالي.', function () {
-    closeModal(); toast('⏳ جاري النسخ...', 'info');
+    closeModal(); if (!S.online) { toast('⚠️ النسخ يحتاج نت', false); return; } toast('⏳ جاري النسخ...', 'info');
     var base = OLD.db + '/';
     Promise.all([
       fetch(base + OLD.root + '.json').then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }),
@@ -1151,16 +1227,27 @@ function importOld() {
       fetch(base + 'amirat_global_log.json').then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
     ]).then(function (res) {
       var d = res[0] || {};
-      var counts = 'مراجعات ' + Object.keys(d.oldRecords || {}).length + ' · جاهزية ' + Object.keys(d.readyMap || {}).length + ' · دور جديدة ' + Object.keys((d.newHouseState || {}).units || {}).length;
+      var nLog = Object.keys(res[2] || {}).length, nEdit = Object.keys(res[1] || {}).length;
+      var counts = 'مراجعات ' + toArr(d.oldRecords).length + ' · جاهزية ' + Object.keys(d.readyMap || {}).length + ' · دور جديدة ' + Object.keys((d.newHouseState || {}).units || {}).length + ' · دور مضافة يدوياً ' + toArr(d.records).length + ' · سجل ' + nLog + ' حركة (' + nEdit + ' دار)';
       var upd = {
         readyMap: d.readyMap || null, oldRecords: d.oldRecords || null, newHouseState: d.newHouseState || null,
         records: d.records || null, contractors: d.contractors || null, teamList: d.teamList || null,
-        meta: { importedAt: Date.now(), importedBy: S.user.name, counts: counts, source: OLD.root }
+        meta: { importedAt: Date.now(), importedBy: S.user.name, counts: counts, source: OLD.root, oldKeys: Object.keys(d).join(',') }
       };
-      return R.update(clean(upd)).then(function () {
-        var lu = {}; if (res[1]) lu.edit = res[1]; if (res[2]) lu.global = res[2];
-        return Object.keys(lu).length ? LR.update(lu) : null;
-      }).then(function () { S.agenda = null; toast('✅ تم نسخ البيانات: ' + counts); });
+      if (/^https:\/\/docs\.google\.com\//.test(d.datesSheetUrl || '')) upd['settings/datesUrl'] = d.datesSheetUrl;
+      if (/^https:\/\/docs\.google\.com\//.test(d.contractorsSheetUrl || '')) upd['settings/contractorsUrl'] = d.contractorsSheetUrl;
+      var raw = { at: Date.now(), by: S.user.name, root: d, edit_logs: res[1] || null, global_log: res[2] || null };
+      // نسخة من الوضع الحالي بالنظام الجديد قبل الاستبدال + النسخة الأصلية الكاملة من النظام الحالي (بيها حتى المنظّفة مسبقاً)
+      return (D().meta ? bkSnapshot(bkKey('before-import_'), { note: 'قبل نسخ بيانات النظام الحالي' }) : Promise.resolve())
+        .then(function () { return BK().child('oldSystemRaw').set(clean(raw)); })
+        .then(function () { return R.update(clean(upd)); })
+        .then(function () {
+          // السجل: دمج بدون مسح الحركات اللي انسجلت بالنظام الجديد
+          var lu = {};
+          Object.keys(res[2] || {}).forEach(function (k) { lu['global/' + k] = res[2][k]; });
+          Object.keys(res[1] || {}).forEach(function (h) { var o = res[1][h] || {}; Object.keys(o).forEach(function (k) { lu['edit/' + h + '/' + k] = o[k]; }); });
+          return Object.keys(lu).length ? LR.update(clean(lu)) : null;
+        }).then(function () { S.agenda = null; S.bkIndex = null; toast('✅ تم نسخ البيانات: ' + counts); });
     }).catch(function (e) { toast('⚠️ فشل النسخ: ' + e.message, false); });
   }, 'نسخ الآن');
 }
@@ -1199,7 +1286,8 @@ var ACT = {
   go: function (d) { S.view = d.v; lsSet('a2_view', d.v); document.getElementById('rail').classList.remove('open'); closeModal(); scheduleRender(); window.scrollTo(0, 0); },
   toggleRail: function () { document.getElementById('rail').classList.toggle('open'); renderRail(); },
   theme: function () { var r = document.documentElement, cur = r.getAttribute('data-theme'); var dark = cur ? cur === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; r.setAttribute('data-theme', dark ? 'light' : 'dark'); lsSet('a2_theme', dark ? 'light' : 'dark'); },
-  logout: function () { confirmBox('🚪 تسجيل الخروج من النظام بهذا الجهاز؟', '', function () { lsSet('a2_user', null); auth.signOut().then(function () { location.reload(); }); }, 'خروج'); },
+  logout: function () { confirmBox('👤 تبديل المستخدم؟', 'يرجع لشاشة اختيار الاسم والرمز. الجهاز يبقى مربوط بالسحابة.', function () { lsSet('a2_user', null); location.reload(); }, 'تبديل'); },
+  deviceSignOut: function () { confirmBox('🚪 فصل هذا الجهاز عن السحابة؟', 'حتى يرجع يشتغل لازم تكتب كلمة سر السحابة مرة ثانية.' + (OB.length ? ' ⚠️ عندك ' + OB.length + ' تعديل لسه ما انرفع — انتظر يرجع النت أولاً.' : ''), function () { lsSet('a2_user', null); auth.signOut().then(function () { location.reload(); }); }, 'فصل الجهاز', true); },
   syncAll: function () { toast('⏳ جاري التحديث من الشيتات...', 'info'); syncAll(true); },
   syncCw: function () { syncContractors(true); },
   pick: function (d) { S.sel = d.k; scheduleRender(); },
@@ -1232,7 +1320,11 @@ var ACT = {
       '<p class="muted" style="margin:0">الدار تدخل النظام (قيد التسليم والبحث والتنبيهات) بس بعد ما ترسل التبليغ بالواتساب.</p></div>' +
       '<footer><button class="btn pri" data-act="nhSave">💾 حفظ</button><button class="btn" data-act="closeModal">إلغاء</button></footer>');
   },
-  nhSave: function () { var u = MODAL.nh; if (!u) return; var key = normH(u.unit); waDialog(newHouseMsg(u), function () { nhConfirm(key, u, 'whatsapp'); }); },
+  nhSave: function () { var u = MODAL.nh; if (!u) return; var key = normH(u.unit); waDialog(newHouseMsg(u), function () { nhConfirm(key, u, 'whatsapp'); }, { kind: 'newHouse', house: u.unit }); },
+  waMark: function (d) { W('update', ROOT + '/waOutbox/' + d.id, { status: 'sent', sentAt: Date.now(), sentBy: S.user.name }); if (WA_AWAIT === d.id) WA_AWAIT = null; closeModal(); toast('✅ تم تأكيد الإرسال'); scheduleRender(); },
+  waResend: function (d) { var x = (D().waOutbox || {})[d.id]; if (!x) return; closeModal(); W('update', ROOT + '/waOutbox/' + d.id, { resentAt: Date.now() }); waOpen(x.text || ''); waArmConfirm(d.id); },
+  waDrop: function (d) { confirmBox('إخفاء هذه الرسالة من القائمة؟', 'ما راح تنرسل. (البيانات نفسها محفوظة)', function () { W('update', ROOT + '/waOutbox/' + d.id, { status: 'dismissed', dismissedAt: Date.now(), dismissedBy: S.user.name }); closeModal(); }, 'إخفاء'); },
+  waView: function (d) { var x = (D().waOutbox || {})[d.id]; if (!x) return; openModal('<header><h3>💬 ' + esc(WA_KIND[x.kind] || 'رسالة') + '</h3><button class="iconbtn" data-act="closeModal" aria-label="إغلاق">' + ico('close') + '</button></header><div class="bd"><div class="pre">' + esc(x.text || '') + '</div></div><footer><button class="btn wa" data-act="waResend" data-id="' + esc(d.id) + '">🔁 إعادة إرسال</button><button class="btn pri" data-act="waMark" data-id="' + esc(d.id) + '">✅ انرسلت</button><button class="btn" data-act="closeModal">إغلاق</button></footer>'); },
   delBoth: function (d) {
     confirmBox('حذف النسختين للدار ' + d.h + '؟', 'تنشال من قيد التسليم ومن المراجعة (الدار مسجّلة مستلمة بشيت تواريخ الاستلام).', function () {
       dismissHouse(d.h); var rec = reviewOf(d.h); if (rec) deleteRecDB(rec.id);
@@ -1258,7 +1350,7 @@ var ACT = {
   reloadAgenda: function () { S.agenda = null; scheduleRender(); },
   loadLog: function (d) { loadHouseLog(d.h); },
   importOld: importOld,
-  saveUrl: function (d) { var v = document.getElementById('url-' + d.k).value.trim(); if (v && !/^https:\/\/docs\.google\.com\/spreadsheets\//.test(v)) { toast('⚠️ الرابط لازم يبدأ بـ https://docs.google.com/spreadsheets/', false); return; } R.child('settings/' + d.k + 'Url').set(v || null).then(function () { toast('✅ انحفظ الرابط'); ({ weekly: syncWeekly, dates: syncDelivered, contractors: syncContractors })[d.k](true); }); },
+  saveUrl: function (d) { var v = document.getElementById('url-' + d.k).value.trim(); if (v && !/^https:\/\/docs\.google\.com\/spreadsheets\//.test(v)) { toast('⚠️ الرابط لازم يبدأ بـ https://docs.google.com/spreadsheets/', false); return; } W('set', ROOT + '/settings/' + d.k + 'Url', v || null); toast('✅ انحفظ الرابط'); ({ weekly: syncWeekly, dates: syncDelivered, contractors: syncContractors })[d.k](true); },
   closeModal: closeModal,
   modalBg: function (d, el, ev) { if (ev.target === el) closeModal(); },
   confirmYes: function () { var f = MODAL.yes; if (typeof f === 'function') f(); else closeModal(); },
@@ -1267,8 +1359,16 @@ var ACT = {
   roundAdd: function () { collectRounds(); var t = todayStr(); MODAL.form.rounds.push({ reviewDate: t, completionDate: addDays(t, 5), notes: '' }); drawRoundsEditor(); },
   roundDel: function (d) { collectRounds(); if (MODAL.form.rounds.length <= 1) { toast('⚠️ لازم تبقى جولة مراجعة واحدة على الأقل.', false); return; } MODAL.form.rounds.splice(+d.i, 1); drawRoundsEditor(); },
   loginPick: function (d) { LOGIN.user = USERS.find(function (u) { return u.id === d.id; }); renderLogin(); },
-  loginBack: function () { LOGIN.user = null; LOGIN.err = ''; renderLogin(); },
-  loginGo: function () { doLogin(); }
+  loginBack: function () { if (LOGIN.step === 'pw') { LOGIN.step = 'pin'; } else LOGIN.user = null; LOGIN.err = ''; renderLogin(); },
+  loginGo: function () { doLogin(); },
+  loginPw: function () { doLoginPw(); },
+  setPw: function (d) { setAccountPw(d.id); },
+  revokeAcc: function (d) { revokeAcc(d.id); },
+  bkNow: function () { if (!S.online) { toast('⚠️ يحتاج نت', false); return; } bkSnapshot(bkKey('manual_'), { note: 'يدوية' }).then(function () { toast('✅ انعملت نسخة بالسحابة'); scheduleRender(); }).catch(function (e) { toast('⚠️ ' + (e.code || e.message), false); }); },
+  bkDownload: function () { bkDownloadAll(); },
+  bkExcel: function () { bkExcel(); },
+  bkGet: function (d) { BK().child('snap/' + d.k).once('value').then(function (sn) { downloadText(JSON.stringify({ app: 'amirat2-delivery', snapshot: d.k, amirat2: sn.val() || {} }), 'amirat2-backup-' + d.k + '.json'); }).catch(function (e) { toast('⚠️ ' + (e.code || e.message), false); }); },
+  bkRestore: function (d) { BK().child('snap/' + d.k).once('value').then(function (sn) { bkRestoreData(sn.val(), null, 'النسخة ' + d.k); }).catch(function (e) { toast('⚠️ ' + (e.code || e.message), false); }); }
 };
 function collectRounds() { /* القيم تتحدث مباشرة عبر data-in=roundEdit */ }
 var INP = {
@@ -1299,55 +1399,239 @@ document.addEventListener('change', function (ev) {
   if (el.tagName === 'SELECT' && INP[el.dataset.in]) INP[el.dataset.in](el);
   if (el.id === 'f-contractor' && el.value === '__new') {
     var nm = prompt('أدخل اسم المقاول الجديد:'); nm = nm && nm.trim();
-    if (nm) { var l = contractorsList().slice(); if (l.indexOf(nm) < 0) { l.push(nm); R.child('contractors').set(l); } var o = document.createElement('option'); o.textContent = nm; el.insertBefore(o, el.lastElementChild); el.value = nm; } else el.selectedIndex = 0;
+    if (nm) { var l = contractorsList().slice(); if (l.indexOf(nm) < 0) { l.push(nm); W('set', ROOT + '/contractors', l); } var o = document.createElement('option'); o.textContent = nm; el.insertBefore(o, el.lastElementChild); el.value = nm; } else el.selectedIndex = 0;
   }
 });
 document.addEventListener('keydown', function (ev) {
   if (ev.key === 'Escape' && document.getElementById('modal-root').innerHTML) closeModal();
   if (ev.key === 'Escape') document.getElementById('rail').classList.remove('open');
   if (ev.key === 'Enter' && ev.target && ev.target.id === 'pin') doLogin();
+  if (ev.key === 'Enter' && ev.target && ev.target.id === 'cpw') doLoginPw();
 });
 
-/* ================= تسجيل الدخول ================= */
-var LOGIN = { user: null, err: '', busy: false };
+/* ================= تسجيل الدخول =================
+   الجهاز ينربط بالسحابة مرة وحدة بكلمة سر قوية (Firebase)، وبعدها كل مستخدم يدخل بالاسم + رمزه (PIN) فقط. */
+var LOGIN = { user: null, err: '', busy: false, step: 'pin', pin: '' };
 function renderLogin() {
   var box = document.getElementById('login');
   box.classList.remove('hidden');
-  var u = LOGIN.user;
+  var u = LOGIN.user, body;
+  if (!u) body = '<div class="muted">اختر اسمك</div><div class="users">' + USERS.map(function (x) { return '<button data-act="loginPick" data-id="' + x.id + '">' + esc(x.name) + '</button>'; }).join('') + '</div>';
+  else if (LOGIN.step === 'pw') body = '<b style="font-size:18px">' + esc(u.name) + '</b>' +
+    '<div class="muted" style="font-size:13.5px">🔐 هذا الجهاز مو مربوط بالسحابة بعد. اكتب <b>كلمة سر السحابة</b> مالتك (تنكتب مرة وحدة بس بهذا الجهاز).</div>' +
+    '<input class="inp ltr" id="cpw" type="password" placeholder="كلمة سر السحابة" aria-label="كلمة سر السحابة" autocomplete="current-password" style="height:52px;font-size:17px" autofocus>' +
+    '<div class="err">' + esc(LOGIN.err) + '</div><button class="btn pri" style="height:52px" data-act="loginPw"' + (LOGIN.busy ? ' disabled' : '') + '>' + (LOGIN.busy ? '⏳ جاري الربط...' : '🔗 ربط الجهاز ودخول') + '</button><button class="btn" data-act="loginBack">⬅️ رجوع</button>';
+  else body = '<b style="font-size:18px">' + esc(u.name) + '</b><input class="pin" id="pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" data-in="pin" aria-label="رمز الدخول" autocomplete="off" autofocus>' +
+    '<div class="err">' + esc(LOGIN.err) + '</div><button class="btn pri" style="height:52px" data-act="loginGo"' + (LOGIN.busy ? ' disabled' : '') + '>' + (LOGIN.busy ? '⏳ جاري الدخول...' : 'دخول') + '</button><button class="btn" data-act="loginBack">⬅️ رجوع لاختيار الاسم</button>';
   box.innerHTML = '<div class="box"><img src="icon-192.webp" alt="شعار مجمع الأميرات 2"><div><h2>مجمع الأميرات 2</h2><div class="muted">مكتب التسليم الفني</div></div>' +
-    (!CFG.firebase || !CFG.firebase.apiKey ? '<div class="pill p-not" style="justify-content:center">⚠️ لم تُضبط إعدادات قاعدة البيانات بعد</div>' : '') +
-    (u ? '<b style="font-size:18px">' + esc(u.name) + '</b><input class="pin" id="pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" data-in="pin" aria-label="رمز الدخول" autocomplete="off" autofocus>' +
-      '<div class="err">' + esc(LOGIN.err) + '</div><button class="btn pri" style="height:52px" data-act="loginGo"' + (LOGIN.busy ? ' disabled' : '') + '>' + (LOGIN.busy ? '⏳ جاري الدخول...' : 'دخول') + '</button><button class="btn" data-act="loginBack">⬅️ رجوع لاختيار الاسم</button>'
-      : '<div class="muted">اختر اسمك</div><div class="users">' + USERS.map(function (x) { return '<button data-act="loginPick" data-id="' + x.id + '">' + esc(x.name) + '</button>'; }).join('') + '</div>') +
+    (!CFG.firebase || !CFG.firebase.apiKey ? '<div class="pill p-not" style="justify-content:center">⚠️ لم تُضبط إعدادات قاعدة البيانات بعد</div>' : '') + body +
     '<div class="credit">Design by: Montather Ali</div></div>';
-  var p = document.getElementById('pin'); if (p) setTimeout(function () { p.focus(); }, 50);
+  var p = document.getElementById('pin') || document.getElementById('cpw'); if (p) setTimeout(function () { p.focus(); }, 50);
+}
+function authErr(e) {
+  var c = (e && e.code) || '';
+  if (/network/.test(c)) return '⚠️ ماكو نت — أول ربط للجهاز يحتاج نت';
+  if (/too-many/.test(c)) return '⚠️ محاولات كثيرة، انتظر دقائق وحاول مرة ثانية';
+  if (/invalid-credential|wrong-password|user-not-found|invalid-login/.test(c)) return '❌ كلمة السر غير صحيحة، أو حسابك ما تفعّل بعد (المدير يفعّله من الإعدادات)';
+  if (/weak-password/.test(c)) return '⚠️ كلمة السر ضعيفة';
+  if (/requires-recent-login/.test(c)) return '⚠️ اكتب كلمة السر الحالية (أو رمز PIN القديم) وأعد المحاولة';
+  if (/email-already-in-use/.test(c)) return '⚠️ الحساب موجود مسبقاً — اكتب كلمة سره الحالية (أو رمز PIN القديم مالته)';
+  return '⚠️ ' + (c || (e && e.message) || 'خطأ غير معروف');
+}
+function enterAs(u) {
+  S.user = { id: u.id, name: u.name }; lsSet('a2_user', S.user);
+  document.getElementById('login').classList.add('hidden'); LOGIN = { user: null, err: '', busy: false, step: 'pin', pin: '' };
+  start();
 }
 function doLogin() {
   var u = LOGIN.user, el = document.getElementById('pin'); if (!u || !el || LOGIN.busy) return;
   var pin = el.value;
   sha256('amirat2|' + pin).then(function (h) {
     if (h !== u.h) { LOGIN.err = '❌ رمز غير صحيح، حاول مرة أخرى'; renderLogin(); return; }
-    LOGIN.busy = true; LOGIN.err = ''; renderLogin();
-    var email = u.id + '@amirat2-delivery.app', pass = 'Am2#' + pin + '#tslim-office';
-    auth.signInWithEmailAndPassword(email, pass).catch(function (e) {
-      if (/user-not-found|invalid-credential|invalid-login/.test(e.code || '')) return auth.createUserWithEmailAndPassword(email, pass);
-      throw e;
-    }).then(function () {
-      S.user = { id: u.id, name: u.name }; lsSet('a2_user', S.user);
-      document.getElementById('login').classList.add('hidden'); LOGIN = { user: null, err: '', busy: false };
-      start();
-    }).catch(function (e) { LOGIN.busy = false; LOGIN.err = '⚠️ تعذّر الدخول: ' + (e.code || e.message); renderLogin(); });
+    if (auth.currentUser) { enterAs(u); return; } // الجهاز مربوط بالسحابة
+    LOGIN.busy = true; LOGIN.err = ''; LOGIN.pin = pin; renderLogin();
+    // حساب ما انتقل بعد لكلمة سر قوية: يدخل بالطريقة القديمة لحد ما المدير يأمّنه
+    auth.signInWithEmailAndPassword(acctEmail(u.id), legacyPass(pin)).then(function () { enterAs(u); }).catch(function (e) {
+      LOGIN.busy = false; LOGIN.step = 'pw'; LOGIN.err = /network/.test(e.code || '') ? authErr(e) : ''; renderLogin();
+    });
   });
 }
+function doLoginPw() {
+  var u = LOGIN.user, el = document.getElementById('cpw'); if (!u || !el || LOGIN.busy) return;
+  var pw = el.value; if (!pw) { LOGIN.err = 'اكتب كلمة السر'; renderLogin(); return; }
+  LOGIN.busy = true; LOGIN.err = ''; renderLogin();
+  auth.signInWithEmailAndPassword(acctEmail(u.id), pw).then(function () { enterAs(u); }).catch(function (e) { LOGIN.busy = false; LOGIN.err = authErr(e); renderLogin(); });
+}
+
+/* ================= أمان الحسابات (المدير فقط) ================= */
+function isAdmin() { return !!(auth && auth.currentUser && auth.currentUser.uid === ADMIN_UID); }
+function accountsSecured() { var a = D().accounts || {}; return USERS.every(function (u) { return a[u.id] && a[u.id].pwSetAt; }); }
+function secAuth() {
+  var app = firebase.apps.filter(function (x) { return x.name === 'sec'; })[0] || firebase.initializeApp(CFG.firebase, 'sec');
+  var au = app.auth();
+  return au.setPersistence(firebase.auth.Auth.Persistence.NONE).then(function () { return au; }, function () { return au; });
+}
+function signInAny(a, email, cp) { return a.signInWithEmailAndPassword(email, cp).catch(function () { return a.signInWithEmailAndPassword(email, legacyPass(cp)); }); }
+function reauthAny(user, email, cp) {
+  var C = firebase.auth.EmailAuthProvider;
+  return user.reauthenticateWithCredential(C.credential(email, cp)).catch(function () { return user.reauthenticateWithCredential(C.credential(email, legacyPass(cp))); });
+}
+function securityCard() {
+  var fu = auth && auth.currentUser;
+  var dev = '<p style="margin:0 0 10px">هذا الجهاز مربوط بالسحابة بحساب: <b class="ltr">' + esc(fu ? fu.email : '-') + '</b></p><div class="row"><button class="btn" data-act="deviceSignOut">🚪 فصل هذا الجهاز عن السحابة</button></div>';
+  if (!isAdmin()) return '<div class="card"><h2>🔐 ربط الجهاز</h2>' + dev + '</div>';
+  var acc = D().accounts || {};
+  return '<div class="card"><h2>🔐 أمان حسابات السحابة <small>المدير فقط</small></h2>' +
+    '<p class="muted" style="margin:0 0 12px;font-size:13.5px">لكل مستخدم كلمة سر سحابة قوية (10 أحرف أو أكثر). تنكتب مرة وحدة بكل جهاز عند ربطه، وبعدها الدخول اليومي بالرمز (PIN) فقط. بعد التأمين الطريقة القديمة توقف ومحد يگدر يدخل للبيانات غير الحسابات المفعّلة.</p>' +
+    '<div style="display:flex;flex-direction:column;gap:12px">' + USERS.map(function (u) {
+      var a = acc[u.id] || {}, ok = !!a.pwSetAt && !a.revokedAt;
+      return '<div class="round" style="padding:12px"><div class="row" style="justify-content:space-between"><b>' + esc(u.name) + '</b>' +
+        (ok ? '<span class="pill p-ok">✅ مؤمّن · ' + esc(new Date(a.pwSetAt).toLocaleDateString('ar-IQ')) + '</span>' : (a.revokedAt ? '<span class="pill p-not">⛔ موقوف</span>' : '<span class="pill p-not">⚠️ غير مؤمّن</span>')) + '</div>' +
+        '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));margin-top:10px">' +
+        '<input class="inp ltr" type="password" id="np-' + u.id + '" placeholder="كلمة السر الجديدة" autocomplete="new-password">' +
+        '<input class="inp ltr" type="password" id="np2-' + u.id + '" placeholder="تأكيد كلمة السر" autocomplete="new-password">' +
+        '<input class="inp ltr" type="password" id="cp-' + u.id + '" placeholder="الحالية أو PIN القديم (إذا الحساب موجود)" autocomplete="off"></div>' +
+        '<div class="row" style="margin-top:10px"><button class="btn pri sm" data-act="setPw" data-id="' + u.id + '">💾 تعيين كلمة السر وتفعيل الحساب</button>' +
+        (a.uid && !a.revokedAt && a.uid !== ADMIN_UID ? '<button class="btn sm danger" data-act="revokeAcc" data-id="' + u.id + '">⛔ إيقاف الحساب</button>' : '') + '</div></div>';
+    }).join('') + '</div><hr style="border:0;border-top:1px dashed var(--line);margin:14px 0">' + dev + '</div>';
+}
+function setAccountPw(id) {
+  var u = USERS.find(function (x) { return x.id === id; }); if (!u) return;
+  function v(k) { var e = document.getElementById(k + '-' + id); return e ? e.value : ''; }
+  var np = v('np'), np2 = v('np2'), cp = v('cp');
+  if (np.length < 10) { toast('⚠️ كلمة السر لازم 10 أحرف أو أكثر (خليها أرقام وحروف)', false); return; }
+  if (np !== np2) { toast('⚠️ كلمة السر والتأكيد مو متطابقة', false); return; }
+  if (!S.online) { toast('⚠️ هذا الإجراء يحتاج نت', false); return; }
+  var email = acctEmail(id), me = auth.currentUser, p;
+  toast('⏳ جاري تأمين حساب ' + u.name + '...', 'info');
+  // تأكد إن قواعد الحماية الجديدة منشورة (قائمة الحسابات المفعّلة) قبل أي تغيير
+  firebase.database().ref(ACLROOT).once('value').then(function () { doSetPw(); }, function () { toast('⛔ قواعد الحماية الجديدة لسه ما انتشرت بقاعدة البيانات — انشرها أولاً ثم أعد المحاولة', false); });
+  function doSetPw() {
+  if (me && me.email === email) {
+    p = me.updatePassword(np).catch(function (e) {
+      if (!/requires-recent-login/.test(e.code || '') || !cp) throw e;
+      return reauthAny(me, email, cp).then(function () { return me.updatePassword(np); });
+    }).then(function () { return me.uid; });
+  } else {
+    p = secAuth().then(function (sa) {
+      return sa.createUserWithEmailAndPassword(email, np).then(function (c) { return c.user.uid; }).catch(function (e) {
+        if (!/email-already-in-use/.test(e.code || '') || !cp) throw e;
+        return signInAny(sa, email, cp).then(function (c) { return c.user.updatePassword(np).then(function () { return c.user.uid; }); });
+      }).then(function (uid) { return sa.signOut().then(function () { return uid; }, function () { return uid; }); }, function (e) { sa.signOut().catch(function () {}); throw e; });
+    });
+  }
+  p.then(function (uid) {
+    return firebase.database().ref(ACLROOT + '/' + uid).set(true).then(function () {
+      W('set', ROOT + '/accounts/' + id, { uid: uid, pwSetAt: Date.now(), pwSetBy: S.user.name });
+      ['np', 'np2', 'cp'].forEach(function (k) { var e = document.getElementById(k + '-' + id); if (e) e.value = ''; });
+      toast('✅ تم تأمين حساب ' + u.name + ' — بلّغه بكلمة السر الجديدة حتى يربط جهازه');
+      scheduleRender();
+    });
+  }).catch(function (e) { toast(authErr(e), false); });
+  }
+}
+function revokeAcc(id) {
+  var a = (D().accounts || {})[id], u = USERS.find(function (x) { return x.id === id; }); if (!a || !a.uid) return;
+  confirmBox('⛔ إيقاف حساب ' + u.name + '؟', 'أي جهاز مربوط بهذا الحساب يوقف وصوله للبيانات فوراً. ترجع تفعّله بتعيين كلمة سر جديدة.', function () {
+    firebase.database().ref(ACLROOT + '/' + a.uid).remove().then(function () { W('update', ROOT + '/accounts/' + id, { revokedAt: Date.now(), pwSetAt: null }); closeModal(); toast('⛔ انوقف الحساب'); }).catch(function (e) { toast(authErr(e), false); });
+  }, 'إيقاف', true);
+}
+
+/* ================= النسخ الاحتياطي ================= */
+function BK() { return firebase.database().ref(BAKROOT); }
+function bkKey(prefix) { var d = new Date(); return prefix + todayStr() + '_' + pad2(d.getHours()) + pad2(d.getMinutes()) + pad2(d.getSeconds()); }
+function bkSnapshot(key, extra) {
+  var data = clean(S.db), size = JSON.stringify(data).length;
+  return BK().child('snap/' + key).set(data).then(function () { return BK().child('index/' + key).set(Object.assign({ at: Date.now(), by: S.user ? S.user.name : '-', size: size }, extra || {})); }).then(function () { S.bkIndex = null; });
+}
+var bkDoneDay = '';
+function autoBackup() {
+  var day = todayStr();
+  if (bkDoneDay === day || !S.remoteReady || !S.online || !S.user || !(D().meta && D().meta.importedAt)) return;
+  bkDoneDay = day;
+  BK().child('index/' + day).once('value').then(function (sn) {
+    if (sn.exists()) return;
+    return bkSnapshot(day, { auto: true }).then(function () { return BK().child('index').once('value'); }).then(function (ix) {
+      var keys = Object.keys(ix.val() || {}).filter(function (k) { return /^\d{4}-\d{2}-\d{2}$/.test(k); }).sort();
+      var old = keys.slice(0, Math.max(0, keys.length - 30)), upd = {};
+      old.forEach(function (k) { upd['index/' + k] = null; upd['snap/' + k] = null; });
+      if (old.length) return BK().update(upd);
+    });
+  }).catch(function () { bkDoneDay = ''; });
+}
+function downloadText(text, name, type) {
+  var b = new Blob([text], { type: type || 'application/json' }), a = document.createElement('a');
+  a.href = URL.createObjectURL(b); a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+}
+function bkDownloadAll() {
+  if (!S.online) { toast('⚠️ التنزيل الكامل يحتاج نت (حتى يجيب آخر نسخة من السحابة)', false); return; }
+  toast('⏳ جاري تجهيز النسخة...', 'info');
+  Promise.all([R.once('value'), LR.once('value')]).then(function (r) {
+    downloadText(JSON.stringify({ app: 'amirat2-delivery', version: VERSION, at: new Date().toISOString(), by: S.user.name, amirat2: r[0].val() || {}, amirat2_logs: r[1].val() || {} }), 'amirat2-backup-full-' + todayStr() + '.json');
+    toast('✅ تنزّلت النسخة الاحتياطية — احفظها بمكان آمن');
+  }).catch(function (e) { toast('⚠️ ' + (e.code || e.message), false); });
+}
+function bkExcel() {
+  var wb = XLSX.utils.book_new();
+  function add(name, aoa, cols) { var ws = XLSX.utils.aoa_to_sheet(aoa); if (cols) ws['!cols'] = cols.map(function (w) { return { wch: w }; }); ws['!views'] = [{ rightToLeft: true }]; XLSX.utils.book_append_sheet(wb, ws, name); }
+  var a1 = [['رقم البلوك والدار', 'القطاع', 'الجهة المنفذة / المقاول', 'تاريخ الوارد', 'تاريخ التسليم', 'الجاهزية', 'قيد المراجعة']];
+  wsUnits().forEach(function (u) { a1.push([u.unit, u.sector || '', execLabel(u.executionType, u.contractor), u.incomingDate || '', u.deliveryDate || '', isReady(u.unit) ? 'جاهز' : 'غير جاهز', reviewOf(u.unit) ? 'نعم' : 'لا']); });
+  add('قيد التسليم', a1, [14, 14, 26, 14, 14, 12, 12]);
+  var a2 = [['رقم البلوك والدار', 'الحالة', 'المقاول', 'القطاع', 'رقم الجولة', 'تاريخ المراجعة', 'تاريخ إكمال الملاحظات', 'الملاحظات', 'تم إكمال الملاحظات']];
+  oldRecs().forEach(function (rec) { var del = isDeliveredRec(rec); rvRounds(rec).forEach(function (x) { a2.push([stripBidi(rec.houseNo || ''), del ? 'مسلّمة' : 'قيد التسليم', rec.contractorName || '', rec.sectorNo || '', x.n, x.reviewDate || '', x.completionDate || '', stripBidi(x.notes || ''), rec.notesCompleted === true ? 'نعم' : 'لا']); }); });
+  add('المراجعات', a2, [14, 12, 22, 12, 10, 16, 18, 60, 14]);
+  var rm = readyMap(), a3 = [['رقم البلوك والدار', 'الجاهزية']]; Object.keys(rm).sort().forEach(function (k) { a3.push([k, rm[k] ? 'جاهز' : 'غير جاهز']); });
+  add('الجاهزية', a3, [16, 12]);
+  var nh = nhStatusMap(), a4 = [['رقم البلوك والدار', 'الحالة', 'تاريخ الاكتشاف', 'أكّدها', 'تاريخ التأكيد']];
+  Object.keys(nh).sort().forEach(function (k) { var e = nh[k]; a4.push([k, e.status === 'pending' ? 'بانتظار التبليغ' : 'مؤكدة', e.detectedAt ? new Date(e.detectedAt).toLocaleString('ar-IQ') : '', e.confirmedBy || '', e.confirmedAt ? new Date(e.confirmedAt).toLocaleString('ar-IQ') : '']); });
+  add('الدور الجديدة', a4, [16, 16, 22, 18, 22]);
+  var a5 = [['النوع', 'الدار', 'بواسطة', 'الوقت', 'الحالة']]; waList().forEach(function (x) { a5.push([WA_KIND[x.kind] || 'رسالة', x.house || '', x.by || '', new Date(x.at || 0).toLocaleString('ar-IQ'), x.status === 'sent' ? 'انرسلت' : (x.status === 'dismissed' ? 'مخفية' : 'ما تأكد إرسالها')]); });
+  add('رسائل الواتساب', a5, [18, 14, 18, 22, 16]);
+  XLSX.writeFile(wb, 'مكتب_التسليم_كل_البيانات_' + todayStr() + '.xlsx');
+}
+function backupCard() {
+  if (S.bkIndex === undefined || S.bkIndex === null) { S.bkIndex = 'loading'; BK().child('index').once('value').then(function (sn) { S.bkIndex = sn.val() || {}; scheduleRender(); }).catch(function () { S.bkIndex = 'err'; scheduleRender(); }); }
+  var ix = S.bkIndex, rows = '';
+  if (ix === 'loading') rows = '<div class="muted">⏳ جاري تحميل قائمة النسخ...</div>';
+  else if (ix === 'err') rows = '<div class="muted">تعذّر تحميل قائمة النسخ (يحتاج نت).</div>';
+  else {
+    var keys = Object.keys(ix).sort().reverse();
+    rows = keys.length ? '<div class="scroll" style="max-height:320px"><table class="tbl"><thead><tr><th>النسخة</th><th>بواسطة</th><th>الحجم</th><th>إجراءات</th></tr></thead><tbody>' + keys.map(function (k) {
+      var e = ix[k] || {};
+      return '<tr><td class="ltr">' + esc(k) + (e.auto ? ' <span class="pill p-info">تلقائية</span>' : '') + (e.note ? '<br><small class="muted">' + esc(e.note) + '</small>' : '') + '</td><td>' + esc(e.by || '-') + '</td><td>' + Math.round((e.size || 0) / 1024) + ' KB</td><td><button class="btn sm" data-act="bkGet" data-k="' + esc(k) + '">⬇️ تنزيل</button>' + (isAdmin() ? ' <button class="btn sm danger" data-act="bkRestore" data-k="' + esc(k) + '">♻️ استرجاع</button>' : '') + '</td></tr>';
+    }).join('') + '</tbody></table></div>' : '<div class="muted">لسه ماكو نسخ — أول نسخة تلقائية تنعمل اليوم.</div>';
+  }
+  return '<div class="card"><h2>💾 النسخ الاحتياطي <small>نسخة تلقائية كل يوم بالسحابة (تنحفظ آخر 30 يوم) + تنزيل للجهاز</small></h2>' +
+    '<div class="row" style="margin-bottom:12px"><button class="btn pri" data-act="bkNow">📸 نسخة بالسحابة الآن</button><button class="btn" data-act="bkDownload">⬇️ تنزيل نسخة كاملة للجهاز (JSON)</button><button class="btn wa" data-act="bkExcel">' + ico('xls', 16) + ' تنزيل كل البيانات Excel</button>' +
+    (isAdmin() ? '<label class="btn danger" style="cursor:pointer">♻️ استرجاع من ملف<input type="file" id="bk-file" accept=".json,application/json" hidden></label>' : '') + '</div>' + rows + '</div>';
+}
+function bkRestoreData(data, logs, label) {
+  if (!data || typeof data !== 'object' || !(data.oldRecords || data.readyMap || data.newHouseState)) { toast('⚠️ الملف مو نسخة احتياطية صحيحة لهذا النظام', false); return; }
+  confirmBox('♻️ استرجاع ' + label + '؟', 'راح تنستبدل كل بيانات النظام الحالية بهذه النسخة. قبلها تنعمل نسخة من الوضع الحالي حتى تگدر ترجع لها.', function () {
+    closeModal(); if (!S.online) { toast('⚠️ الاسترجاع يحتاج نت', false); return; }
+    toast('⏳ جاري الاسترجاع...', 'info');
+    data = clean(data); data.accounts = D().accounts || null; // حالة الحسابات تبقى مثل ما هي
+    bkSnapshot(bkKey('before-restore_'), { note: 'قبل استرجاع ' + label }).then(function () { return R.set(data); }).then(function () { return logs ? LR.set(logs) : null; })
+      .then(function () { logActivity('-', 'استرجع نسخة احتياطية: ' + label); toast('✅ تم الاسترجاع'); }).catch(function (e) { toast('⚠️ فشل الاسترجاع: ' + (e.code || e.message), false); });
+  }, 'استرجاع', true);
+}
+document.addEventListener('change', function (ev) {
+  if (!ev.target || ev.target.id !== 'bk-file' || !ev.target.files[0]) return;
+  var f = ev.target.files[0], rd = new FileReader();
+  rd.onload = function () { try { var j = JSON.parse(rd.result); bkRestoreData(j.amirat2 || j, j.amirat2_logs || null, 'الملف ' + f.name); } catch (e) { toast('⚠️ تعذّر قراءة الملف', false); } };
+  rd.readAsText(f); ev.target.value = '';
+});
 
 /* ================= التشغيل ================= */
 var started = false;
 function start() {
   if (started) return; started = true;
+  obReplay();
   listen();
   renderAll();
   setTimeout(function () { syncAll(false); }, 600);
-  setInterval(function () { syncAll(false); }, 10 * 60 * 1000);
+  setInterval(function () { syncAll(false); autoBackup(); }, 10 * 60 * 1000);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) { syncDelivered(false); scheduleRender(); } });
   setInterval(scheduleRender, 60 * 1000); // تحديث العدّادات بتغيّر اليوم
   setTimeout(function () { if (S.remoteReady && !(D().meta && D().meta.importedAt)) { S.view = 'settings'; scheduleRender(); toast('أول تشغيل: انسخ بيانات النظام الحالي من الإعدادات', 'info'); } }, 4000);
@@ -1356,12 +1640,9 @@ function start() {
   var th = lsGet('a2_theme', null); if (th) document.documentElement.setAttribute('data-theme', th);
   if (!initFirebase()) { renderLogin(); return; }
   auth.onAuthStateChanged(function (fu) {
+    if (started) { if (!fu) location.reload(); return; }
     if (fu && S.user) { document.getElementById('login').classList.add('hidden'); start(); }
-    else if (!fu) { S.user = null; renderLogin(); }
-    else { // مستخدم Firebase موجود بس الاسم مو محفوظ
-      var u = USERS.find(function (x) { return fu.email && fu.email.indexOf(x.id + '@') === 0; });
-      if (u) { S.user = { id: u.id, name: u.name }; lsSet('a2_user', S.user); start(); } else { auth.signOut(); }
-    }
+    else { if (!fu) { S.user = null; lsSet('a2_user', null); } renderLogin(); } // الجهاز مربوط بس لازم يختار الاسم ويكتب الرمز
   });
   if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
 })();

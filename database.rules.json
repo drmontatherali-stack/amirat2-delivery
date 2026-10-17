@@ -3,12 +3,20 @@
     ".read": false,
     ".write": false,
     "amirat2": {
-      ".read": "auth != null && auth.token.email.matches(/^u[123]@amirat2-delivery[.]app$/)",
-      ".write": "auth != null && auth.token.email.matches(/^u[123]@amirat2-delivery[.]app$/)"
+      ".read": "auth != null && (auth.uid === 'PsrknBOyOxUU3PM0xqXZvBhRaul1' || root.child('amirat2_acl').child(auth.uid).val() === true)",
+      ".write": "auth != null && (auth.uid === 'PsrknBOyOxUU3PM0xqXZvBhRaul1' || root.child('amirat2_acl').child(auth.uid).val() === true)"
     },
     "amirat2_logs": {
-      ".read": "auth != null && auth.token.email.matches(/^u[123]@amirat2-delivery[.]app$/)",
-      ".write": "auth != null && auth.token.email.matches(/^u[123]@amirat2-delivery[.]app$/)"
+      ".read": "auth != null && (auth.uid === 'PsrknBOyOxUU3PM0xqXZvBhRaul1' || root.child('amirat2_acl').child(auth.uid).val() === true)",
+      ".write": "auth != null && (auth.uid === 'PsrknBOyOxUU3PM0xqXZvBhRaul1' || root.child('amirat2_acl').child(auth.uid).val() === true)"
+    },
+    "amirat2_backups": {
+      ".read": "auth != null && (auth.uid === 'PsrknBOyOxUU3PM0xqXZvBhRaul1' || root.child('amirat2_acl').child(auth.uid).val() === true)",
+      ".write": "auth != null && (auth.uid === 'PsrknBOyOxUU3PM0xqXZvBhRaul1' || root.child('amirat2_acl').child(auth.uid).val() === true)"
+    },
+    "amirat2_acl": {
+      ".read": "auth != null && auth.uid === 'PsrknBOyOxUU3PM0xqXZvBhRaul1'",
+      ".write": "auth != null && auth.uid === 'PsrknBOyOxUU3PM0xqXZvBhRaul1'"
     }
   }
 }
