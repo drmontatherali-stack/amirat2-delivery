@@ -1,0 +1,14 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "amirat2": {
+      ".read": "auth != null && auth.token.email.matches(/^u[123]@amirat2-delivery[.]app$/)",
+      ".write": "auth != null && auth.token.email.matches(/^u[123]@amirat2-delivery[.]app$/)"
+    },
+    "amirat2_logs": {
+      ".read": "auth != null && auth.token.email.matches(/^u[123]@amirat2-delivery[.]app$/)",
+      ".write": "auth != null && auth.token.email.matches(/^u[123]@amirat2-delivery[.]app$/)"
+    }
+  }
+}

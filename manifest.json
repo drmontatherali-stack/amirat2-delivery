@@ -1,0 +1,17 @@
+{
+  "name": "مجمع الأميرات 2 - مكتب التسليم الفني",
+  "short_name": "مكتب التسليم",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#1E1A4D",
+  "theme_color": "#1E1A4D",
+  "lang": "ar",
+  "dir": "rtl",
+  "id": "./index.html",
+  "icons": [
+    { "src": "icon-192.webp", "sizes": "192x192", "type": "image/webp", "purpose": "any" },
+    { "src": "icon-512.webp", "sizes": "512x512", "type": "image/webp", "purpose": "any" }
+  ]
+}
