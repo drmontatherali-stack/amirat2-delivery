@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="مكتب التسليم">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Readex+Pro:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Readex+Pro:wght@500;600;700&family=Reem+Kufi:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#F4F3FA; --card:#FFFFFF; --ink:#19173A; --muted:#5B5878; --line:#E4E2F0; --soft:#F1F0F8; --soft2:#F7F6FC;
@@ -139,37 +139,56 @@ dl.kv dd{margin:0;font-size:15px;font-weight:600;unicode-bidi:plaintext}
 .chip.net{height:28px;padding:0 10px;font-size:11.5px;gap:5px}
 .chip.net .dot{width:7px;height:7px}
 /* ---------- الشبكة الرئيسية ---------- */
-.hub{position:relative;width:100%;height:var(--hubh,640px);overflow:hidden;border-radius:28px;background:radial-gradient(ellipse at 50% 50%,color-mix(in srgb,var(--brand) 13%,transparent),transparent 62%)}
-.hub svg.web{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
-.hub svg.web line{stroke:color-mix(in srgb,var(--brand) 38%,transparent);stroke-width:1.6;stroke-linecap:round}
-.hub svg.web line.ring{stroke:color-mix(in srgb,var(--gold) 55%,transparent);stroke-dasharray:3 7;stroke-width:1.3}
-.hub svg.web line.x{stroke:color-mix(in srgb,var(--brand) 16%,transparent);stroke-width:1}
+/* ---------- الشبكة الرئيسية: مسرح ليلي بخطوط ذهبية (نجمة ثمانية) ---------- */
+#app.hubmode{background:#0D0B22}
+#app.hubmode #topbar{background:transparent;border-bottom-color:rgba(201,162,75,.16);backdrop-filter:none;-webkit-backdrop-filter:none;color:#F6F1E3}
+#app.hubmode #topbar h1{font-family:'Reem Kufi','Readex Pro',sans-serif;font-weight:600;letter-spacing:0}
+#app.hubmode #topbar h1 small{color:#A7A2CF}
+#app.hubmode .iconbtn,#app.hubmode #topbar .chip{background:rgba(255,255,255,.03);border-color:rgba(201,162,75,.3);color:#F6F1E3}
+#app.hubmode .credit{color:#A7A2CF}#app.hubmode .credit b{color:#E9D49A}
+#app.hubmode #view{padding:0;max-width:none}
+.hub{position:relative;width:100%;height:var(--hubh,640px);overflow:hidden;color:#F6F1E3;
+  background:radial-gradient(circle at 50% 50%,rgba(201,162,75,.12),transparent 38%),radial-gradient(ellipse 90% 70% at 50% 115%,rgba(59,47,143,.6),transparent 70%),#0D0B22}
+.hub svg.web{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.hub .web .orbit{fill:none;stroke:rgba(201,162,75,.42);stroke-width:1}
+.hub .web .orbit.o2{stroke:rgba(201,162,75,.16);stroke-dasharray:1 7;stroke-linecap:round;stroke-width:1.6}
+.hub .web .orbit.o3{stroke:rgba(201,162,75,.10)}
+.hub .web .star{fill:none;stroke:rgba(201,162,75,.6);stroke-width:1.1;stroke-linejoin:round}
+.hub .web .star.s2{stroke:rgba(201,162,75,.22)}
+.hub .web .spoke{stroke:rgba(233,212,154,.16);stroke-width:1}
 .hub .core,.hub .node{position:absolute;transform:translate(-50%,-50%);border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
-.hub .core{background:radial-gradient(circle at 35% 28%,#fff 0,#fff 46%,#EDEAFB 100%);color:#1E1A4D;box-shadow:0 0 0 10px color-mix(in srgb,var(--brand) 12%,transparent),0 0 0 22px color-mix(in srgb,var(--brand) 6%,transparent),0 18px 60px -10px color-mix(in srgb,var(--brand) 60%,transparent);gap:4px;z-index:2}
-.hub .core img{width:46%;height:auto}
-.hub .core b{font-family:'Readex Pro',sans-serif;font-size:calc(17px*var(--k));line-height:1.2}
-.hub .core small{font-size:calc(12px*var(--k));color:#5B5878}
-.hub .node{border:0;background:var(--card);color:var(--ink);box-shadow:0 0 0 1px var(--line),0 14px 34px -14px rgba(25,23,58,.45);gap:3px;padding:6px;z-index:3;cursor:pointer;transition:transform .2s ease,box-shadow .2s ease}
-.hub .node svg{width:calc(28px*var(--k));height:calc(28px*var(--k));color:var(--brand)}
-.hub .node .l{font-weight:700;font-size:calc(14px*var(--k));line-height:1.25}
-.hub .node .c{font-size:calc(11.5px*var(--k));color:var(--muted)}
-.hub .node.p{background:linear-gradient(150deg,var(--brand),#1E1A4D);color:#fff;box-shadow:0 0 0 4px color-mix(in srgb,var(--brand) 20%,transparent),0 18px 40px -14px color-mix(in srgb,var(--brand) 80%,transparent)}
-.hub .node.p svg{color:#fff}.hub .node.p .c{color:#D9D6F2}
-.hub .node:hover,.hub .node:focus-visible{transform:translate(-50%,-50%) scale(1.07)}
-.hub .node .bdg{position:absolute;top:4%;inset-inline-end:4%;background:var(--notready);color:#fff;font-size:12px;font-weight:700;min-width:24px;height:24px;border-radius:99px;display:flex;align-items:center;justify-content:center;padding:0 6px;box-shadow:0 0 0 3px var(--bg)}
-.hub.anim .node{animation:hubIn .75s cubic-bezier(.2,.9,.25,1.15) backwards}
-.hub.anim .core{animation:coreIn .6s ease-out backwards}
-.hub.anim svg.web line{stroke-dasharray:var(--len) var(--len);stroke-dashoffset:var(--len);animation:draw .9s ease-out .25s forwards}
-.hub.anim svg.web line.ring{animation:fadeIn .8s ease-out .7s backwards;stroke-dashoffset:0}
-@keyframes hubIn{from{left:var(--cx);top:var(--cy);opacity:0;filter:blur(10px);transform:translate(-50%,-50%) scale(.25)}}
-@keyframes coreIn{from{opacity:0;filter:blur(12px);transform:translate(-50%,-50%) scale(.6)}}
+.hub .core{z-index:2;gap:calc(6px*var(--k));background:radial-gradient(circle at 50% 35%,#272161 0,#15123A 62%,#0F0D2A 100%);
+  box-shadow:0 0 0 1px rgba(201,162,75,.75),0 0 0 9px #0D0B22,0 0 0 10px rgba(201,162,75,.35),0 0 90px 10px rgba(201,162,75,.16)}
+.hub .core .seal{width:38%;aspect-ratio:1;border-radius:50%;background:#FBF8EF;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 1px rgba(201,162,75,.8),0 0 0 4px #15123A,0 0 0 5px rgba(201,162,75,.4)}
+.hub .core .seal{overflow:hidden}.hub .core .seal img{width:86%;height:86%;object-fit:contain;border-radius:50%}
+@media (max-width:560px){.hub .node .c{display:none}.hub .gear{bottom:12px;inset-inline-start:12px}}
+.hub .core b{font-family:'Reem Kufi','Readex Pro',sans-serif;font-weight:600;font-size:calc(25px*var(--k));line-height:1.15;color:#F6F1E3}
+.hub .core small{font-size:calc(14px*var(--k));color:#E9D49A;letter-spacing:.2px}
+.hub .node{z-index:3;border:1px solid rgba(201,162,75,.6);color:#F6F1E3;cursor:pointer;gap:calc(5px*var(--k));padding:0;
+  background:radial-gradient(circle at 50% 28%,#241F57 0,#141136 70%);
+  box-shadow:inset 0 0 0 calc(5px*var(--k)) #141136,inset 0 0 0 calc(6px*var(--k)) rgba(201,162,75,.25),0 16px 34px -16px #000;
+  transition:box-shadow .25s ease,border-color .25s ease,transform .25s ease}
+.hub .node svg{width:calc(26px*var(--k));height:calc(26px*var(--k));color:#E9D49A;stroke-width:1.6}
+.hub .node .l{font-family:'Reem Kufi','Readex Pro',sans-serif;font-weight:600;font-size:calc(15px*var(--k));line-height:1.2}
+.hub .node .c{font-size:calc(11.5px*var(--k));color:#A7A2CF;line-height:1.2}
+.hub .node:hover,.hub .node:focus-visible{outline:none;border-color:#E9D49A;transform:translate(-50%,-50%) scale(1.05);
+  box-shadow:inset 0 0 0 calc(5px*var(--k)) #141136,inset 0 0 0 calc(6px*var(--k)) rgba(233,212,154,.5),0 0 40px -6px rgba(201,162,75,.55)}
+.hub .node .bdg{position:absolute;top:2%;inset-inline-end:2%;background:#A3203A;color:#FFF7F0;font-size:calc(12px*var(--k));font-weight:700;min-width:calc(24px*var(--k));height:calc(24px*var(--k));border-radius:99px;display:flex;align-items:center;justify-content:center;padding:0 6px;box-shadow:0 0 0 2px #0D0B22,0 0 0 3px rgba(201,162,75,.6)}
+.hub .gear{position:absolute;bottom:18px;inset-inline-start:22px;z-index:4;display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px;border-radius:99px;border:1px solid rgba(201,162,75,.35);background:rgba(255,255,255,.03);color:#E9D49A;font-size:13.5px}
+.hub .gear svg{width:18px;height:18px}
+.hub.anim .node{animation:hubIn .85s cubic-bezier(.2,.85,.25,1.08) backwards}
+.hub.anim .core{animation:coreIn .7s ease-out backwards}
+.hub.anim .web .star,.hub.anim .web .orbit{stroke-dasharray:var(--len) var(--len);stroke-dashoffset:var(--len);animation:draw 1.4s cubic-bezier(.6,0,.2,1) .35s forwards}
+.hub.anim .web .orbit.o2,.hub.anim .web .spoke{animation:fadeIn 1s ease-out .9s backwards}
+@keyframes hubIn{from{left:var(--cx);top:var(--cy);opacity:0;filter:blur(12px);transform:translate(-50%,-50%) scale(.3)}}
+@keyframes coreIn{from{opacity:0;filter:blur(14px);transform:translate(-50%,-50%) scale(.7)}}
 @keyframes draw{to{stroke-dashoffset:0}}
 @keyframes fadeIn{from{opacity:0}}
-.hub.leaving .node:not(.go),.hub.leaving .core,.hub.leaving svg{transition:opacity .3s,filter .3s;opacity:0;filter:blur(8px)}
+.hub.leaving .node:not(.go),.hub.leaving .core,.hub.leaving svg,.hub.leaving .gear{transition:opacity .3s,filter .3s;opacity:0;filter:blur(8px)}
 .hub .node.go{transition:transform .38s cubic-bezier(.5,0,.7,.4),opacity .38s,filter .38s;transform:translate(-50%,-50%) scale(5);opacity:0;filter:blur(6px);z-index:9}
 #view.enter{animation:viewIn .35s ease-out}
 @keyframes viewIn{from{opacity:0;filter:blur(6px);transform:scale(.97)}}
-@media (prefers-reduced-motion:reduce){.hub.anim .node,.hub.anim .core,.hub.anim svg.web line,#view.enter{animation:none!important}.hub .node.go{transition:none}}
+@media (prefers-reduced-motion:reduce){.hub.anim .node,.hub.anim .core,.hub.anim .web *,#view.enter{animation:none!important}.hub .node.go{transition:none}}
 .bars{display:flex;align-items:flex-end;gap:10px;height:190px;border-bottom:1px solid var(--line);padding-top:16px}
 .bars .b{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;height:100%;border:0;background:transparent;padding:0;min-width:0}
 .bars .b span{font-size:12px;font-weight:700}
@@ -298,7 +317,7 @@ details.sec>.in{padding:0 14px 14px}
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="config.js"></script>
-<script src="app.js"></script>
+<script src="config.js?v=1.3.1"></script>
+<script src="app.js?v=1.3.1"></script>
 </body>
 </html>
