@@ -114,7 +114,7 @@ function ico(name, size) { return '<svg width="' + (size || 20) + '" height="' +
 /* ================= الحالة ================= */
 var S = {
   user: lsGet('a2_user', null),
-  view: lsGet('a2_view', 'search'),
+  view: (function (v) { return v === 'review' ? 'search' : v; })(lsGet('a2_view', 'search')),
   online: false, remoteReady: false,
   db: lsGet('a2_dbcache', null) || {},
   wsAll: lsGet('a2_ws', []), wsLast: lsGet('a2_wsLast', ''), wsErr: '',
@@ -779,7 +779,7 @@ function renderAll() {
 }
 var NAV = [
   ['search', 'بحث سريع'], ['dash', 'لوحة المؤشرات'], ['ws', 'قيد التسليم (الأبراج)'], ['today', 'التنبيهات'],
-  ['review', 'مسلّمة ومراجع عليها'], ['delivered', 'الدور المسلّمة'], ['weekly', 'الموقف الأسبوعي'], ['annual', 'الجرد السنوي'],
+  ['delivered', 'الدور المسلّمة'], ['weekly', 'الموقف الأسبوعي'], ['annual', 'الجرد السنوي'],
   ['agenda', 'جدول الأعمال'], ['settings', 'الإعدادات']
 ];
 function renderRail() {
@@ -792,7 +792,7 @@ function renderRail() {
       return '<button class="navbtn' + (S.view === x[0] ? ' on' : '') + '" data-act="go" data-v="' + x[0] + '" title="' + esc(x[1]) + '">' + ico(x[0] === 'ws' ? 'ws' : x[0], 22) + '<span class="lbl">' + esc(x[1]) + '</span>' + b + '</button>';
     }).join('') + '</nav><div class="foot">' + (rail.classList.contains('open') ? 'Design by: Montather Ali' : 'MA') + '</div>';
 }
-var TITLES = { search: 'ابحث عن دار', dash: 'لوحة المؤشرات', ws: 'قيد التسليم', today: 'التنبيهات وشغل اليوم', review: 'دور مسلّمة ومراجع عليها', delivered: 'الدور المسلّمة', weekly: 'الموقف الأسبوعي للمقاولين', annual: 'الجرد السنوي', agenda: 'جدول الأعمال', settings: 'الإعدادات' };
+var TITLES = { search: 'ابحث عن دار', dash: 'لوحة المؤشرات', ws: 'قيد التسليم', today: 'التنبيهات وشغل اليوم', delivered: 'الدور المسلّمة', weekly: 'الموقف الأسبوعي للمقاولين', annual: 'الجرد السنوي', agenda: 'جدول الأعمال', settings: 'الإعدادات' };
 function renderTop() {
   var top = document.getElementById('topbar'); if (!S.user) return;
   var n = alertBadgeCount();
@@ -1043,28 +1043,6 @@ VIEWS.today = function () {
     al('a3', '📋 قيد التسليم — لم يحن الموعد', 'باقي عليها أيام', 'var(--info)', 'p-info', A.wsNotDue)
   ];
   return tilesHTML('today', defs) + (panelHTML('today', defs) || '<div class="card empty">اضغط أي مربع حتى تطلع تفاصيله.</div>');
-};
-
-/* ----- عرض: مسلّمة ومراجع عليها ----- */
-VIEWS.review = function () {
-  var q = normH(arDigits(S.rvQ));
-  var all = oldRecs().filter(function (r) { return !q || normH(r.houseNo).indexOf(q) >= 0 || normH(r.contractorName || '').indexOf(q) >= 0; });
-  function srt(l) { var a = l.slice(), m = S.rvSort; if (m === 'execution') a.sort(function (x, y) { return cell(x.executionType).localeCompare(cell(y.executionType), 'ar'); }); else if (m === 'contractor') a.sort(function (x, y) { return cell(x.contractorName).localeCompare(cell(y.contractorName), 'ar'); }); else if (m === 'sector') a.sort(function (x, y) { return cell(x.sectorNo).localeCompare(cell(y.sectorNo), 'ar'); }); return a; }
-  var delivered = srt(all.filter(isDeliveredRec)), openN = all.filter(function (r) { return !isDeliveredRec(r); }).length;
-  var h = '<div class="card" style="padding:14px 16px"><div class="row"><input class="inp" id="rvq" type="search" data-in="rvq" value="' + esc(S.rvQ) + '" placeholder="ابحث برقم الدار أو المقاول" style="flex:1 1 260px">' +
-    '<select class="inp" data-in="rvSort" aria-label="فرز">' + [['default', 'الترتيب الافتراضي'], ['execution', 'نوع التنفيذ'], ['sector', 'القطاع'], ['contractor', 'المقاول']].map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === S.rvSort ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' +
-    '<button class="btn wa" data-act="exportReviews">' + ico('xls', 16) + ' تصدير المراجعات Excel</button></div>' +
-    '<div class="muted" style="font-size:13px;margin-top:10px">الدور قيد التسليم والمراجع عليها (' + openN + ') تفاصيلها تطلع بالبحث السريع وبالتنبيهات.</div></div>';
-  if (!delivered.length) return h + '<div class="card empty">لا توجد دور مسلّمة ومراجع عليها حالياً.</div>';
-  h += '<div class="card" style="padding:0"><h2 style="padding:16px 18px 0">📦 دور مسلّمة ومراجع عليها <small>' + delivered.length + '</small></h2><div class="scroll" style="border:0;border-top:1px solid var(--line);border-radius:0 0 18px 18px;max-height:calc(100vh - 300px)"><table class="tbl"><thead><tr><th>ت</th><th>رقم البلوك والدار</th><th>حالة الدار</th><th>التنفيذ</th><th>المقاول</th><th>تاريخ التسليم</th><th>تاريخ المراجعة</th><th>انتهاء الملاحظات</th><th>الملاحظات</th><th>مرات المراجعة</th><th>✅ الملاحظات</th><th>إجراءات</th><th>الحالة</th></tr></thead><tbody>' +
-    delivered.map(function (rec, i) {
-      var rounds = rvRounds(rec), st = rvStatus(rec);
-      return '<tr><td>' + (i + 1) + '</td><td><button class="btn sm" style="font-weight:700" data-act="house" data-h="' + esc(rec.houseNo) + '"><span class="ltr">' + esc(rec.houseNo) + '</span></button></td><td><span class="pill p-ok">✅ مسلّمة</span></td><td>' + esc(rec.executionType || '-') + '</td><td>' + esc(rec.contractorName || '-') + '</td>' +
-        '<td style="white-space:nowrap">' + esc(rvDeliveredDate(rec) || '-') + adminPill(rvDeliveredDate(rec)) + '</td><td style="white-space:nowrap">' + rounds.map(function (x) { return esc(x.reviewDate || '-'); }).join('<br>') + '</td><td style="white-space:nowrap">' + rounds.map(function (x) { return esc(x.completionDate || '-'); }).join('<br>') + '</td>' +
-        '<td style="max-width:260px;white-space:pre-wrap;unicode-bidi:plaintext;font-size:13px">' + esc(stripBidi(rec.notes || '-')) + '</td><td style="text-align:center"><b>' + rounds.length + '</b></td><td>' + notesBtn(rec).replace('class="btn', 'class="btn sm') + '</td>' +
-        '<td style="white-space:nowrap"><button class="btn sm" data-act="editRec" data-id="' + rec.id + '" title="تعديل">✏️</button> <button class="btn sm" data-act="newRound" data-id="' + rec.id + '" title="إضافة مراجعة جديدة">🔁</button> <button class="btn sm danger" data-act="delRec" data-id="' + rec.id + '" title="حذف">🗑️</button></td><td><span class="pill ' + st.c + '">' + esc(st.t) + '</span></td></tr>';
-    }).join('') + '</tbody></table></div></div>';
-  return h;
 };
 
 /* ----- عرض: الدور المسلّمة ----- */
