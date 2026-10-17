@@ -24,7 +24,7 @@ var USERS = [
 var DEFAULT_CONTRACTORS = ['أحمد عواد', 'عادل عرار', 'محمد عرار', 'جاسم زراك', 'دياري كريم', 'علي الكوفي', 'علي هويدي', 'علي محمد حسين', 'طه عبد الله', 'اكام بهاء', 'ثامر عطار', 'سمير حنون', 'عمر بولات', 'اسعد هادي', 'اوات جمال', 'يوسف حسن'];
 var AR_MONTHS = ['', 'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 var AR_MONTHS_SHORT = ['', 'كانون٢', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران', 'تموز', 'آب', 'أيلول', 'تشرين١', 'تشرين٢', 'كانون١'];
-var VERSION = '1.3.1';
+var VERSION = '1.4.0';
 var ADMIN_UID = 'PsrknBOyOxUU3PM0xqXZvBhRaul1'; // حساب منتظر علي (مدير النظام)
 var BAKROOT = 'amirat2_logs/backups'; // داخل مسار مسموح بقواعد قاعدة البيانات الحالية
 var ACLROOT = 'amirat2_acl';
@@ -922,34 +922,66 @@ function noticesHTML() {
   }
   return h;
 }
-/* ----- الشبكة الرئيسية: أول ما ينفتح التطبيق — 8 أقسام متساوية على مدار واحد ويربطها نجمة ثمانية ----- */
+/* ----- الشبكة الرئيسية (مستقبلية): 8 أقسام متساوية على مدار واحد، نواة أكبر، حلقات تقدّم، نبض، شرارات تسري ----- */
 var HUB = ['search', 'today', 'ws', 'delivered', 'dash', 'weekly', 'annual', 'agenda'];
 var HUB_LBL = { search: 'البحث السريع', dash: 'لوحة المؤشرات', ws: 'قيد التسليم', today: 'التنبيهات', delivered: 'الدور المسلّمة', weekly: 'موقف المقاولين', annual: 'الجرد السنوي', agenda: 'جدول الأعمال' };
+function hubStats() {
+  var ws = wsUnits(), wsN = ws.length, rdy = ws.filter(function (u) { return isReady(u.unit); }).length, al = alertBadgeCount();
+  var A = computeAlerts(), cwT = 0, cwD = 0; (S.cw || []).forEach(function (r) { cwT += Number(r.total) || 0; cwD += Number(r.delivered) || 0; });
+  var dn = S.del.length, nowY = new Date().getFullYear(), yN = S.del.filter(function (x) { return String(x.date || '').indexOf(String(nowY)) === 0; }).length;
+  var today = todayStr(), mv = 0; try { mv = (Array.isArray(S.agenda) ? S.agenda : []).filter(function (x) { return x.date === today; }).length; } catch (e) {}
+  return {
+    search: { c: 'ابحث عن أي دار', p: null },
+    today: { c: al ? al + ' متجاوزة' : 'ماكو متجاوز', p: wsN ? (A.wsOverdue10.length / wsN) : 0, alert: al > 0 },
+    ws: { c: wsN + ' دار', p: wsN ? rdy / wsN : 0 },
+    delivered: { c: dn + ' دار', p: cwT ? cwD / cwT : null },
+    dash: { c: wsN ? 'جاهزة ' + Math.round(rdy * 100 / wsN) + '٪' : '—', p: wsN ? rdy / wsN : 0 },
+    weekly: { c: cwT ? 'منجز ' + Math.round(cwD * 100 / cwT) + '٪' : 'حسب المقاول', p: cwT ? cwD / cwT : null },
+    annual: { c: yN + ' دار بـ' + nowY, p: null },
+    agenda: { c: mv ? mv + ' حركة اليوم' : 'حركات اليوم', p: null }
+  };
+}
 VIEWS.hub = function () {
   var tb = document.getElementById('topbar');
   var W = Math.max(300, document.documentElement.clientWidth);
   var H = Math.max(460, window.innerHeight - (tb ? tb.offsetHeight : 64));
-  var R = Math.min((W / 2 - 12) / 1.28, (H / 2 - 26) / 1.28, 320), k = Math.max(0.5, Math.min(1.25, R / 250));
+  var R = Math.min((W / 2 - 14) / 1.3, (H / 2 - 28) / 1.3, 320), k = Math.max(0.5, Math.min(1.25, R / 250));
   var cx = W / 2, cy = H / 2 - 6, d = R * 0.56, dC = R * 0.98;
-  var wsN = wsUnits().length, rdy = wsUnits().filter(function (u) { return isReady(u.unit); }).length, al = alertBadgeCount();
-  var cnt = { search: noticeCount(), today: al };
-  var sub = { search: 'ابحث عن أي دار', today: al ? al + ' متجاوزة' : 'ماكو متجاوز', ws: wsN + ' دار', delivered: S.del.length + ' دار', dash: wsN ? 'جاهزة ' + Math.round(rdy * 100 / wsN) + '٪' : '—', weekly: 'حسب المقاول', annual: 'حسب الأشهر', agenda: 'حركات اليوم' };
-  var pts = HUB.map(function (v, i) { var a = -Math.PI / 2 + i * Math.PI / 4; return { v: v, x: cx + R * Math.cos(a), y: cy + R * Math.sin(a) }; });
-  function poly(step, cls) { var ps = [], i = 0, n = 0; do { ps.push(pts[i].x.toFixed(1) + ',' + pts[i].y.toFixed(1)); i = (i + step) % 8; n++; } while (i !== 0 && n < 9); var L = 0; for (var q = 0; q < ps.length; q++) { var A = ps[q].split(','), B = ps[(q + 1) % ps.length].split(','); L += Math.hypot(B[0] - A[0], B[1] - A[1]); } return '<polygon class="' + cls + '" points="' + ps.join(' ') + '" style="--len:' + Math.round(L) + '"/>'; }
-  function circ(r, cls) { return '<circle class="orbit ' + cls + '" cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + r.toFixed(1) + '" style="--len:' + Math.round(2 * Math.PI * r) + '"/>'; }
-  var web = circ(R, '') + circ(R * 1.32, 'o2') + circ(dC / 2 + R * 0.12, 'o3') + poly(3, 'star') + poly(2, 'star s2') +
-    pts.map(function (p) { return '<line class="spoke" x1="' + cx.toFixed(1) + '" y1="' + cy.toFixed(1) + '" x2="' + p.x.toFixed(1) + '" y2="' + p.y.toFixed(1) + '"/>'; }).join('');
+  var st = hubStats(), cnt = { search: noticeCount(), today: alertBadgeCount() };
+  var pts = HUB.map(function (v, i) { var a = -Math.PI / 2 + i * Math.PI / 4; return { v: v, i: i, x: cx + R * Math.cos(a), y: cy + R * Math.sin(a), a: a }; });
+  function f(n) { return n.toFixed(1); }
+  function poly(step, cls) { var ps = [], i = 0, n = 0, L = 0; do { ps.push(pts[i]); i = (i + step) % 8; n++; } while (i !== 0 && n < 9); for (var q = 0; q < ps.length; q++) { var A = ps[q], B = ps[(q + 1) % ps.length]; L += Math.hypot(B.x - A.x, B.y - A.y); } return '<polygon class="' + cls + '" points="' + ps.map(function (p) { return f(p.x) + ',' + f(p.y); }).join(' ') + '" style="--len:' + Math.round(L) + '"/>'; }
+  function circ(r, cls) { return '<circle class="orbit ' + cls + '" cx="' + f(cx) + '" cy="' + f(cy) + '" r="' + f(r) + '" style="--len:' + Math.round(2 * Math.PI * r) + '"/>'; }
+  var ticks = ''; for (var t = 0; t < 48; t++) { var ta = t * Math.PI / 24, r1 = R * 1.3, r2 = R * (t % 6 ? 1.33 : 1.38); ticks += '<line class="tick" x1="' + f(cx + r1 * Math.cos(ta)) + '" y1="' + f(cy + r1 * Math.sin(ta)) + '" x2="' + f(cx + r2 * Math.cos(ta)) + '" y2="' + f(cy + r2 * Math.sin(ta)) + '"/>'; }
+  var sparks = pts.map(function (p, i) { var bg = (1.6 + i * 0.45).toFixed(2); return '<circle class="spark" opacity="0" r="' + f(2.2 * k) + '"><set attributeName="opacity" to="1" begin="' + bg + 's"/><animateMotion dur="' + (3.2 + (i % 3) * 0.6).toFixed(1) + 's" begin="' + (1.6 + i * 0.45).toFixed(2) + 's" repeatCount="indefinite" path="M' + f(cx) + ',' + f(cy) + ' L' + f(p.x) + ',' + f(p.y) + '"/></circle>'; }).join('');
+  var web = '<defs><linearGradient id="hg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4FD8E8"/><stop offset=".55" stop-color="#8E7CFF"/><stop offset="1" stop-color="#E2C47A"/></linearGradient>' +
+    '<linearGradient id="ag" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4FD8E8"/><stop offset="1" stop-color="#8E7CFF"/></linearGradient></defs>' +
+    circ(R, '') + circ(R * 1.3, 'o2') + circ(dC / 2 + R * 0.12, 'o3') + ticks + poly(3, 'star') + poly(2, 'star s2') +
+    pts.map(function (p) { return '<line class="spoke" data-i="' + p.v + '" x1="' + f(cx) + '" y1="' + f(cy) + '" x2="' + f(p.x) + '" y2="' + f(p.y) + '"/>'; }).join('') + sparks;
+  var rr = d / 2 - 2, full = 2 * Math.PI * rr;
   var nodes = pts.map(function (p, i) {
-    var c = cnt[p.v] || 0;
-    return '<button class="node" data-act="hubGo" data-v="' + p.v + '" style="left:' + p.x.toFixed(1) + 'px;top:' + p.y.toFixed(1) + 'px;width:' + d.toFixed(0) + 'px;height:' + d.toFixed(0) + 'px;animation-delay:' + (0.15 + i * 0.07).toFixed(2) + 's">' +
-      ico(p.v) + '<span class="l">' + esc(HUB_LBL[p.v]) + '</span><span class="c">' + esc(sub[p.v]) + '</span>' + (c ? '<span class="bdg">' + c + '</span>' : '') + '</button>';
+    var s2 = st[p.v] || {}, c = cnt[p.v] || 0, pc = s2.p == null ? null : Math.max(0, Math.min(1, s2.p));
+    var ring = '<svg class="rg" viewBox="0 0 ' + f(d) + ' ' + f(d) + '" aria-hidden="true"><circle class="trk" cx="' + f(d / 2) + '" cy="' + f(d / 2) + '" r="' + f(rr) + '"/>' +
+      (pc == null ? '' : '<circle class="arc" cx="' + f(d / 2) + '" cy="' + f(d / 2) + '" r="' + f(rr) + '" style="--full:' + full.toFixed(1) + ';stroke-dasharray:' + full.toFixed(1) + ';stroke-dashoffset:' + (full * (1 - pc)).toFixed(1) + '"/>') + '</svg>';
+    return '<button class="node' + (s2.alert ? ' alert' : '') + (S.hubFrom === p.v ? ' from' : '') + '" data-act="hubGo" data-v="' + p.v + '" style="left:' + f(p.x) + 'px;top:' + f(p.y) + 'px;width:' + d.toFixed(0) + 'px;height:' + d.toFixed(0) + 'px;animation-delay:' + (0.15 + i * 0.07).toFixed(2) + 's;--bd:' + (i * 0.5).toFixed(1) + 's">' + ring +
+      ico(p.v).replace('<svg ', '<svg class="i" ') + '<span class="l">' + esc(HUB_LBL[p.v]) + '</span><span class="c">' + esc(s2.c || '') + '</span>' + (c ? '<span class="bdg">' + c + '</span>' : '') + '</button>';
   }).join('');
-  var anim = S.hubAnim; if (anim) { S.hubAnim = false; S.hubBusyUntil = Date.now() + 1700; }
-  return '<div class="hub' + (anim ? ' anim' : '') + '" style="--hubh:' + H + 'px;--k:' + k.toFixed(3) + ';--cx:' + cx.toFixed(1) + 'px;--cy:' + cy.toFixed(1) + 'px">' +
+  var anim = S.hubAnim, back = !anim && S.hubFrom; if (anim) { S.hubAnim = false; S.hubBusyUntil = Date.now() + 1700; } if (back) S.hubBusyUntil = Date.now() + 600; S.hubFrom = null;
+  if (anim || back) setTimeout(function () { var h = document.querySelector('.hub'); if (h) h.classList.remove('anim', 'back'); }, anim ? 1650 : 550); // بعد الحركة: تمتلئ حلقات التقدّم
+  return '<div class="hub' + (anim ? ' anim' : (back ? ' back' : '')) + '" style="--hubh:' + H + 'px;--k:' + k.toFixed(3) + ';--cx:' + f(cx) + 'px;--cy:' + f(cy) + 'px;--R:' + f(R) + 'px">' +
     '<svg class="web" aria-hidden="true">' + web + '</svg>' +
-    '<div class="core" style="left:' + cx.toFixed(1) + 'px;top:' + cy.toFixed(1) + 'px;width:' + dC.toFixed(0) + 'px;height:' + dC.toFixed(0) + 'px"><span class="seal"><img src="icon-192.webp" alt=""></span><b>مجمع الأميرات 2</b><small>مكتب التسليم الفني</small></div>' +
+    '<div class="core" style="left:' + f(cx) + 'px;top:' + f(cy) + 'px;width:' + dC.toFixed(0) + 'px;height:' + dC.toFixed(0) + 'px"><span class="seal"><img src="icon-192.webp" alt=""></span><b>مجمع الأميرات 2</b><small>مكتب التسليم الفني</small></div>' +
     nodes + '<button class="gear" data-act="go" data-v="settings">' + ico('settings') + 'الإعدادات</button></div>';
 };
+// لمسة على دائرة: يتضوّى طريقها للمركز
+document.addEventListener('pointerover', function (e) { var n = e.target.closest && e.target.closest('.hub .node'); hubHot(n); });
+document.addEventListener('pointerdown', function (e) { var n = e.target.closest && e.target.closest('.hub .node'); hubHot(n); });
+document.addEventListener('pointerout', function (e) { if (e.target.closest && e.target.closest('.hub .node') && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.hub .node'))) hubHot(null); });
+function hubHot(n) {
+  var hub = document.querySelector('.hub'); if (!hub) return;
+  hub.querySelectorAll('.spoke.hot').forEach(function (x) { x.classList.remove('hot'); });
+  if (n) { var sp = hub.querySelector('.spoke[data-i="' + n.dataset.v + '"]'); if (sp) sp.classList.add('hot'); hub.classList.add('focus'); } else hub.classList.remove('focus');
+}
 window.addEventListener('resize', function () { if (S.view === 'hub') scheduleRender(); });
 
 /* ----- المربعات: الضغط على أي مربع يعرض دوره بس ----- */
@@ -1325,12 +1357,17 @@ var ACT = {
   hubGo: function (d, el) {
     var hub = el.closest('.hub'), rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (!hub || rm) { ACT.go(d); return; }
-    hub.classList.add('leaving'); el.classList.add('go');
-    setTimeout(function () { ACT.go(d); }, 330);
+    hubHot(el);
+    setTimeout(function () { hub.classList.add('leaving'); el.classList.add('go'); }, 120);
+    setTimeout(function () { ACT.go(d); }, 450);
   },
-  go: function (d) { if (d.v === 'hub') S.hubAnim = true; S.view = d.v; lsSet('a2_view', d.v); document.getElementById('rail').classList.remove('open'); closeModal(); scheduleRender(); window.scrollTo(0, 0); },
+  go: function (d) {
+    var rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches, vw = document.getElementById('view');
+    if (d.v === 'hub' && S.view !== 'hub' && !d._x && !rm) { S.hubFrom = S.view; vw.classList.remove('enter'); vw.classList.add('exit'); setTimeout(function () { vw.classList.remove('exit'); ACT.go({ v: 'hub', _x: 1 }); }, 240); return; }
+    if (d.v === 'hub' && S.view !== 'hub' && rm) S.hubFrom = null;
+    S.view = d.v; lsSet('a2_view', d.v); document.getElementById('rail').classList.remove('open'); closeModal(); scheduleRender(); window.scrollTo(0, 0); },
   toggleRail: function () { document.getElementById('rail').classList.toggle('open'); renderRail(); },
-  theme: function () { var r = document.documentElement, cur = r.getAttribute('data-theme'); var dark = cur ? cur === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; r.setAttribute('data-theme', dark ? 'light' : 'dark'); lsSet('a2_theme', dark ? 'light' : 'dark'); },
+  theme: function () { var order = ['auto', 'day', 'night'], cur = modePref(), nx = order[(order.indexOf(cur) + 1) % 3]; lsSet('a2_mode', nx); applyMode(); toast(nx === 'auto' ? '🕒 الخلفية تلقائية حسب الوقت' : (nx === 'day' ? '☀️ خلفية النهار' : '🌙 خلفية الليل'), 'info'); },
   logout: function () { confirmBox('👤 تبديل المستخدم؟', 'يرجع لشاشة اختيار الاسم والرمز. الجهاز يبقى مربوط بالسحابة.', function () { lsSet('a2_user', null); location.reload(); }, 'تبديل'); },
   deviceSignOut: function () { confirmBox('🚪 فصل هذا الجهاز عن السحابة؟', 'حتى يرجع يشتغل لازم تكتب كلمة سر السحابة مرة ثانية.' + (OB.length ? ' ⚠️ عندك ' + OB.length + ' تعديل لسه ما انرفع — انتظر يرجع النت أولاً.' : ''), function () { lsSet('a2_user', null); auth.signOut().then(function () { location.reload(); }); }, 'فصل الجهاز', true); },
   syncAll: function () { toast('⏳ جاري التحديث من الشيتات...', 'info'); syncAll(true); },
@@ -1673,11 +1710,30 @@ document.addEventListener('change', function (ev) {
   rd.readAsText(f); ev.target.value = '';
 });
 
+/* ================= الخلفية حسب الوقت + شاشة الافتتاح ================= */
+function modePref() { var p = lsGet('a2_mode', 'auto'); return /^(auto|day|night)$/.test(p) ? p : 'auto'; }
+function applyMode() {
+  var p = modePref(), h = new Date().getHours(), m = p === 'auto' ? (h >= 6 && h < 18 ? 'day' : 'night') : p;
+  var r = document.documentElement; r.removeAttribute('data-theme'); r.setAttribute('data-mode', m);
+  var mt = document.querySelector('meta[name=theme-color]'); if (mt) mt.setAttribute('content', m === 'day' ? '#0E1B3E' : '#060A18');
+}
+function showSplash() {
+  var rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var el = document.createElement('div'); el.id = 'splash'; el.setAttribute('role', 'presentation');
+  el.innerHTML = '<div class="emb"><svg viewBox="0 0 168 168" aria-hidden="true"><defs><linearGradient id="spg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4FD8E8"/><stop offset=".6" stop-color="#8E7CFF"/><stop offset="1" stop-color="#E2C47A"/></linearGradient></defs><circle class="r2" cx="84" cy="84" r="82"/><circle class="r1" cx="84" cy="84" r="80"/></svg><span class="seal"><img src="icon-192.webp" alt=""></span></div><b>مجمع الأميرات 2</b><small>مكتب التسليم الفني</small>';
+  document.body.appendChild(el);
+  var done = false;
+  function finish() { if (done) return; done = true; el.classList.add('out'); S.hubAnim = true; var v = document.getElementById('view'); if (v) v.setAttribute('data-h', ''); S.hubBusyUntil = 0; scheduleRender(); setTimeout(function () { el.remove(); }, 600); }
+  el.addEventListener('click', finish);
+  setTimeout(finish, rm ? 300 : 2100);
+}
+
 /* ================= التشغيل ================= */
 var started = false;
 function start() {
   if (started) return; started = true;
-  S.view = 'hub'; S.hubAnim = true; // كل فتح للتطبيق يبدأ من الشبكة الرئيسية
+  S.view = 'hub'; S.hubAnim = false; // كل فتح للتطبيق يبدأ من الشبكة الرئيسية، بعد شاشة الافتتاح
+  showSplash();
   obReplay();
   listen();
   renderAll();
@@ -1688,7 +1744,7 @@ function start() {
   setTimeout(function () { if (S.remoteReady && !(D().meta && D().meta.importedAt)) { S.view = 'settings'; scheduleRender(); toast('أول تشغيل: انسخ بيانات النظام الحالي من الإعدادات', 'info'); } }, 4000);
 }
 (function boot() {
-  var th = lsGet('a2_theme', null); if (th) document.documentElement.setAttribute('data-theme', th);
+  applyMode(); setInterval(applyMode, 5 * 60 * 1000);
   if (!initFirebase()) { renderLogin(); return; }
   auth.onAuthStateChanged(function (fu) {
     if (started) { if (!fu) location.reload(); return; }
