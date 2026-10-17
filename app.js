@@ -847,7 +847,6 @@ function renderAll() {
   if (S.view === 'hub' && html.replace(/ anim"/, '"') === view.getAttribute('data-h')) return;
   view.setAttribute('data-h', S.view === 'hub' ? html.replace(/ anim"/, '"') : '');
   view.innerHTML = html;
-  document.getElementById('app').classList.toggle('hubmode', S.view === 'hub');
   if (S.lastView !== S.view) { if (S.lastView && S.view !== 'hub') { view.classList.remove('enter'); void view.offsetWidth; view.classList.add('enter'); } S.lastView = S.view; }
   if (aid && wasInView) { var el2 = document.getElementById(aid); if (el2) { el2.focus(); if (ss != null) try { el2.setSelectionRange(ss, se); } catch (e) {} } }
   if (MODAL.house) refreshHouseModal();
@@ -867,13 +866,13 @@ function renderRail() {
       return '<button class="navbtn' + (S.view === x[0] ? ' on' : '') + '" data-act="go" data-v="' + x[0] + '" title="' + esc(x[1]) + '">' + ico(x[0] === 'ws' ? 'ws' : x[0], 22) + '<span class="lbl">' + esc(x[1]) + '</span>' + b + '</button>';
     }).join('') + '</nav><div class="foot">' + (rail.classList.contains('open') ? 'Design by: Montather Ali' : 'MA') + '</div>';
 }
-var TITLES = { hub: '', search: 'ابحث عن دار', dash: 'لوحة المؤشرات', ws: 'قيد التسليم', today: 'التنبيهات وشغل اليوم', delivered: 'الدور المسلّمة', weekly: 'الموقف الأسبوعي للمقاولين', annual: 'الجرد السنوي', agenda: 'جدول الأعمال', settings: 'الإعدادات' };
+var TITLES = { hub: 'مجمع الأميرات 2 — مكتب التسليم الفني', search: 'ابحث عن دار', dash: 'لوحة المؤشرات', ws: 'قيد التسليم', today: 'التنبيهات وشغل اليوم', delivered: 'الدور المسلّمة', weekly: 'الموقف الأسبوعي للمقاولين', annual: 'الجرد السنوي', agenda: 'جدول الأعمال', settings: 'الإعدادات' };
 function renderTop() {
   var top = document.getElementById('topbar'); if (!S.user) return;
   var n = alertBadgeCount();
   var inHub = S.view === 'hub';
   top.innerHTML = (inHub ? '' : '<button class="iconbtn" data-act="go" data-v="hub" aria-label="الرئيسية" title="الرئيسية">' + ico('home') + '</button><button class="iconbtn" data-act="toggleRail" aria-label="كل الأقسام" title="كل الأقسام">' + ico('menu') + '</button>') +
-    '<h1>' + esc(inHub ? 'أهلاً، ' + S.user.name : (TITLES[S.view] || '')) + '<small>' + todayStr() + ' · آخر مزامنة للشيت: ' + esc(S.wsLast || 'لم تتم بعد') + '</small></h1>' +
+    '<h1>' + esc(TITLES[S.view] || '') + '<small>' + todayStr() + ' · آخر مزامنة للشيت: ' + esc(S.wsLast || 'لم تتم بعد') + '</small></h1>' +
     '<span class="chip net' + (S.online ? ' on' : ' off') + '" role="status"><span class="dot' + (S.online ? '' : ' off') + '"></span>' + (S.online ? 'متصل' : 'غير متصل — محفوظ بالجهاز') + '</span>' +
     (OB.length ? '<span class="chip warn" role="status" title="محفوظة بالجهاز وتنرفع تلقائياً">⏫ ' + OB.length + ' تعديل بانتظار الرفع للسحابة</span>' : '') +
     '<span class="credit ltr">✨ Design by: <b>Montather Ali</b></span>' +
@@ -922,33 +921,31 @@ function noticesHTML() {
   }
   return h;
 }
-/* ----- الشبكة الرئيسية: أول ما ينفتح التطبيق — 8 أقسام متساوية على مدار واحد ويربطها نجمة ثمانية ----- */
-var HUB = ['search', 'today', 'ws', 'delivered', 'dash', 'weekly', 'annual', 'agenda'];
-var HUB_LBL = { search: 'البحث السريع', dash: 'لوحة المؤشرات', ws: 'قيد التسليم', today: 'التنبيهات', delivered: 'الدور المسلّمة', weekly: 'موقف المقاولين', annual: 'الجرد السنوي', agenda: 'جدول الأعمال' };
+/* ----- الشبكة الرئيسية: أول ما ينفتح التطبيق ----- */
+var HUB = [['search', 1], ['today', 1], ['ws', 1], ['weekly', 0], ['delivered', 1], ['annual', 0], ['dash', 1], ['agenda', 0], ['settings', 0]];
+var HUB_LBL = { search: 'البحث السريع', dash: 'لوحة المؤشرات', ws: 'قيد التسليم', today: 'التنبيهات', delivered: 'الدور المسلّمة', weekly: 'الموقف الأسبوعي', annual: 'الجرد السنوي', agenda: 'جدول الأعمال', settings: 'الإعدادات' };
 VIEWS.hub = function () {
-  var tb = document.getElementById('topbar');
-  var W = Math.max(300, document.documentElement.clientWidth);
-  var H = Math.max(460, window.innerHeight - (tb ? tb.offsetHeight : 64));
-  var R = Math.min((W / 2 - 12) / 1.28, (H / 2 - 26) / 1.28, 320), k = Math.max(0.5, Math.min(1.25, R / 250));
-  var cx = W / 2, cy = H / 2 - 6, d = R * 0.56, dC = R * 0.8;
-  var wsN = wsUnits().length, rdy = wsUnits().filter(function (u) { return isReady(u.unit); }).length, al = alertBadgeCount();
-  var cnt = { search: noticeCount(), today: al };
-  var sub = { search: 'ابحث عن أي دار', today: al ? al + ' متجاوزة' : 'ماكو متجاوز', ws: wsN + ' دار', delivered: S.del.length + ' دار', dash: wsN ? 'جاهزة ' + Math.round(rdy * 100 / wsN) + '٪' : '—', weekly: 'حسب المقاول', annual: 'حسب الأشهر', agenda: 'حركات اليوم' };
-  var pts = HUB.map(function (v, i) { var a = -Math.PI / 2 + i * Math.PI / 4; return { v: v, x: cx + R * Math.cos(a), y: cy + R * Math.sin(a) }; });
-  function poly(step, cls) { var ps = [], i = 0, n = 0; do { ps.push(pts[i].x.toFixed(1) + ',' + pts[i].y.toFixed(1)); i = (i + step) % 8; n++; } while (i !== 0 && n < 9); var L = 0; for (var q = 0; q < ps.length; q++) { var A = ps[q].split(','), B = ps[(q + 1) % ps.length].split(','); L += Math.hypot(B[0] - A[0], B[1] - A[1]); } return '<polygon class="' + cls + '" points="' + ps.join(' ') + '" style="--len:' + Math.round(L) + '"/>'; }
-  function circ(r, cls) { return '<circle class="orbit ' + cls + '" cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + r.toFixed(1) + '" style="--len:' + Math.round(2 * Math.PI * r) + '"/>'; }
-  var web = circ(R, '') + circ(R * 1.32, 'o2') + circ(dC / 2 + R * 0.12, 'o3') + poly(3, 'star') + poly(2, 'star s2') +
-    pts.map(function (p) { return '<line class="spoke" x1="' + cx.toFixed(1) + '" y1="' + cy.toFixed(1) + '" x2="' + p.x.toFixed(1) + '" y2="' + p.y.toFixed(1) + '"/>'; }).join('');
+  var tb = document.getElementById('topbar'), view = document.getElementById('view');
+  var W = Math.max(300, (view && view.clientWidth ? view.clientWidth : window.innerWidth) - 48);
+  var H = Math.max(440, window.innerHeight - (tb ? tb.offsetHeight : 64) - 48);
+  var k = Math.max(0.56, Math.min(1.15, Math.min(W, H) / 640));
+  var cx = W / 2, cy = H / 2, dP = 132 * k, dS = 100 * k, dC = 184 * k;
+  var rx = Math.min(W / 2 - dP / 2 - 10, (H / 2 - dP / 2 - 10) * 1.75), ry = Math.min(H / 2 - dP / 2 - 10, rx * 1.2);
+  var cnt = { search: noticeCount(), today: alertBadgeCount() }, sub = { ws: wsUnits().length + ' دار', delivered: S.del.length + ' دار', today: alertBadgeCount() ? 'متجاوزة' : 'لا يوجد', search: 'ابحث عن أي دار' };
+  var pts = HUB.map(function (x, i) { var a = -Math.PI / 2 + i * 2 * Math.PI / HUB.length; return { v: x[0], p: x[1], x: cx + rx * Math.cos(a), y: cy + ry * Math.sin(a), d: x[1] ? dP : dS }; });
+  function ln(a, b, c, i) { var L = Math.round(Math.hypot(b.x - a.x, b.y - a.y)); return '<line class="' + c + '" x1="' + a.x.toFixed(1) + '" y1="' + a.y.toFixed(1) + '" x2="' + b.x.toFixed(1) + '" y2="' + b.y.toFixed(1) + '" style="--len:' + L + ';animation-delay:' + (0.2 + i * 0.05).toFixed(2) + 's"/>'; }
+  var lines = pts.map(function (p, i) { return ln({ x: cx, y: cy }, p, 'sp', i); }).join('') +
+    pts.map(function (p, i) { return ln(p, pts[(i + 1) % pts.length], 'ring', i); }).join('') +
+    pts.map(function (p, i) { return i % 2 ? '' : ln(p, pts[(i + 3) % pts.length], 'x', i); }).join('');
   var nodes = pts.map(function (p, i) {
     var c = cnt[p.v] || 0;
-    return '<button class="node" data-act="hubGo" data-v="' + p.v + '" style="left:' + p.x.toFixed(1) + 'px;top:' + p.y.toFixed(1) + 'px;width:' + d.toFixed(0) + 'px;height:' + d.toFixed(0) + 'px;animation-delay:' + (0.15 + i * 0.07).toFixed(2) + 's">' +
-      ico(p.v) + '<span class="l">' + esc(HUB_LBL[p.v]) + '</span><span class="c">' + esc(sub[p.v]) + '</span>' + (c ? '<span class="bdg">' + c + '</span>' : '') + '</button>';
+    return '<button class="node' + (p.p ? ' p' : '') + '" data-act="hubGo" data-v="' + p.v + '" style="left:' + p.x.toFixed(1) + 'px;top:' + p.y.toFixed(1) + 'px;width:' + p.d.toFixed(0) + 'px;height:' + p.d.toFixed(0) + 'px;animation-delay:' + (0.12 + i * 0.06).toFixed(2) + 's">' +
+      ico(p.v) + '<span class="l">' + esc(HUB_LBL[p.v]) + '</span>' + (sub[p.v] && p.p ? '<span class="c">' + esc(sub[p.v]) + '</span>' : '') + (c ? '<span class="bdg">' + c + '</span>' : '') + '</button>';
   }).join('');
-  var anim = S.hubAnim; if (anim) { S.hubAnim = false; S.hubBusyUntil = Date.now() + 1700; }
-  return '<div class="hub' + (anim ? ' anim' : '') + '" style="--hubh:' + H + 'px;--k:' + k.toFixed(3) + ';--cx:' + cx.toFixed(1) + 'px;--cy:' + cy.toFixed(1) + 'px">' +
-    '<svg class="web" aria-hidden="true">' + web + '</svg>' +
-    '<div class="core" style="left:' + cx.toFixed(1) + 'px;top:' + cy.toFixed(1) + 'px;width:' + dC.toFixed(0) + 'px;height:' + dC.toFixed(0) + 'px"><span class="seal"><img src="icon-192.webp" alt=""></span><b>مجمع الأميرات 2</b><small>مكتب التسليم الفني</small></div>' +
-    nodes + '<button class="gear" data-act="go" data-v="settings">' + ico('settings') + 'الإعدادات</button></div>';
+  var anim = S.hubAnim; if (anim) { S.hubAnim = false; S.hubBusyUntil = Date.now() + 1300; }
+  return '<div class="hub' + (anim ? ' anim' : '') + '" style="--hubh:' + H + 'px;--k:' + k.toFixed(3) + ';--cx:' + cx + 'px;--cy:' + cy + 'px">' +
+    '<svg class="web" aria-hidden="true">' + lines + '</svg>' +
+    '<div class="core" style="left:' + cx + 'px;top:' + cy + 'px;width:' + dC + 'px;height:' + dC + 'px"><img src="icon-192.webp" alt=""><b>مجمع الأميرات 2</b><small>مكتب التسليم الفني</small></div>' + nodes + '</div>';
 };
 window.addEventListener('resize', function () { if (S.view === 'hub') scheduleRender(); });
 
