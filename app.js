@@ -24,9 +24,9 @@ var USERS = [
 var DEFAULT_CONTRACTORS = ['أحمد عواد', 'عادل عرار', 'محمد عرار', 'جاسم زراك', 'دياري كريم', 'علي الكوفي', 'علي هويدي', 'علي محمد حسين', 'طه عبد الله', 'اكام بهاء', 'ثامر عطار', 'سمير حنون', 'عمر بولات', 'اسعد هادي', 'اوات جمال', 'يوسف حسن'];
 var AR_MONTHS = ['', 'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 var AR_MONTHS_SHORT = ['', 'كانون٢', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران', 'تموز', 'آب', 'أيلول', 'تشرين١', 'تشرين٢', 'كانون١'];
-var VERSION = '1.1.0';
+var VERSION = '1.1.1';
 var ADMIN_UID = 'PsrknBOyOxUU3PM0xqXZvBhRaul1'; // حساب منتظر علي (مدير النظام)
-var BAKROOT = 'amirat2_backups';
+var BAKROOT = 'amirat2_logs/backups'; // داخل مسار مسموح بقواعد قاعدة البيانات الحالية
 var ACLROOT = 'amirat2_acl';
 function acctEmail(id) { return id + '@amirat2-delivery.app'; }
 function legacyPass(pin) { return 'Am2#' + pin + '#tslim-office'; } // كلمة السر القديمة — تُستخدم بس لنقل الحساب لكلمة سر قوية
@@ -896,7 +896,6 @@ VIEWS.search = function () {
 function noticeCountAll() { return pendingNew().length + crossovers().length + waUnsent().length; }
 function noticesHTML() {
   var pend = pendingNew(), cr = crossovers(), wu = waUnsent(), h = '';
-  if (isAdmin() && !accountsSecured()) h += '<div class="banner wa"><h3>🔐 أكمل تأمين حسابات السحابة (كلمات سر قوية) من الإعدادات</h3><button class="btn sm pri" data-act="go" data-v="settings">فتح الإعدادات</button></div>';
   if (wu.length) {
     h += '<div class="banner wa"><h3>📲 ' + wu.length + ' رسالة واتساب ما تأكد إرسالها للكروب:</h3><div class="plist">' + wu.map(function (x) {
       return '<div class="aitem"><span class="m"><b>' + esc(WA_KIND[x.kind] || 'رسالة') + (x.house ? ' — <span class="ltr">' + esc(x.house) + '</span>' : '') + '</b><small>👤 ' + esc(x.by || '-') + ' · 🕒 ' + esc(new Date(x.at || 0).toLocaleString('ar-IQ')) + '</small></span><button class="btn sm wa" data-act="waResend" data-id="' + esc(x.id) + '">🔁 إعادة إرسال</button><button class="btn sm pri" data-act="waMark" data-id="' + esc(x.id) + '">✅ انرسلت</button><button class="btn sm" data-act="waView" data-id="' + esc(x.id) + '">👁️ النص</button><button class="btn sm" data-act="waDrop" data-id="' + esc(x.id) + '">🙈</button></div>';
@@ -1451,8 +1450,13 @@ function doLogin() {
     if (auth.currentUser) { enterAs(u); return; } // الجهاز مربوط بالسحابة
     LOGIN.busy = true; LOGIN.err = ''; LOGIN.pin = pin; renderLogin();
     // حساب ما انتقل بعد لكلمة سر قوية: يدخل بالطريقة القديمة لحد ما المدير يأمّنه
-    auth.signInWithEmailAndPassword(acctEmail(u.id), legacyPass(pin)).then(function () { enterAs(u); }).catch(function (e) {
-      LOGIN.busy = false; LOGIN.step = 'pw'; LOGIN.err = /network/.test(e.code || '') ? authErr(e) : ''; renderLogin();
+    var email = acctEmail(u.id), pass = legacyPass(pin);
+    auth.signInWithEmailAndPassword(email, pass).catch(function (e) {
+      if (/user-not-found|invalid-credential|invalid-login/.test(e.code || '')) return auth.createUserWithEmailAndPassword(email, pass);
+      throw e;
+    }).then(function () { enterAs(u); }).catch(function (e) {
+      if (/email-already-in-use/.test(e.code || '')) { LOGIN.busy = false; LOGIN.step = 'pw'; LOGIN.err = ''; renderLogin(); return; }
+      LOGIN.busy = false; LOGIN.err = authErr(e); renderLogin();
     });
   });
 }
@@ -1479,7 +1483,7 @@ function reauthAny(user, email, cp) {
 function securityCard() {
   var fu = auth && auth.currentUser;
   var dev = '<p style="margin:0 0 10px">هذا الجهاز مربوط بالسحابة بحساب: <b class="ltr">' + esc(fu ? fu.email : '-') + '</b></p><div class="row"><button class="btn" data-act="deviceSignOut">🚪 فصل هذا الجهاز عن السحابة</button></div>';
-  if (!isAdmin()) return '<div class="card"><h2>🔐 ربط الجهاز</h2>' + dev + '</div>';
+  return '<div class="card"><h2>🔗 ربط الجهاز</h2>' + dev + '</div>';
   var acc = D().accounts || {};
   return '<div class="card"><h2>🔐 أمان حسابات السحابة <small>المدير فقط</small></h2>' +
     '<p class="muted" style="margin:0 0 12px;font-size:13.5px">لكل مستخدم كلمة سر سحابة قوية (10 أحرف أو أكثر). تنكتب مرة وحدة بكل جهاز عند ربطه، وبعدها الدخول اليومي بالرمز (PIN) فقط. بعد التأمين الطريقة القديمة توقف ومحد يگدر يدخل للبيانات غير الحسابات المفعّلة.</p>' +
@@ -1567,8 +1571,8 @@ function downloadText(text, name, type) {
 function bkDownloadAll() {
   if (!S.online) { toast('⚠️ التنزيل الكامل يحتاج نت (حتى يجيب آخر نسخة من السحابة)', false); return; }
   toast('⏳ جاري تجهيز النسخة...', 'info');
-  Promise.all([R.once('value'), LR.once('value')]).then(function (r) {
-    downloadText(JSON.stringify({ app: 'amirat2-delivery', version: VERSION, at: new Date().toISOString(), by: S.user.name, amirat2: r[0].val() || {}, amirat2_logs: r[1].val() || {} }), 'amirat2-backup-full-' + todayStr() + '.json');
+  Promise.all([R.once('value'), LR.child('global').once('value'), LR.child('edit').once('value')]).then(function (r) {
+    downloadText(JSON.stringify({ app: 'amirat2-delivery', version: VERSION, at: new Date().toISOString(), by: S.user.name, amirat2: r[0].val() || {}, amirat2_logs: { global: r[1].val() || null, edit: r[2].val() || null } }), 'amirat2-backup-full-' + todayStr() + '.json');
     toast('✅ تنزّلت النسخة الاحتياطية — احفظها بمكان آمن');
   }).catch(function (e) { toast('⚠️ ' + (e.code || e.message), false); });
 }
@@ -1612,7 +1616,7 @@ function bkRestoreData(data, logs, label) {
     closeModal(); if (!S.online) { toast('⚠️ الاسترجاع يحتاج نت', false); return; }
     toast('⏳ جاري الاسترجاع...', 'info');
     data = clean(data); data.accounts = D().accounts || null; // حالة الحسابات تبقى مثل ما هي
-    bkSnapshot(bkKey('before-restore_'), { note: 'قبل استرجاع ' + label }).then(function () { return R.set(data); }).then(function () { return logs ? LR.set(logs) : null; })
+    bkSnapshot(bkKey('before-restore_'), { note: 'قبل استرجاع ' + label }).then(function () { return R.set(data); }).then(function () { return logs ? LR.update({ global: logs.global || null, edit: logs.edit || null }) : null; })
       .then(function () { logActivity('-', 'استرجع نسخة احتياطية: ' + label); toast('✅ تم الاسترجاع'); }).catch(function (e) { toast('⚠️ فشل الاسترجاع: ' + (e.code || e.message), false); });
   }, 'استرجاع', true);
 }
