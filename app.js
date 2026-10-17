@@ -24,7 +24,7 @@ var USERS = [
 var DEFAULT_CONTRACTORS = ['أحمد عواد', 'عادل عرار', 'محمد عرار', 'جاسم زراك', 'دياري كريم', 'علي الكوفي', 'علي هويدي', 'علي محمد حسين', 'طه عبد الله', 'اكام بهاء', 'ثامر عطار', 'سمير حنون', 'عمر بولات', 'اسعد هادي', 'اوات جمال', 'يوسف حسن'];
 var AR_MONTHS = ['', 'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 var AR_MONTHS_SHORT = ['', 'كانون٢', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران', 'تموز', 'آب', 'أيلول', 'تشرين١', 'تشرين٢', 'كانون١'];
-var VERSION = '1.1.1';
+var VERSION = '1.1.2';
 var ADMIN_UID = 'PsrknBOyOxUU3PM0xqXZvBhRaul1'; // حساب منتظر علي (مدير النظام)
 var BAKROOT = 'amirat2_logs/backups'; // داخل مسار مسموح بقواعد قاعدة البيانات الحالية
 var ACLROOT = 'amirat2_acl';
@@ -1237,8 +1237,9 @@ function importOld() {
       if (/^https:\/\/docs\.google\.com\//.test(d.contractorsSheetUrl || '')) upd['settings/contractorsUrl'] = d.contractorsSheetUrl;
       var raw = { at: Date.now(), by: S.user.name, root: d, edit_logs: res[1] || null, global_log: res[2] || null };
       // نسخة من الوضع الحالي بالنظام الجديد قبل الاستبدال + النسخة الأصلية الكاملة من النظام الحالي (بيها حتى المنظّفة مسبقاً)
-      return (D().meta ? bkSnapshot(bkKey('before-import_'), { note: 'قبل نسخ بيانات النظام الحالي' }) : Promise.resolve())
-        .then(function () { return BK().child('oldSystemRaw').set(clean(raw)); })
+      // النسخ الاحتياطية هنا اختيارية: إذا فشلت ما توقف النسخ
+      return (D().meta ? bkSnapshot(bkKey('before-import_'), { note: 'قبل نسخ بيانات النظام الحالي' }).catch(function (e) { console.warn('pre-import backup', e); }) : Promise.resolve())
+        .then(function () { return BK().child('oldSystemRaw').set(clean(raw)).catch(function (e) { console.warn('raw archive', e); }); })
         .then(function () { return R.update(clean(upd)); })
         .then(function () {
           // السجل: دمج بدون مسح الحركات اللي انسجلت بالنظام الجديد
@@ -1247,7 +1248,7 @@ function importOld() {
           Object.keys(res[1] || {}).forEach(function (h) { var o = res[1][h] || {}; Object.keys(o).forEach(function (k) { lu['edit/' + h + '/' + k] = o[k]; }); });
           return Object.keys(lu).length ? LR.update(clean(lu)) : null;
         }).then(function () { S.agenda = null; S.bkIndex = null; toast('✅ تم نسخ البيانات: ' + counts); });
-    }).catch(function (e) { toast('⚠️ فشل النسخ: ' + e.message, false); });
+    }).catch(function (e) { toast('⚠️ فشل النسخ: ' + ((e && (e.code || e.message)) || e), false); });
   }, 'نسخ الآن');
 }
 
