@@ -124,6 +124,14 @@ dl.kv dd{margin:0;font-size:15px;font-weight:600;unicode-bidi:plaintext}
 .kpi .k i{width:10px;height:10px;border-radius:3px;display:inline-block}
 .kpi .v{font-family:'Readex Pro';font-size:32px;font-weight:700;line-height:1}
 .kpi .s{font-size:12.5px;color:var(--muted)}
+.kpi{cursor:pointer;transition:transform .12s,box-shadow .12s}
+.kpi:hover{transform:translateY(-1px)}
+.kpi.on{outline:3px solid var(--brand);outline-offset:-3px;background:color-mix(in srgb,var(--brand) 8%,var(--card))}
+.plist{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(360px,100%),1fr));gap:8px}
+.chip.net.on{border-color:color-mix(in srgb,var(--ok) 45%,transparent);color:var(--ok);font-weight:600}
+.chip.net.off{border-color:color-mix(in srgb,var(--notready) 45%,transparent);color:var(--notready-fg);background:var(--notready-bg);font-weight:600;white-space:normal}
+.credit{font-size:12.5px;color:var(--muted);white-space:nowrap}
+.credit b{color:var(--ink)}
 .bars{display:flex;align-items:flex-end;gap:10px;height:190px;border-bottom:1px solid var(--line);padding-top:16px}
 .bars .b{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;height:100%;border:0;background:transparent;padding:0;min-width:0}
 .bars .b span{font-size:12px;font-weight:700}

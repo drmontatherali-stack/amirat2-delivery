@@ -125,6 +125,7 @@ var S = {
   openSectors: lsGet('a2_openSectors', {}),
   rvQ: '', rvSort: 'default', delQ: '', delShow: 150,
   snoozed: {},
+  tiles: lsGet('a2_tiles', {}), panelShow: 150, panel: null,
   agenda: null,
   logsFor: {}
 };
@@ -301,7 +302,9 @@ function initFirebase() {
   auth = firebase.auth();
   R = firebase.database().ref(ROOT);
   LR = firebase.database().ref(LOGROOT);
-  firebase.database().ref('.info/connected').on('value', function (s) { S.online = s.val() === true; renderTop(); });
+  firebase.database().ref('.info/connected').on('value', function (s) { S.online = s.val() === true && navigator.onLine !== false; renderTop(); });
+  window.addEventListener('offline', function () { S.online = false; renderTop(); });
+  window.addEventListener('online', function () { toast('🟢 رجع الاتصال — جاري المزامنة', 'info'); syncAll(false); });
   return true;
 }
 var listening = false;
@@ -792,7 +795,8 @@ function renderTop() {
   var top = document.getElementById('topbar'); if (!S.user) return;
   var n = alertBadgeCount();
   top.innerHTML = '<h1>' + esc(TITLES[S.view] || '') + '<small>' + todayStr() + ' · آخر مزامنة للشيت: ' + esc(S.wsLast || 'لم تتم بعد') + '</small></h1>' +
-    '<span class="chip"><span class="dot' + (S.online ? '' : ' off') + '"></span>' + (S.online ? 'متصل — مزامنة فورية' : 'غير متصل') + '</span>' +
+    '<span class="chip net' + (S.online ? ' on' : ' off') + '" role="status"><span class="dot' + (S.online ? '' : ' off') + '"></span>' + (S.online ? '🟢 متصل بالسحابة (مزامنة فورية)' : '🔴 غير متصل حالياً — البيانات محفوظة بالجهاز وتنرفع أول ما يرجع النت') + '</span>' +
+    '<span class="credit ltr">✨ Design by: <b>Montather Ali</b></span>' +
     '<button class="iconbtn" data-act="syncAll" aria-label="تحديث من الشيتات" title="تحديث من الشيتات">' + ico('refresh') + '</button>' +
     '<button class="iconbtn" data-act="go" data-v="today" aria-label="التنبيهات" title="التنبيهات">' + ico('today') + (n ? '<span class="bdg">' + n + '</span>' : '') + '</button>' +
     '<button class="iconbtn" data-act="theme" aria-label="تبديل الوضع الليلي" title="الوضع الليلي">' + ico('sun') + '</button>' +
@@ -806,10 +810,8 @@ VIEWS.search = function () {
   if (res.length) { sel = res.find(function (r) { return r.key === S.sel; }) || res[0]; S.sel = sel.key; }
   var h = '<label class="bigsearch">' + ico('search', 24) + '<input id="q" type="search" data-in="q" value="' + esc(S.q) + '" placeholder="رقم الدار (مثلاً B12.6) أو المقاول أو القطاع أو اسم المستفيد" aria-label="بحث عن دار" autocomplete="off"></label>';
   if (!S.q) {
-    var ws = wsUnits(), rdy = ws.filter(function (u) { return isReady(u.unit); }).length;
-    h += '<div class="kpis">' + kpi('قيد التسليم', ws.length, 'بشيت الموقف الأسبوعي', 'var(--brand)', 'ws') + kpi('جاهزة', rdy, 'بانتظار التسليم', 'var(--ready)', 'ws') + kpi('غير جاهزة', ws.length - rdy, '', 'var(--notready)', 'ws') +
-      kpi('قيد المراجعة', oldRecs().filter(function (r) { return !isDeliveredRec(r); }).length, 'مراجع عليها', 'var(--review)', 'today') + kpi('المسلّمة', S.del.length, 'بشيت تواريخ الاستلام', 'var(--ok)', 'delivered') + '</div>' +
-      '<div class="card empty">اكتب رقم الدار فوق — تطلعلك كل معلوماتها، وتگدر تغيّرها جاهز أو غير جاهز مباشرة.</div>';
+    var defs = baseDefs(['ws', 'ready', 'notready', 'review', 'delivered']);
+    h += tilesHTML('search', defs) + (panelHTML('search', defs) || '<div class="card empty">اكتب رقم الدار فوق، أو اضغط أي مربع حتى تطلع دوره بس.</div>');
     return h;
   }
   if (!res.length) return h + '<div class="card empty">لا نتائج مطابقة ضمن أي قائمة (قيد التسليم / المراجعة / المسلّمة).</div>';
@@ -819,6 +821,64 @@ VIEWS.search = function () {
   }).join('') + '</div><div class="r">' + houseCardHTML(Object.assign(houseInfo(sel.houseNo), { key: sel.key })) + '</div></div>';
   return h;
 };
+/* ----- المربعات: الضغط على أي مربع يعرض دوره بس ----- */
+function wsItem(u) {
+  var r = isReady(u.unit), rv = !!reviewOf(u.unit);
+  return { h: u.unit, sub: (u.sector || '-') + ' · ' + execLabel(u.executionType, u.contractor) + ' · 📥 ' + (u.incomingDate || '-') + ' · 📤 ' + (u.deliveryDate || '-') + (rv ? ' · 📋 قيد المراجعة أيضاً' : ''),
+    pill: r ? ['p-ready', '✅ جاهز'] : ['p-not', '⛔ غير جاهز' + overdueText(u.deliveryDate)],
+    xl: [u.unit, u.sector, execLabel(u.executionType, u.contractor), u.incomingDate, u.deliveryDate, r ? 'جاهز' : 'غير جاهز'] };
+}
+function recItem(rec) {
+  var st = rvStatus(rec), n = rvRounds(rec).length, dl = isDeliveredRec(rec) ? rvDeliveredDate(rec) : rvDates(rec).deliveryDate;
+  return { h: rec.houseNo, sub: (rec.sectorNo || '-') + ' · ' + (rec.contractorName || rec.executionType || '-') + ' · 📤 ' + (dl || '-') + ' · ' + n + ' مراجعة', pill: [st.c, st.t],
+    xl: [rec.houseNo, rec.sectorNo, rec.contractorName || rec.executionType, dl, n, st.t] };
+}
+function delItem(x) { return { h: x.houseNo, sub: (x.name || '-') + (x.sector ? ' · ' + x.sector : ''), pill: ['p-ok', x.date + (isAdminNote(x.date) ? ' 🏛 تبليغ إدارة' : '')], xl: [x.houseNo, x.name, x.sector, x.date] }; }
+function alItem(x, cls) { return { h: x.houseNo, sub: '🛠️ ' + stripBidi(x.contractor || '-') + ' · 📍 ' + stripBidi(x.sector || '-') + ' · 📥 ' + (x.incomingDate || '-') + ' · 📤 ' + (x.deliveryDate || '-'), pill: [cls, stripBidi(x.detail)], xl: [x.houseNo, x.contractor, x.sector, x.incomingDate, x.deliveryDate, x.detail] }; }
+var HEAD = {
+  ws: ['رقم البلوك والدار', 'القطاع', 'الجهة المنفذة', 'تاريخ الوارد', 'تاريخ التسليم', 'الحالة'],
+  rec: ['رقم البلوك والدار', 'القطاع', 'المقاول', 'تاريخ التسليم', 'عدد المراجعات', 'الحالة'],
+  del: ['رقم البلوك والدار', 'اسم المستفيد', 'القطاع', 'تاريخ الاستلام'],
+  al: ['رقم البلوك والدار', 'المقاول', 'القطاع', 'تاريخ الوارد', 'تاريخ التسليم', 'التفاصيل']
+};
+function byDue(a, b) { var x = daysDiff(a.deliveryDate), y = daysDiff(b.deliveryDate); return (x == null ? 9e9 : x) - (y == null ? 9e9 : y); }
+function baseDefs(keys) {
+  var ws = wsUnits(), rdy = ws.filter(function (u) { return isReady(u.unit); });
+  var nrd = ws.filter(function (u) { return !isReady(u.unit); });
+  var near = ws.filter(function (u) { var d = daysDiff(u.deliveryDate); return d !== null && d >= 1 && d <= 3; });
+  var late = ws.filter(function (u) { var d = daysDiff(u.deliveryDate); return d !== null && d <= 0; });
+  var rev = oldRecs().filter(function (r) { return !isDeliveredRec(r); });
+  var all = {
+    ws: { label: 'قيد التسليم', n: ws.length, sub: 'بشيت الموقف الأسبوعي', color: 'var(--brand)', list: function () { return { head: HEAD.ws, items: ws.slice().sort(byDue).map(wsItem) }; } },
+    ready: { label: 'جاهزة', n: rdy.length, sub: ws.length ? Math.round(rdy.length / ws.length * 100) + '٪ من قيد التسليم' : '', color: 'var(--ready)', list: function () { return { head: HEAD.ws, items: rdy.slice().sort(byDue).map(wsItem) }; } },
+    notready: { label: 'غير جاهزة', n: nrd.length, sub: '', color: 'var(--notready)', list: function () { return { head: HEAD.ws, items: nrd.slice().sort(byDue).map(wsItem) }; } },
+    near: { label: 'قريبة', n: near.length, sub: 'موعدها خلال ١–٣ أيام', color: 'var(--ready)', list: function () { return { head: HEAD.ws, items: near.slice().sort(byDue).map(wsItem) }; } },
+    late: { label: 'متجاوزة الموعد', n: late.length, sub: 'يوم الموعد نفسه يُحسب متجاوز', color: 'var(--notready)', list: function () { return { head: HEAD.ws, items: late.slice().sort(byDue).map(wsItem) }; } },
+    review: { label: 'قيد المراجعة', n: rev.length, sub: 'مراجع عليها وما مسلّمة', color: 'var(--review)', list: function () { return { head: HEAD.rec, items: rev.map(recItem) }; } },
+    delivered: { label: 'المسلّمة', n: S.del.length, sub: 'بشيت تواريخ الاستلام', color: 'var(--ok)', list: function () { return { head: HEAD.del, items: S.del.slice().sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); }).map(delItem) }; } }
+  };
+  return keys.map(function (k) { return Object.assign({ k: k }, all[k]); });
+}
+function tilesHTML(view, defs) {
+  var sel = S.tiles[view];
+  return '<div class="kpis">' + defs.map(function (d) {
+    var on = sel === d.k;
+    return '<button class="kpi' + (on ? ' on' : '') + '" data-act="tile" data-g="' + view + '" data-k="' + d.k + '" aria-pressed="' + on + '"><span class="k"><i style="background:' + d.color + '"></i>' + esc(d.label) + '</span><span class="v">' + d.n + '</span><span class="s">' + esc(d.sub || '') + '</span></button>';
+  }).join('') + '</div>';
+}
+function panelHTML(view, defs) {
+  var sel = S.tiles[view], d = defs.find(function (x) { return x.k === sel; });
+  if (!d) return '';
+  var close = '<button class="btn sm" data-act="tile" data-g="' + view + '" data-k="' + d.k + '">✕ إغلاق</button>';
+  if (d.html) return '<section class="card" id="panel"><h2><span>' + esc(d.label) + ' <small>' + d.n + '</small></span>' + close + '</h2>' + d.html() + '</section>';
+  var data = d.list(), items = data.items, shown = items.slice(0, S.panelShow);
+  S.panel = { title: d.label, head: data.head, rows: items.map(function (i) { return i.xl; }) };
+  return '<section class="card" id="panel"><h2><span>' + esc(d.label) + ' <small>' + items.length + ' دار</small></span><span class="row" style="gap:8px"><button class="btn sm" data-act="panelXl">' + ico('xls', 16) + ' Excel</button>' + close + '</span></h2>' +
+    (items.length ? '<div class="plist">' + shown.map(function (it) {
+      return '<button class="aitem" data-act="house" data-h="' + esc(it.h) + '"><span class="m"><b class="ltr" style="text-align:right">' + esc(it.h) + '</b><small>' + esc(it.sub) + '</small></span><span class="pill ' + it.pill[0] + '" style="white-space:normal">' + esc(it.pill[1]) + '</span></button>';
+    }).join('') + '</div>' + (items.length > shown.length ? '<div class="row" style="justify-content:center;margin-top:12px"><button class="btn" data-act="panelMore">⬇️ عرض المزيد (' + shown.length + ' من ' + items.length + ')</button></div>' : '')
+      : '<div class="empty">لا توجد دور ضمن هذا المربع حالياً.</div>') + '</section>';
+}
 function kpi(label, val, sub, color, go, extra) {
   return '<button class="kpi" data-act="go" data-v="' + go + '"' + (extra || '') + '><span class="k"><i style="background:' + color + '"></i>' + esc(label) + '</span><span class="v">' + val + '</span><span class="s">' + esc(sub || '') + '</span></button>';
 }
@@ -839,14 +899,8 @@ VIEWS.dash = function () {
   });
   var total = ws.length || 1, A = computeAlerts();
   var revOpen = oldRecs().filter(function (r) { return !isDeliveredRec(r); }).length;
-  var h = '<div class="kpis">' +
-    kpi('قيد التسليم', ws.length, 'من شيت الموقف الأسبوعي', 'var(--brand)', 'ws') +
-    kpi('جاهزة', rdy, Math.round(rdy / total * 100) + '٪ من قيد التسليم', 'var(--ready)', 'ws') +
-    kpi('غير جاهزة', ws.length - rdy, '', 'var(--notready)', 'ws') +
-    kpi('قريبة', timing.near, 'موعدها خلال ١–٣ أيام', 'var(--ready)', 'today') +
-    kpi('متجاوزة الموعد', timing.late, 'تجاوزت ١٠ أيام: ' + A.wsOverdue10.length, 'var(--notready)', 'today') +
-    kpi('قيد المراجعة', revOpen, 'متجاوزة المهلة: ' + A.rvOverdue.length, 'var(--review)', 'today') +
-    kpi('المسلّمة', S.del.length, 'إجمالي شيت تواريخ الاستلام', 'var(--ok)', 'delivered') + '</div>';
+  var ddefs = baseDefs(['ws', 'ready', 'notready', 'near', 'late', 'review', 'delivered']);
+  var h = tilesHTML('dash', ddefs) + panelHTML('dash', ddefs);
   // دائرة المواعيد
   var C = 2 * Math.PI * 70, acc = 0;
   var parts = [['ضمن المدة', timing.ok, 'var(--brand)'], ['قريبة (١–٣ أيام)', timing.near, 'var(--ready)'], ['متجاوزة الموعد', timing.late, 'var(--notready)'], ['بدون تاريخ مقروء', timing.none, 'var(--muted)']];
@@ -961,33 +1015,26 @@ VIEWS.ws = function () {
 
 /* ----- عرض: التنبيهات ----- */
 VIEWS.today = function () {
-  var h = '', pend = pendingNew(), cr = crossovers(), A = computeAlerts();
-  if (pend.length) {
-    h += '<div class="banner new"><h3>🏠 ' + pend.length + ' دار جديدة انضافت بشيت "الموقف الاسبوعي" — افتح بياناتها وأرسل التبليغ حتى تدخل النظام:</h3><div class="alist">' + pend.map(function (u) {
-      return '<button class="aitem" data-act="newHouse" data-h="' + esc(u.unit) + '"><span class="bar" style="background:var(--info)"></span><span class="m"><b class="ltr" style="text-align:right">' + esc(u.unit) + '</b><small>📥 الوارد: ' + esc(u.incomingDate || '-') + ' · 📤 التسليم: ' + esc(u.deliveryDate || '-') + (u.sector ? ' · 📍 ' + esc(u.sector) : '') + (u.detectedAt ? ' · 🕒 انضافت: ' + esc(new Date(u.detectedAt).toLocaleString('ar-IQ')) : '') + '</small></span><span class="btn sm pri">📋 فتح بيانات الدار</span></button>';
-    }).join('') + '</div></div>';
-  }
-  if (cr.length) {
-    h += '<div class="banner del"><h3>🔔 هذه الدور وقّعت محضر استلام (أُضيفت لشيت "تواريخ التسليم") وما زالت ظاهرة بقيد التسليم و/أو المراجعة — تحذف النسختين؟</h3><div class="alist">' + cr.map(function (a) {
-      return '<div class="aitem"><span class="bar" style="background:var(--ok)"></span><span class="m"><b class="ltr" style="text-align:right">' + esc(a.houseNo) + '</b><small>تاريخ الاستلام (محضر الاستلام): ' + esc(a.date) + adminPill(a.date) + '</small></span>' +
-        '<button class="btn sm danger" data-act="delBoth" data-h="' + esc(a.houseNo) + '">🗑️ حذف النسختين</button><button class="btn sm" data-act="snooze" data-h="' + esc(a.houseNo) + '">🙈 تجاهل الآن</button></div>';
-    }).join('') + '</div></div>';
-  }
-  function sec(id, title, color, list, open) {
-    return '<details class="sec"' + (open ? ' open' : '') + '><summary><span style="width:10px;height:10px;border-radius:3px;background:' + color + '"></span>' + title + '<span class="c" style="background:color-mix(in srgb,' + color + ' 16%,transparent);color:' + color + '">' + list.length + '</span></summary><div class="in">' +
-      '<div class="row" style="justify-content:flex-end;margin-bottom:8px"><button class="btn sm" data-act="exportAlert" data-id="' + id + '">' + ico('xls', 16) + ' تصدير Excel</button></div><div class="alist">' +
-      (list.length ? list.map(function (x) {
-        return '<button class="aitem" data-act="house" data-h="' + esc(x.houseNo) + '"><span class="bar" style="background:' + color + '"></span><span class="m"><b class="ltr" style="text-align:right">' + esc(stripBidi(x.houseNo)) + '</b><small>🛠️ ' + esc(stripBidi(x.contractor || '-')) + ' · 📍 ' + esc(stripBidi(x.sector || '-')) + ' · 📥 ' + esc(x.incomingDate || '-') + ' · 📤 ' + esc(x.deliveryDate || '-') + '</small></span><span class="w" style="color:' + color + '">' + esc(stripBidi(x.detail)) + '</span></button>';
-      }).join('') : '<div class="muted" style="padding:8px">لا توجد حالياً</div>') + '</div></div></details>';
-  }
-  S.alertData = { a1: ['قيد التسليم — اقترب موعد التسليم', A.wsCountdown], a2: ['قيد التسليم — تجاوزت 10 أيام', A.wsOverdue10], a3: ['قيد التسليم — لم يحن موعد التسليم بعد', A.wsNotDue], a4: ['المراجعة — اقترب الموعد', A.rvCountdown], a5: ['المراجعة — تجاوزت 5 أيام', A.rvOverdue] };
-  h += '<div class="kpis">' + kpi('⚠️ قيد التسليم تجاوزت ١٠ أيام', A.wsOverdue10.length, '', 'var(--notready)', 'today') + kpi('⚠️ مراجعة متجاوزة', A.rvOverdue.length, '', 'var(--notready)', 'today') + kpi('⏳ قيد التسليم قريبة', A.wsCountdown.length, '', 'var(--ready)', 'today') + kpi('⏳ مراجعة قريبة', A.rvCountdown.length, '', 'var(--ready)', 'today') + kpi('📋 لم يحن الموعد', A.wsNotDue.length, '', 'var(--info)', 'today') + '</div>';
-  h += sec('a2', '⚠️ قيد التسليم — تجاوزت 10 أيام', 'var(--notready)', A.wsOverdue10, true) +
-    sec('a5', '⚠️ المراجعة — تجاوزت موعد الإكمال', 'var(--notready)', A.rvOverdue, true) +
-    sec('a1', '⏳ قيد التسليم — اقترب موعد التسليم (٠–٣ أيام)', 'var(--ready)', A.wsCountdown, true) +
-    sec('a4', '⏳ المراجعة — اقترب الموعد (٠–٢ يوم)', 'var(--ready)', A.rvCountdown, true) +
-    sec('a3', '📋 قيد التسليم — لم يحن موعد التسليم بعد', 'var(--info)', A.wsNotDue, false);
-  return h;
+  var pend = pendingNew(), cr = crossovers(), A = computeAlerts();
+  function al(k, label, sub, color, cls, list) { return { k: k, label: label, n: list.length, sub: sub, color: color, list: function () { return { head: HEAD.al, items: list.map(function (x) { return alItem(x, cls); }) }; } }; }
+  var defs = [
+    al('a2', '⚠️ قيد التسليم — تجاوزت 10 أيام', 'من تاريخ التسليم بالشيت', 'var(--notready)', 'p-not', A.wsOverdue10),
+    al('a5', '⚠️ المراجعة — تجاوزت موعد الإكمال', 'المراجعة الأولى', 'var(--notready)', 'p-not', A.rvOverdue),
+    al('a1', '⏳ قيد التسليم — اقترب الموعد', '٠–٣ أيام', 'var(--ready)', 'p-ready', A.wsCountdown),
+    al('a4', '⏳ المراجعة — اقترب الموعد', '٠–٢ يوم', 'var(--ready)', 'p-ready', A.rvCountdown),
+    al('a3', '📋 قيد التسليم — لم يحن الموعد', 'باقي عليها أيام', 'var(--info)', 'p-info', A.wsNotDue),
+    { k: 'new', label: '🏠 دور جديدة بانتظار التبليغ', n: pend.length, sub: 'تدخل النظام بعد إرسال الواتساب', color: 'var(--info)', html: function () {
+      return pend.length ? '<div class="plist">' + pend.map(function (u) {
+        return '<button class="aitem" data-act="newHouse" data-h="' + esc(u.unit) + '"><span class="m"><b class="ltr" style="text-align:right">' + esc(u.unit) + '</b><small>📥 ' + esc(u.incomingDate || '-') + ' · 📤 ' + esc(u.deliveryDate || '-') + (u.sector ? ' · 📍 ' + esc(u.sector) : '') + (u.detectedAt ? ' · 🕒 ' + esc(new Date(u.detectedAt).toLocaleString('ar-IQ')) : '') + '</small></span><span class="btn sm pri">📋 فتح بيانات الدار</span></button>';
+      }).join('') + '</div>' : '<div class="empty">لا توجد دور جديدة حالياً.</div>';
+    } },
+    { k: 'cross', label: '🔔 وقّعت محضر استلام', n: cr.length, sub: 'وما زالت بقيد التسليم أو المراجعة', color: 'var(--ok)', html: function () {
+      return cr.length ? '<p class="muted" style="margin:0 0 10px">هذه الدور أُضيفت لشيت "تواريخ التسليم" وما زالت ظاهرة بقيد التسليم و/أو المراجعة — تحذف النسختين؟</p><div class="plist">' + cr.map(function (a) {
+        return '<div class="aitem"><span class="m"><b class="ltr" style="text-align:right">' + esc(a.houseNo) + '</b><small>تاريخ الاستلام: ' + esc(a.date) + (isAdminNote(a.date) ? ' · 🏛 تبليغ إدارة' : '') + '</small></span><button class="btn sm danger" data-act="delBoth" data-h="' + esc(a.houseNo) + '">🗑️ حذف النسختين</button><button class="btn sm" data-act="snooze" data-h="' + esc(a.houseNo) + '">🙈 تجاهل الآن</button></div>';
+      }).join('') + '</div>' : '<div class="empty">لا توجد حالياً.</div>';
+    } }
+  ];
+  return tilesHTML('today', defs) + (panelHTML('today', defs) || '<div class="card empty">اضغط أي مربع حتى تطلع تفاصيله.</div>');
 };
 
 /* ----- عرض: مسلّمة ومراجع عليها ----- */
@@ -1208,6 +1255,12 @@ var ACT = {
   },
   snooze: function (d) { S.snoozed[normH(d.h)] = true; scheduleRender(); },
   exportAlert: function (d) { exportAlert(d.id); },
+  tile: function (d) {
+    S.tiles[d.g] = (S.tiles[d.g] === d.k) ? null : d.k; S.panelShow = 150; lsSet('a2_tiles', S.tiles); renderAll();
+    if (S.tiles[d.g]) { var p = document.getElementById('panel'); if (p && p.scrollIntoView) p.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  },
+  panelMore: function () { S.panelShow += 150; scheduleRender(); },
+  panelXl: function () { var p = S.panel; if (!p || !p.rows.length) { toast('القائمة فارغة', false); return; } xlsx([p.head].concat(p.rows), 'قائمة', p.title.replace(/[^؀-ۿa-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') + '_' + todayStr() + '.xlsx'); },
   exportReviews: exportReviews, exportAnnual: exportAnnual,
   wsMode: function (d) { S.wsF.mode = d.v; if (d.v === 'towers') S.wsF.sort = 'default'; else if (S.wsF.sort === 'default') S.wsF.sort = 'contractor'; scheduleRender(); },
   wsFilter: function (d) { S.wsF = { sector: 'all', contractor: 'all', sort: 'default', q: '', mode: 'towers', label: d.con }; S.openSectors = {}; wsUnits().forEach(function (x) { if (execLabel(x.executionType, x.contractor) === d.con) S.openSectors[x.sector || 'غير محدد'] = true; }); S.view = 'ws'; scheduleRender(); },
