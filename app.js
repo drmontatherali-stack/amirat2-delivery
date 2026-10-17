@@ -566,7 +566,7 @@ function houseCardHTML(r) {
     kv('القطاع', r.sector) + kv('الجهة المنفذة / المقاول', execLabel(r.executionType, r.contractor)) +
     (r.incomingDate ? kv('تاريخ الوارد', r.incomingDate) : '') + (r.deliveryDate ? kv('تاريخ التسليم', r.deliveryDate) : '') +
     (r.deliveredDate ? kv('تاريخ الاستلام الفعلي', r.deliveredDate) : '') +
-    ((b.name || r.delName) ? kv('اسم المستفيد', b.name || r.delName) : '') + (b.phone ? kv('رقم الهاتف', b.phone) : '') +
+    (!r.inWS && (b.name || r.delName) ? kv('اسم المستفيد', b.name || r.delName) : '') + (!r.inWS && b.phone ? kv('رقم الهاتف', b.phone) : '') +
     (isDeliveredRec(rec) ? kv('حالة الدار', 'مسلّمة') : '') + '</dl>';
   var nb = (!r.inReview) ? notifiedBadge(r.houseNo) : '';
   if (nb) h += '<div>' + nb + '</div>';
