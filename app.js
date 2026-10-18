@@ -132,7 +132,7 @@ var S = {
   openSectors: lsGet('a2_openSectors', {}),
   rvQ: '', rvSort: 'default', delQ: '', delShow: 150,
   snoozed: {},
-  tiles: lsGet('a2_tiles', {}), panelShow: 150, panel: null,
+  tiles: {}, // ولا مربع مفتوح لحد ما المستخدم يختار panelShow: 150, panel: null,
   agenda: null,
   logsFor: {}
 };
@@ -1413,7 +1413,7 @@ var ACT = {
     var rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches, vw = document.getElementById('view');
     if (d.v === 'hub' && S.view !== 'hub' && !d._x && !rm) { S.hubFrom = S.view; vw.classList.remove('enter'); vw.classList.add('exit'); setTimeout(function () { vw.classList.remove('exit'); ACT.go({ v: 'hub', _x: 1 }); }, 240); return; }
     if (d.v === 'hub' && S.view !== 'hub' && rm) S.hubFrom = null;
-    S.view = d.v; lsSet('a2_view', d.v); document.getElementById('rail').classList.remove('open'); closeModal(); scheduleRender(); window.scrollTo(0, 0); },
+    S.view = d.v; lsSet('a2_view', d.v); S.tiles[d.v] = null; document.getElementById('rail').classList.remove('open'); closeModal(); scheduleRender(); window.scrollTo(0, 0); },
   toggleRail: function () { document.getElementById('rail').classList.toggle('open'); renderRail(); },
   theme: function () { var order = ['auto', 'day', 'night'], cur = modePref(), nx = order[(order.indexOf(cur) + 1) % 3]; lsSet('a2_mode', nx); applyMode(); toast(nx === 'auto' ? '🕒 الخلفية تلقائية حسب الوقت' : (nx === 'day' ? '☀️ خلفية النهار' : '🌙 خلفية الليل'), 'info'); },
   logout: function () { confirmBox('👤 تبديل المستخدم؟', 'يرجع لشاشة اختيار الاسم والرمز. الجهاز يبقى مربوط بالسحابة.', function () { lsSet('a2_user', null); location.reload(); }, 'تبديل'); },
@@ -1467,7 +1467,7 @@ var ACT = {
   snooze: function (d) { S.snoozed[normH(d.h)] = true; scheduleRender(); },
   exportAlert: function (d) { exportAlert(d.id); },
   tile: function (d) {
-    S.tiles[d.g] = (S.tiles[d.g] === d.k) ? null : d.k; S.panelShow = 150; lsSet('a2_tiles', S.tiles); renderAll();
+    S.tiles[d.g] = (S.tiles[d.g] === d.k) ? null : d.k; S.panelShow = 150; renderAll();
     if (S.tiles[d.g]) { var p = document.getElementById('panel'); if (p && p.scrollIntoView) p.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   },
   panelMore: function () { S.panelShow += 150; scheduleRender(); },
