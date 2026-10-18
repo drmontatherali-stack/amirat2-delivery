@@ -1209,7 +1209,18 @@ VIEWS.delivered = function () {
 
 /* ----- عرض: الموقف الأسبوعي (موقف المقاولين) ----- */
 /* ----- عرض: كفاءة المقاولين ----- */
-function conKey(n) { return normS(String(n || '').replace(/^(مقاولين|مقاول)\s*[—-]\s*/, '')); }
+function arN(n) { return String(n || '').replace(/^(مقاولين|مقاول)\s*[—-]\s*/, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/\s+/g, ' ').trim().toLowerCase(); }
+function conKey(n) { return arN(n).replace(/ /g, ''); }
+// اسم المقاول بشيت "الموقف الاسبوعي" أحياناً مختصر (اوات، عادل، اكام) — نطابقه ويه الاسم الكامل بشيت المقاولين
+function conResolve(name) {
+  var n = arN(name); if (!n) return '';
+  var full = []; (S.cw || []).forEach(function (r) { var f = arN(r.contractor); if (f && full.indexOf(f) < 0) full.push(f); });
+  if (full.indexOf(n) >= 0) return n.replace(/ /g, '');
+  var nz = n.replace(/ /g, '');
+  if (full.some(function (f) { return f.replace(/ /g, '') === nz; })) return nz;
+  var c = full.filter(function (f) { return (f + ' ').indexOf(n + ' ') === 0 || (n + ' ').indexOf(f + ' ') === 0; });
+  return (c.length === 1 ? c[0] : n).replace(/ /g, '');
+}
 function effRate(p) {
   if (p == null) return { t: 'ماكو دور قيد التسليم', c: 'ok2' };
   if (p < 50) return { t: 'دون المستوى', c: 'bad' };
@@ -1222,11 +1233,12 @@ function effRate(p) {
 // الدور الحالية (قيد التسليم) والمسلّمة المعروف مقاولها، مجمّعة حسب المقاول
 function conIndex() {
   var ws = {}, del = {}, nh = nhStatusMap();
-  wsUnits().forEach(function (u) { var k = conKey(u.contractor || u.executionType); if (!k) return; (ws[k] = ws[k] || []).push(u); });
+  var memo = {}; function R(n) { return memo[n] != null ? memo[n] : (memo[n] = conResolve(n)); }
+  wsUnits().forEach(function (u) { var k = R(u.contractor || u.executionType); if (!k) return; (ws[k] = ws[k] || []).push(u); });
   S.del.forEach(function (x) {
     var e = nh[normH(x.houseNo)], c = e && e.unit && (e.unit.contractor || e.unit.executionType);
     if (!c) { var r = reviewOf(x.houseNo); c = r && (r.contractorName || r.executionType); }
-    var k = conKey(c); if (!k) return; (del[k] = del[k] || []).push(x);
+    var k = c ? R(c) : ''; if (!k) return; (del[k] = del[k] || []).push(x);
   });
   return { ws: ws, del: del };
 }
