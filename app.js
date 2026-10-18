@@ -1211,7 +1211,7 @@ VIEWS.delivered = function () {
 /* ----- عرض: كفاءة المقاولين ----- */
 function conKey(n) { return normS(String(n || '').replace(/^(مقاولين|مقاول)\s*[—-]\s*/, '')); }
 function effRate(p) {
-  if (p == null) return { t: 'ماكو متجاوز', c: 'ex' };
+  if (p == null) return { t: 'ماكو دور قيد التسليم', c: 'ok2' };
   if (p < 50) return { t: 'دون المستوى', c: 'bad' };
   if (p < 60) return { t: 'مقبول', c: 'ok1' };
   if (p < 70) return { t: 'متوسط', c: 'ok2' };
@@ -1231,9 +1231,9 @@ function conIndex() {
   return { ws: ws, del: del };
 }
 function conStats(units) {
-  var o = { ready: [], od: [], odR: [], odN: [] };
-  units.forEach(function (u) { var r = isReady(u.unit), d = daysDiff(u.deliveryDate); if (r) o.ready.push(u); if (d !== null && d <= 0) { o.od.push(u); (r ? o.odR : o.odN).push(u); } });
-  o.eff = o.od.length ? Math.round(o.odR.length * 100 / o.od.length) : null;
+  var o = { all: units, ready: [], notready: [] };
+  units.forEach(function (u) { (isReady(u.unit) ? o.ready : o.notready).push(u); });
+  o.eff = units.length ? Math.round(o.ready.length * 100 / units.length) : null; // نسبة الجاهز من دور قيد التسليم
   return o;
 }
 VIEWS.weekly = function () {
@@ -1263,14 +1263,14 @@ VIEWS.weekly = function () {
     '<div class="cwnums"><span><b>' + T.t + '</b>الكلي</span><span class="d"><b>' + T.d + '</b>مسلّمة · ' + pc(T.d, T.t) + '٪</span><span class="p"><b>' + T.p + '</b>قيد التسليم</span><span class="r"><b>' + T.r + '</b>متبقية</span>' +
     '<span class="eff ' + allR.c + '"><b>' + (all.eff == null ? '—' : all.eff + '٪') + '</b>الكفاءة العامة · ' + allR.t + '</span></div></div>' + bar(T, true) +
     '<div class="row cwsort" role="group" aria-label="ترتيب">' + [['eff', 'الأعلى كفاءة'], ['pct', 'الأعلى إنجازاً'], ['total', 'الأكبر'], ['prog', 'الأكثر قيد التسليم'], ['rem', 'الأكثر متبقي']].map(function (x) { return '<button class="secchip' + (sort === x[0] ? ' on' : '') + '" data-act="cwSort" data-k="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
-    '<p class="muted" style="margin:0;font-size:12.5px">الكفاءة = نسبة الدور الجاهزة من دور قيد التسليم اللي تجاوزت موعد التسليم (اليوم نفسه يُحسب متجاوز). دون 50٪ دون المستوى · 50–60 مقبول · 60–70 متوسط · 70–80 جيد · 80–90 جيد جداً · 90 فما فوق ممتاز. اضغط أي رقم حتى تطلع دوره.</p></div>';
+    '<p class="muted" style="margin:0;font-size:12.5px">الكفاءة = عدد دور قيد التسليم الجاهزة ÷ كل دور قيد التسليم. دون 50٪ دون المستوى · 50–60 مقبول · 60–70 متوسط · 70–80 جيد · 80–90 جيد جداً · 90 فما فوق ممتاز. اضغط أي رقم حتى تطلع دوره.</p></div>';
   h += '<div class="cwgrid">' + list.map(function (g, i) {
     var p = pc(g.d, g.t), st = g.st, R = effRate(st.eff), dk = (IX.del[g.k] || []).length;
     return '<article class="cwcard" style="--i:' + i + '"><header>' + ring(p) + '<div class="nm"><h3>' + esc(g.n) + '</h3><span class="muted">نسبة الإنجاز ' + p + '٪ · ' + g.secs.length + (g.secs.length === 1 ? ' قطاع' : ' قطاعات') + ' · ' + g.t + ' دار</span></div>' +
       '<span class="effb ' + R.c + '"><b>' + (st.eff == null ? '—' : st.eff + '٪') + '</b>' + R.t + '</span></header>' +
       '<div class="cwnums sm">' + nb('d', g.d, 'مسلّمة', g.n, 'd') + nb('p', g.units.length || g.p, 'قيد التسليم', g.n, 'p') + '<span class="r"><b>' + g.r + '</b>متبقية</span></div>' + bar(g) +
-      '<div class="cwk">' + nb('k rd', st.ready.length, 'جاهزة', g.n, 'ready') + nb('k od', st.od.length, 'متجاوزة الموعد', g.n, 'od') + nb('k odr', st.odR.length, 'متجاوزة جاهزة', g.n, 'odR') + nb('k odn', st.odN.length, 'متجاوزة غير جاهزة', g.n, 'odN') + '</div>' +
-      (st.od.length ? '<div class="effline"><span style="--w:' + st.eff + '%"></span></div>' : '') +
+      '<div class="cwk">' + nb('k od', st.all.length, 'قيد التسليم', g.n, 'p') + nb('k odr', st.ready.length, 'جاهزة', g.n, 'ready') + nb('k odn', st.notready.length, 'غير جاهزة', g.n, 'notready') + '<span class="k ratio"><b>' + (st.eff == null ? '—' : st.eff + '٪') + '</b>نسبة الجاهز</span></div>' +
+      (st.all.length ? '<div class="effline" title="جاهزة ' + st.ready.length + ' من ' + st.all.length + '"><span style="--w:' + st.eff + '%"></span></div>' : '') +
       '<ul class="cwsecs">' + g.secs.map(function (x) { return '<li><span class="s">' + esc(x.s) + '</span>' + bar(x) + '<span class="v">' + x.d + '<small>/' + x.t + '</small></span></li>'; }).join('') + '</ul></article>';
   }).join('') + '</div>';
   h += '<div class="legend" style="justify-content:center"><span><i style="background:var(--ok)"></i>مسلّمة</span><span><i style="background:var(--ready)"></i>قيد التسليم</span><span><i style="background:var(--notready)"></i>متبقية</span></div>';
@@ -1278,7 +1278,7 @@ VIEWS.weekly = function () {
 };
 function cwList(con, t) {
   var IX = S.cwIX || conIndex(), k = conKey(con), units = IX.ws[k] || [], st = conStats(units), title, items;
-  var T = { d: 'المسلّمة', p: 'قيد التسليم', ready: 'الجاهزة', od: 'المتجاوزة الموعد', odR: 'المتجاوزة الجاهزة', odN: 'المتجاوزة غير الجاهزة' };
+  var T = { d: 'المسلّمة', p: 'قيد التسليم', ready: 'قيد التسليم الجاهزة', notready: 'قيد التسليم غير الجاهزة' };
   title = T[t] + ' — ' + con;
   if (t === 'd') {
     var dl = (IX.del[k] || []).slice().sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); });
