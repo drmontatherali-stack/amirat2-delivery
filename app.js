@@ -1315,23 +1315,38 @@ VIEWS.weekly = function () {
   function ring(p) { var r = 30, c = 2 * Math.PI * r; return '<span class="rw"><svg class="cwring" viewBox="0 0 72 72" aria-hidden="true"><circle cx="36" cy="36" r="' + r + '" class="tk"/><circle cx="36" cy="36" r="' + r + '" class="ar" style="stroke-dasharray:' + c.toFixed(1) + ';--off:' + (c * (1 - p / 100)).toFixed(1) + ';--full:' + c.toFixed(1) + '"/></svg><b class="cwpct">' + p + '<small>٪</small></b></span>'; }
   function nb(cls, n, lbl, con, t) { return '<button class="' + cls + '" data-act="cwList" data-c="' + esc(con) + '" data-t="' + t + '"' + (n ? '' : ' disabled') + '><b>' + n + '</b>' + lbl + '</button>'; }
   var effC = { bad: '#FF5A72', ok1: '#FF9F5A', ok2: '#F2C14E', gd: '#4FD8E8', vg: '#5BE3A8', ex: '#38E2A0' };
-  // ملخص بسطر واحد
-  h += '<div class="card cwtop"><div class="cwnums">' +
-    '<span><b>' + list.length + '</b>مقاول</span><span class="p"><b>' + all.all.length + '</b>قيد التسليم</span>' +
-    '<span class="d"><b>' + all.ready.length + '</b>جاهزة</span><span class="r"><b>' + all.notready.length + '</b>غير جاهزة</span>' +
-    '<span class="eff ' + allR.c + '"><b>' + (all.eff == null ? '—' : all.eff + '٪') + '</b>الكفاءة العامة · ' + allR.t + '</span></div></div>';
-  // جدول واحد واضح: كل مقاول بسطر، تضغطه ينفتح تحته
+  function av(n, e, c) { var r = 19, L = 2 * Math.PI * r; return '<span class="cav"><svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="' + r + '" class="tk"/><circle cx="22" cy="22" r="' + r + '" class="ar" style="stroke:' + c + ';stroke-dasharray:' + L.toFixed(1) + ';--full:' + L.toFixed(1) + ';--off:' + (L * (1 - (e || 0) / 100)).toFixed(1) + '"/></svg><b>' + esc(String(n).trim().charAt(0)) + '</b></span>'; }
+  function split(rd, nr) { var t = rd + nr || 1; return '<span class="csp"><i class="g" style="--w:' + (rd * 100 / t).toFixed(1) + '%"></i><i class="r" style="--w:' + (nr * 100 / t).toFixed(1) + '%"></i></span>'; }
+  // ---- الملخص: حلقة الكفاءة العامة + الأرقام
+  var Lg = 2 * Math.PI * 46, cA = effC[allR.c];
+  h += '<div class="card cwtop2"><span class="bigring"><svg viewBox="0 0 110 110" aria-hidden="true"><circle cx="55" cy="55" r="46" class="tk"/><circle cx="55" cy="55" r="46" class="ar" style="stroke:' + cA + ';stroke-dasharray:' + Lg.toFixed(1) + ';--full:' + Lg.toFixed(1) + ';--off:' + (Lg * (1 - (all.eff || 0) / 100)).toFixed(1) + '"/></svg><b style="color:' + cA + '">' + (all.eff == null ? '—' : all.eff + '٪') + '</b><small>' + allR.t + '</small></span>' +
+    '<div class="tops"><h2 style="margin:0">الكفاءة العامة <small>جاهزة ' + all.ready.length + ' من ' + all.all.length + ' دار قيد التسليم</small></h2>' +
+    '<div class="cwnums"><span><b>' + list.length + '</b>مقاول</span><span class="p"><b>' + all.all.length + '</b>قيد التسليم</span><span class="d"><b>' + all.ready.length + '</b>جاهزة</span><span class="r"><b>' + all.notready.length + '</b>غير جاهزة</span><span class="d"><b>' + T.d + '</b>مسلّمة · إنجاز ' + pc(T.d, T.t) + '٪</span></div>' + split(all.ready.length, all.notready.length) + '</div></div>';
+  // ---- منصة: الأعلى، الأقل، الأكثر قيد التسليم
+  var withU = list.filter(function (g) { return g.st.all.length; });
+  if (withU.length) {
+    var byE = withU.slice().sort(function (a, b) { return b.st.eff - a.st.eff || b.st.all.length - a.st.all.length; }), best = byE[0], worst = byE[byE.length - 1];
+    var most = withU.slice().sort(function (a, b) { return b.st.all.length - a.st.all.length; })[0];
+    function pod(lbl, ic, g, val, cl) { var R3 = effRate(g.st.eff); return '<button class="pod ' + cl + '" data-act="cwSel" data-c="' + esc(g.n) + '"><span class="pi">' + ic + '</span><span class="pl">' + lbl + '</span><b>' + esc(g.n) + '</b><span class="pv" style="color:' + effC[R3.c] + '">' + val + '</span></button>'; }
+    h += '<div class="pods">' + pod('الأعلى كفاءة', '🏆', best, best.st.eff + '٪ · ' + effRate(best.st.eff).t, 'up') + pod('يحتاج متابعة', '⚠️', worst, worst.st.eff + '٪ · ' + effRate(worst.st.eff).t, 'dn') + pod('الأكثر دور قيد التسليم', '🏗️', most, most.st.all.length + ' دار · جاهزة ' + most.st.ready.length, 'mx') + '</div>';
+  }
+  // ---- الجدول
   function th(k, lbl) { return '<button class="cth' + (sort === k ? ' on' : '') + '" data-act="cwSort" data-k="' + k + '">' + lbl + (sort === k ? ' ▾' : '') + '</button>'; }
-  h += '<div class="card ctab"><div class="crow chead"><span>المقاول</span>' + th('prog', 'قيد التسليم') + '<span>جاهزة</span><span>غير جاهزة</span>' + th('eff', 'الكفاءة') + '</div>' +
+  h += '<div class="card ctab"><div class="crow chead"><span></span><span>المقاول</span>' + th('prog', 'قيد التسليم') + '<span>جاهزة</span><span>غير جاهزة</span>' + th('eff', 'الكفاءة') + '</div>' +
     list.map(function (g, i) {
       var st = g.st, R2 = effRate(st.eff), c = effC[R2.c], open = S.cwSel === g.n;
-      var row = '<button class="crow' + (open ? ' open' : '') + '" data-act="cwSel" data-c="' + esc(g.n) + '" style="--i:' + i + '" aria-expanded="' + open + '">' +
-        '<span class="cn"><b>' + esc(g.n) + '</b></span><span class="cv">' + st.all.length + '</span><span class="cv ok">' + st.ready.length + '</span><span class="cv no">' + st.notready.length + '</span>' +
-        '<span class="ce"><span class="cb"><i style="--w:' + (st.eff || 0) + '%;--c:' + c + '"></i></span><b style="color:' + c + '">' + (st.eff == null ? '—' : st.eff + '٪') + '</b><small style="color:' + c + '">' + R2.t + '</small></span></button>';
+      var row = '<button class="crow' + (open ? ' open' : '') + '" data-act="cwSel" data-c="' + esc(g.n) + '" style="--i:' + i + '" aria-expanded="' + open + '">' + av(g.n, st.eff, c) +
+        '<span class="cn"><b>' + esc(g.n) + '</b><small>إنجاز ' + pc(g.d, g.t) + '٪ · ' + g.secs.length + (g.secs.length === 1 ? ' قطاع' : ' قطاعات') + '</small></span><span class="cv">' + st.all.length + '</span><span class="cv ok">' + st.ready.length + '</span><span class="cv no">' + st.notready.length + '</span>' +
+        '<span class="ce">' + split(st.ready.length, st.notready.length) + '<b style="color:' + c + '">' + (st.eff == null ? '—' : st.eff + '٪') + '</b><span class="chip2" style="--c:' + c + '">' + R2.t + '</span></span></button>';
       var more = '';
-      if (open) more = '<div class="cmore">' +
-        '<div class="cwk">' + nb('k od', st.all.length, 'قيد التسليم', g.n, 'p') + nb('k odr', st.ready.length, 'جاهزة', g.n, 'ready') + nb('k odn', st.notready.length, 'غير جاهزة', g.n, 'notready') + nb('k dl', g.d, 'مسلّمة', g.n, 'd') + '</div>' +
-        '<div class="muted" style="font-size:12.5px">نسبة الإنجاز ' + pc(g.d, g.t) + '٪ (' + g.d + ' مسلّمة من ' + g.t + ') · اضغط أي رقم حتى تطلع دوره</div></div>';
+      if (open) {
+        var bs = {}, so = []; st.all.forEach(function (u) { var k = u.sector || 'غير محدد'; if (!bs[k]) { bs[k] = { r: 0, n: 0 }; so.push(k); } bs[k][isReady(u.unit) ? 'r' : 'n']++; });
+        so.sort(function (a, b) { var ia = SECTOR_NAMES.indexOf(a), ib = SECTOR_NAMES.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });
+        more = '<div class="cmore">' +
+          '<div class="cwk">' + nb('k od', st.all.length, 'قيد التسليم', g.n, 'p') + nb('k odr', st.ready.length, 'جاهزة', g.n, 'ready') + nb('k odn', st.notready.length, 'غير جاهزة', g.n, 'notready') + nb('k dl', g.d, 'مسلّمة', g.n, 'd') + '</div>' +
+          (so.length ? '<div class="csecs"><div class="cs h"><span>القطاع</span><span>قيد التسليم</span><span>جاهزة</span><span>غير جاهزة</span><span></span></div>' + so.map(function (k, j) { var x = bs[k], t2 = x.r + x.n; return '<div class="cs" style="--i:' + j + '"><span>' + esc(k) + '</span><span class="cv">' + t2 + '</span><span class="cv ok">' + x.r + '</span><span class="cv no">' + x.n + '</span>' + split(x.r, x.n) + '</div>'; }).join('') + '</div>' : '') +
+          '<div class="muted" style="font-size:12.5px">نسبة الإنجاز ' + pc(g.d, g.t) + '٪ (' + g.d + ' مسلّمة من ' + g.t + ') · اضغط أي رقم حتى تطلع دوره</div></div>';
+      }
       return row + more;
     }).join('') + '</div>';
   h += '<p class="muted" style="margin:0;font-size:12.5px;text-align:center">الكفاءة = الجاهزة ÷ قيد التسليم. دون 50٪ دون المستوى · 50–60 مقبول · 60–70 متوسط · 70–80 جيد · 80–90 جيد جداً · 90 فما فوق ممتاز.</p>';
