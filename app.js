@@ -24,7 +24,7 @@ var USERS = [
 var DEFAULT_CONTRACTORS = ['أحمد عواد', 'عادل عرار', 'محمد عرار', 'جاسم زراك', 'دياري كريم', 'علي الكوفي', 'علي هويدي', 'علي محمد حسين', 'طه عبد الله', 'اكام بهاء', 'ثامر عطار', 'سمير حنون', 'عمر بولات', 'اسعد هادي', 'اوات جمال', 'يوسف حسن'];
 var AR_MONTHS = ['', 'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 var AR_MONTHS_SHORT = ['', 'كانون٢', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران', 'تموز', 'آب', 'أيلول', 'تشرين١', 'تشرين٢', 'كانون١'];
-var VERSION = '1.8.1';
+var VERSION = '1.8.2';
 var ADMIN_UID = 'PsrknBOyOxUU3PM0xqXZvBhRaul1'; // حساب منتظر علي (مدير النظام)
 var BAKROOT = 'amirat2_logs/backups'; // داخل مسار مسموح بقواعد قاعدة البيانات الحالية
 var ACLROOT = 'amirat2_acl';
@@ -1449,7 +1449,7 @@ function rvSumFiltered() {
 VIEWS.rvsum = function () {
   var all = rvSumRows(); if (!all.length) return '<div class="card empty">لا توجد دور مراجع عليها بعد.</div>';
   var rows = rvSumFiltered(), f = S.rsF || 'all', so = S.rsSort || 'n';
-  var nR = 0, nD = 0, nG = 0, cG = 0; rows.forEach(function (r) { nR += r.rounds.length; nD += r.tot; if (r.give != null) { nG += r.give; cG++; } });
+  var nR = 0, nD = 0; rows.forEach(function (r) { nR += r.rounds.length; nD += r.tot; });
   var cnt = { all: all.length, open: all.filter(function (r) { return !r.del; }).length, del: all.filter(function (r) { return r.del; }).length, late: all.filter(function (r) { return r.late; }).length };
   function chip(v, t) { return '<button class="secchip' + (f === v ? ' on' : '') + '" data-act="rsF" data-v="' + v + '">' + t + ' <b>' + cnt[v] + '</b></button>'; }
   function sb(v, t) { return '<button class="secchip' + (so === v ? ' on' : '') + '" data-act="rsSort" data-v="' + v + '">' + t + '</button>'; }
@@ -1462,40 +1462,119 @@ VIEWS.rvsum = function () {
     '<div class="card"><b>' + nR + '</b><span>مراجعة</span></div>' +
     '<div class="card"><b>' + (rows.length ? (nR / rows.length).toFixed(1) : 0) + '</b><span>معدل المراجعات للدار</span></div>' +
     '<div class="card"><b>' + (rows.length ? Math.round(nD / rows.length) : 0) + '</b><span>معدل أيام المراجعة للدار</span></div>' +
-    '<div class="card"><b>' + (cG ? Math.round(nG / cG) : '—') + '</b><span>معدل مدة التسليم المعطاة</span></div></div>';
+    '<div class="card"><b>' + nD + '</b><span>إجمالي أيام المراجعات</span></div></div>';
   if (!rows.length) return h + '<div class="card empty">لا نتائج مطابقة.</div>';
   var shown = rows.slice(0, S.rsShow || 200);
-  h += '<div class="card" style="padding:0;overflow:hidden"><div class="scroll rstbl" style="max-height:calc(100vh - 300px)"><table class="tbl"><thead><tr><th>ت</th><th>المقاول</th><th>رقم البلوك والدار</th><th>مدة التسليم المعطاة</th><th>عدد المراجعات</th><th>تواريخ المراجعات</th><th>إجمالي أيام المراجعات</th><th>موقف الدار</th></tr></thead><tbody>' +
+  h += '<div class="card" style="padding:0;overflow:hidden"><div class="scroll rstbl" style="max-height:calc(100vh - 300px)"><table class="tbl"><thead><tr><th>ت</th><th>المقاول</th><th>رقم البلوك والدار</th><th>تاريخ التسليم</th><th>عدد المراجعات</th><th>تواريخ المراجعات</th><th>إجمالي أيام المراجعات</th><th>موقف الدار</th></tr></thead><tbody>' +
     shown.map(function (r, i) {
       return '<tr style="--i:' + Math.min(i, 18) + '"><td class="muted">' + (i + 1) + '</td><td><b>' + esc(r.con) + '</b>' + (r.sec ? '<div class="muted" style="font-size:12px">' + esc(r.sec) + '</div>' : '') + '</td>' +
         '<td><button class="btn sm" style="font-weight:700" data-act="house" data-h="' + esc(r.h) + '"><span class="ltr">' + esc(r.h) + '</span></button></td>' +
-        '<td>' + (r.give != null ? '<b>' + r.give + '</b> يوم' : '—') + '<div class="rsdr"><span>' + esc(r.inc || '-') + '</span> → <span>' + esc(r.dlv || '-') + '</span></div></td>' +
+        '<td><span class="rsdr" style="font-size:13px;color:inherit">' + esc(r.dlv || '—') + '</span></td>' +
         '<td><span class="rsn">' + r.rounds.length + '</span></td>' +
         '<td><div class="rsrounds">' + r.rounds.map(function (x) { return '<span class="rsr"><i>م' + x.n + '</i><span class="rsdr"><span>' + esc(x.r || '-') + '</span>' + (x.c ? ' → <span>' + esc(x.c) + '</span>' : '') + '</span>' + (x.d != null ? '<em>' + x.d + ' يوم</em>' : '') + '</span>'; }).join('') + '</div></td>' +
         '<td><b class="rstot">' + r.tot + '</b> يوم</td>' +
         '<td><span class="pill ' + r.cls + '" style="white-space:normal">' + esc(r.st) + '</span></td></tr>';
     }).join('') + '</tbody></table></div></div>';
   if (rows.length > shown.length) h += '<div class="row" style="justify-content:center"><button class="btn" data-act="rsMore">عرض المزيد (' + (rows.length - shown.length) + ')</button></div>';
-  h += '<p class="muted" style="font-size:12.5px;margin:0">مدة التسليم المعطاة = من تاريخ الوارد لتاريخ التسليم. أيام كل مراجعة = من تاريخ المراجعة لموعد إكمال الملاحظات، والإجمالي مجموعها.</p>';
+  h += '<p class="muted" style="font-size:12.5px;margin:0">أيام كل مراجعة = من تاريخ المراجعة لموعد إكمال الملاحظات، والإجمالي مجموعها.</p>';
   return h;
 };
+/* كاتب xlsx صغير بتنسيق كامل (حدود، ألوان، التفاف نص، A4 أفقي على عرض صفحة وحدة، تكرار العناوين، تجميد) — بدون مكتبات */
+function xlsxPro(sheets, file) {
+  function x(v) { return String(v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function col(n) { var t = ''; n++; while (n) { var m = (n - 1) % 26; t = String.fromCharCode(65 + m) + t; n = Math.floor((n - 1) / 26); } return t; }
+  var ST = { head: 1, c: 2, cz: 3, t: 4, tz: 5, tot: 6, tott: 7 };
+  var styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<fonts count="3"><font><sz val="11"/><name val="Arial"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Arial"/></font><font><b/><sz val="11"/><name val="Arial"/></font></fonts>' +
+    '<fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1F4E5F"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFEEF5F7"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFD6E6EA"/></patternFill></fill></fills>' +
+    '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FF9FB4BB"/></left><right style="thin"><color rgb="FF9FB4BB"/></right><top style="thin"><color rgb="FF9FB4BB"/></top><bottom style="thin"><color rgb="FF9FB4BB"/></bottom><diagonal/></border></borders>' +
+    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="8">' +
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+    '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1" readingOrder="2"/></xf>' +
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1" readingOrder="2"/></xf>' +
+    '<xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1" readingOrder="2"/></xf>' +
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center" wrapText="1" readingOrder="2"/></xf>' +
+    '<xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center" wrapText="1" readingOrder="2"/></xf>' +
+    '<xf numFmtId="0" fontId="2" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1" readingOrder="2"/></xf>' +
+    '<xf numFmtId="0" fontId="2" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center" wrapText="1" readingOrder="2"/></xf>' +
+    '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+  var files = [], defs = '';
+  sheets.forEach(function (sh, si) {
+    var nC = sh.head.length, last = col(nC - 1), rowsX = '', all = [sh.head].concat(sh.rows).concat(sh.total ? [sh.total] : []);
+    all.forEach(function (row, ri) {
+      var kind = ri === 0 ? 'head' : (sh.total && ri === all.length - 1 ? 'tot' : 'body'), z = kind === 'body' && ri % 2 === 0, lines = 1;
+      var cells = row.map(function (v, ci) {
+        var txt = (sh.textCols || []).indexOf(ci) >= 0, s2 = kind === 'head' ? ST.head : kind === 'tot' ? (txt ? ST.tott : ST.tot) : (txt ? (z ? ST.tz : ST.t) : (z ? ST.cz : ST.c));
+        var cov = kind === 'tot' && (sh.totMerge || []).some(function (m) { return ci > m[0] && ci <= m[1]; });
+        var str = cov ? '' : (v == null || v === '' ? '—' : v), w = sh.cols[ci] || 10;
+        if (kind === 'tot') (sh.totMerge || []).forEach(function (m) { if (ci === m[0]) for (var q = m[0] + 1; q <= m[1]; q++) w += sh.cols[q] || 10; });
+        var ln2 = String(str).split('\n').reduce(function (n, ln) { return n + Math.max(1, Math.ceil(ln.length / (w * 1.1))); }, 0); if (ln2 > lines) lines = ln2;
+        var ref = col(ci) + (ri + 1);
+        return typeof str === 'number' ? '<c r="' + ref + '" s="' + s2 + '"><v>' + str + '</v></c>' : '<c r="' + ref + '" s="' + s2 + '" t="inlineStr"><is><t xml:space="preserve">' + x(str) + '</t></is></c>';
+      }).join('');
+      rowsX += '<row r="' + (ri + 1) + '" ht="' + Math.max(kind === 'head' ? 32 : 20, lines * 14 + 8) + '" customHeight="1">' + cells + '</row>';
+    });
+    var ref = 'A1:' + last + all.length;
+    files.push(['xl/worksheets/sheet' + (si + 1) + '.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+      '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="' + ref + '"/><sheetViews><sheetView rightToLeft="1" workbookViewId="0"' + (si ? '' : ' tabSelected="1"') + '><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/>' +
+      '<cols>' + sh.cols.map(function (w, ci) { return '<col min="' + (ci + 1) + '" max="' + (ci + 1) + '" width="' + w + '" customWidth="1"/>'; }).join('') + '</cols><sheetData>' + rowsX + '</sheetData>' +
+      '<autoFilter ref="A1:' + last + (sh.rows.length + 1) + '"/>' + (sh.total && sh.totMerge ? '<mergeCells count="' + sh.totMerge.length + '">' + sh.totMerge.map(function (m) { return '<mergeCell ref="' + col(m[0]) + all.length + ':' + col(m[1]) + all.length + '"/>'; }).join('') + '</mergeCells>' : '') + '<printOptions horizontalCentered="1"/><pageMargins left="0.3" right="0.3" top="0.45" bottom="0.5" header="0.2" footer="0.25"/>' +
+      '<pageSetup paperSize="9" orientation="' + (sh.portrait ? 'portrait' : 'landscape') + '" fitToWidth="1" fitToHeight="0"/><headerFooter><oddHeader>' + x('&C&"Arial,Bold"' + sh.title) + '</oddHeader><oddFooter>' + x('&R&P / &N&L' + todayStr()) + '</oddFooter></headerFooter></worksheet>']);
+    defs += '<definedName name="_xlnm._FilterDatabase" localSheetId="' + si + '" hidden="1">' + x("'" + sh.name + "'!$A$1:$" + last + '$' + (sh.rows.length + 1)) + '</definedName><definedName name="_xlnm.Print_Titles" localSheetId="' + si + '">' + x("'" + sh.name + "'!$1:$1") + '</definedName>';
+  });
+  files.push(['[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+    sheets.map(function (sh, si) { return '<Override PartName="/xl/worksheets/sheet' + (si + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'; }).join('') + '</Types>']);
+  files.push(['_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>']);
+  files.push(['xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView/></bookViews><sheets>' +
+    sheets.map(function (sh, si) { return '<sheet name="' + x(sh.name) + '" sheetId="' + (si + 1) + '" r:id="rId' + (si + 1) + '"/>'; }).join('') + '</sheets><definedNames>' + defs + '</definedNames></workbook>']);
+  files.push(['xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    sheets.map(function (sh, si) { return '<Relationship Id="rId' + (si + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + (si + 1) + '.xml"/>'; }).join('') +
+    '<Relationship Id="rId' + (sheets.length + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>']);
+  files.push(['xl/styles.xml', styles]);
+  var blob = zipStore(files), a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = file; document.body.appendChild(a); a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+  return blob;
+}
+function zipStore(files) { // ZIP بدون ضغط (store) — يكفي لملف xlsx
+  var enc = new TextEncoder(), T = zipStore.T;
+  if (!T) { T = zipStore.T = []; for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; T[n] = c >>> 0; } }
+  function crc(b) { var c = 0xFFFFFFFF; for (var i = 0; i < b.length; i++) c = T[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+  function u16(v) { return [v & 255, (v >>> 8) & 255]; } function u32(v) { return [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255]; }
+  var parts = [], cen = [], off = 0;
+  files.forEach(function (f) {
+    var nm = enc.encode(f[0]), dt = enc.encode(f[1]), cr = crc(dt);
+    var lh = new Uint8Array([].concat(u32(0x04034b50), u16(20), u16(0x0800), u16(0), u16(0), u16(0x21), u32(cr), u32(dt.length), u32(dt.length), u16(nm.length), u16(0)));
+    parts.push(lh, nm, dt);
+    cen.push(new Uint8Array([].concat(u32(0x02014b50), u16(20), u16(20), u16(0x0800), u16(0), u16(0), u16(0x21), u32(cr), u32(dt.length), u32(dt.length), u16(nm.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(off))), nm);
+    off += lh.length + nm.length + dt.length;
+  });
+  var cs = 0; cen.forEach(function (b) { cs += b.length; });
+  var end = new Uint8Array([].concat(u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length), u32(cs), u32(off), u16(0)));
+  return new Blob(parts.concat(cen, [end]), { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
 function exportRvSum() {
   var rows = rvSumFiltered(); if (!rows.length) { toast('لا توجد دور للتصدير.', false); return; }
-  var mx = 1; rows.forEach(function (r) { mx = Math.max(mx, r.rounds.length); });
-  var head = ['ت', 'المقاول', 'القطاع', 'رقم البلوك والدار', 'تاريخ التسليم', 'عدد المراجعات'], cols = [5, 22, 12, 16, 13, 10];
-  for (var k = 1; k <= mx; k++) { head.push('المراجعة ' + k); cols.push(40); }
-  head.push('عدد أيام المراجعات الكلي', 'موقف الدار'); cols.push(14, 44);
-  var aoa = [head];
-  rows.forEach(function (r, i) {
-    var row = [i + 1, r.con, r.sec, stripBidi(r.h), r.dlv || '', r.rounds.length];
-    for (var k = 0; k < mx; k++) { var x = r.rounds[k]; row.push(x ? 'حضور: ' + (x.r || '-') + ' | إنهاء: ' + (x.c || '-') : ''); }
-    row.push(r.tot, stripBidi(r.st).replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '').replace(/\s+/g, ' ').trim()); aoa.push(row);
+  function clean(t) { return stripBidi(t).replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '').replace(/[ \t]+/g, ' ').trim(); }
+  var body = rows.map(function (r, i) {
+    var rv = r.rounds.map(function (x) { return 'م' + x.n + ': حضور ' + (x.r || '—') + ' ← إنهاء ' + (x.c || '—'); }).join('\n');
+    return [i + 1, r.con, r.sec || '—', stripBidi(r.h), r.dlv || '—', r.rounds.length, rv, r.tot, clean(r.st).replace(' — ', '\n')];
   });
-  var wb = XLSX.utils.book_new(), ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = cols.map(function (w) { return { wch: w }; });
-  ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa.length - 1, c: head.length - 1 } }) };
-  ws['!views'] = [{ rightToLeft: true }];
-  XLSX.utils.book_append_sheet(wb, ws, 'المراجعات'); XLSX.writeFile(wb, 'المراجعات_' + todayStr() + '.xlsx');
+  var tR = 0, tD = 0; rows.forEach(function (r) { tR += r.rounds.length; tD += r.tot; });
+  var s1 = { name: 'المراجعات', title: 'جدول المراجعات — مجمع الأميرات السكني 2 — ' + todayStr(),
+    head: ['ت', 'المقاول', 'القطاع', 'رقم البلوك والدار', 'تاريخ التسليم', 'عدد المراجعات', 'تواريخ المراجعات (حضور ← إنهاء)', 'أيام المراجعات الكلي', 'موقف الدار'],
+    cols: [5, 17, 12, 12, 12, 9, 42, 10, 28], textCols: [1, 6, 8], rows: body, totMerge: [[0, 2], [3, 4]],
+    total: ['المجموع', '', '', rows.length + ' دار', '', tR, 'معدل المراجعات للدار: ' + (tR / rows.length).toFixed(1), tD, 'معدل أيام المراجعة للدار: ' + Math.round(tD / rows.length)] };
+  // الملخص حسب المقاول
+  var by = {}, ord = [];
+  rows.forEach(function (r) { var k = r.con; if (!by[k]) { by[k] = { n: 0, d: 0, o: 0, late: 0, rv: 0, days: 0 }; ord.push(k); } var b = by[k]; b.n++; if (r.del) b.d++; else b.o++; if (r.late) b.late++; b.rv += r.rounds.length; b.days += r.tot; });
+  ord.sort(function (a, b) { return by[b].n - by[a].n || a.localeCompare(b); });
+  var T = { n: 0, d: 0, o: 0, late: 0, rv: 0, days: 0 };
+  var s2rows = ord.map(function (k, i) { var b = by[k]; Object.keys(T).forEach(function (q) { T[q] += b[q]; }); return [i + 1, k, b.n, b.d, b.o, b.late, b.rv, +(b.rv / b.n).toFixed(1), b.days, Math.round(b.days / b.n)]; });
+  var s2 = { name: 'الملخص حسب المقاول', title: 'ملخص المراجعات حسب المقاول — ' + todayStr(), portrait: true,
+    head: ['ت', 'المقاول', 'عدد الدور', 'مسلّمة', 'غير مسلّمة', 'متجاوزة المدة', 'عدد المراجعات', 'معدل المراجعات للدار', 'أيام المراجعات الكلي', 'معدل الأيام للدار'],
+    cols: [5, 20, 8, 8, 9, 9, 9, 10, 10, 9], textCols: [1], rows: s2rows,
+    totMerge: [[0, 1]], total: ['المجموع', '', T.n, T.d, T.o, T.late, T.rv, +(T.rv / T.n).toFixed(1), T.days, Math.round(T.days / T.n)] };
+  xlsxPro([s1, s2], 'Amirat2_Reviews_' + todayStr() + '.xlsx');
 }
 
 /* ----- عرض: جدول الأعمال ----- */
