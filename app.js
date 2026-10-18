@@ -984,7 +984,7 @@ function hubHot(n) {
   hub.querySelectorAll('.spoke.hot').forEach(function (x) { x.classList.remove('hot'); });
   if (n) { var sp = hub.querySelector('.spoke[data-i="' + n.dataset.v + '"]'); if (sp) sp.classList.add('hot'); hub.classList.add('focus'); } else hub.classList.remove('focus');
 }
-window.addEventListener('resize', function () { if (S.view === 'hub') scheduleRender(); });
+window.addEventListener('resize', function () { if (S.view === 'hub' || S.view === 'weekly') scheduleRender(); });
 
 /* ----- فرز القوائم: بدون / المقاول / القطاع / الفئة — بكل مكان تنعرض بيه الدور ----- */
 S.grp = lsGet('a2_grp', {}); S.grpC = {};
@@ -1314,21 +1314,47 @@ VIEWS.weekly = function () {
   function bar(o, big) { var t = o.t || 1; return '<div class="cwbar' + (big ? ' big' : '') + '" role="img" aria-label="مسلّمة ' + o.d + '، قيد التسليم ' + o.p + '، متبقية ' + o.r + '"><i class="d" style="--w:' + (o.d * 100 / t).toFixed(2) + '%"></i><i class="p" style="--w:' + (o.p * 100 / t).toFixed(2) + '%"></i><i class="r" style="--w:' + (o.r * 100 / t).toFixed(2) + '%"></i></div>'; }
   function ring(p) { var r = 30, c = 2 * Math.PI * r; return '<span class="rw"><svg class="cwring" viewBox="0 0 72 72" aria-hidden="true"><circle cx="36" cy="36" r="' + r + '" class="tk"/><circle cx="36" cy="36" r="' + r + '" class="ar" style="stroke-dasharray:' + c.toFixed(1) + ';--off:' + (c * (1 - p / 100)).toFixed(1) + ';--full:' + c.toFixed(1) + '"/></svg><b class="cwpct">' + p + '<small>٪</small></b></span>'; }
   function nb(cls, n, lbl, con, t) { return '<button class="' + cls + '" data-act="cwList" data-c="' + esc(con) + '" data-t="' + t + '"' + (n ? '' : ' disabled') + '><b>' + n + '</b>' + lbl + '</button>'; }
-  h += '<div class="card cwsum"><div class="cwhead"><div><h2 style="margin:0">كفاءة المقاولين <small>' + list.length + ' مقاول</small></h2></div>' +
-    '<div class="cwnums"><span><b>' + T.t + '</b>الكلي</span><span class="d"><b>' + T.d + '</b>مسلّمة · ' + pc(T.d, T.t) + '٪</span><span class="p"><b>' + T.p + '</b>قيد التسليم</span><span class="r"><b>' + T.r + '</b>متبقية</span>' +
-    '<span class="eff ' + allR.c + '"><b>' + (all.eff == null ? '—' : all.eff + '٪') + '</b>الكفاءة العامة · ' + allR.t + '</span></div></div>' + bar(T, true) +
-    '<div class="row cwsort" role="group" aria-label="ترتيب">' + [['eff', 'الأعلى كفاءة'], ['pct', 'الأعلى إنجازاً'], ['total', 'الأكبر'], ['prog', 'الأكثر قيد التسليم'], ['rem', 'الأكثر متبقي']].map(function (x) { return '<button class="secchip' + (sort === x[0] ? ' on' : '') + '" data-act="cwSort" data-k="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
-    '<p class="muted" style="margin:0;font-size:12.5px">الكفاءة = عدد دور قيد التسليم الجاهزة ÷ كل دور قيد التسليم. دون 50٪ دون المستوى · 50–60 مقبول · 60–70 متوسط · 70–80 جيد · 80–90 جيد جداً · 90 فما فوق ممتاز. اضغط أي رقم حتى تطلع دوره.</p></div>';
-  h += '<div class="cwgrid">' + list.map(function (g, i) {
-    var p = pc(g.d, g.t), st = g.st, R = effRate(st.eff), dk = (IX.del[g.k] || []).length;
-    return '<article class="cwcard" style="--i:' + i + '"><header>' + ring(p) + '<div class="nm"><h3>' + esc(g.n) + '</h3><span class="muted">نسبة الإنجاز ' + p + '٪ · ' + g.secs.length + (g.secs.length === 1 ? ' قطاع' : ' قطاعات') + ' · ' + g.t + ' دار</span></div>' +
-      '<span class="effb ' + R.c + '"><b>' + (st.eff == null ? '—' : st.eff + '٪') + '</b>' + R.t + '</span></header>' +
-      '<div class="cwnums sm">' + nb('d', g.d, 'مسلّمة', g.n, 'd') + nb('p', g.units.length || g.p, 'قيد التسليم', g.n, 'p') + '<span class="r"><b>' + g.r + '</b>متبقية</span></div>' + bar(g) +
-      '<div class="cwk">' + nb('k od', st.all.length, 'قيد التسليم', g.n, 'p') + nb('k odr', st.ready.length, 'جاهزة', g.n, 'ready') + nb('k odn', st.notready.length, 'غير جاهزة', g.n, 'notready') + '<span class="k ratio"><b>' + (st.eff == null ? '—' : st.eff + '٪') + '</b>نسبة الجاهز</span></div>' +
-      (st.all.length ? '<div class="effline" title="جاهزة ' + st.ready.length + ' من ' + st.all.length + '"><span style="--w:' + st.eff + '%"></span></div>' : '') +
-      '<ul class="cwsecs">' + g.secs.map(function (x) { return '<li><span class="s">' + esc(x.s) + '</span>' + bar(x) + '<span class="v">' + x.d + '<small>/' + x.t + '</small></span></li>'; }).join('') + '</ul></article>';
-  }).join('') + '</div>';
-  h += '<div class="legend" style="justify-content:center"><span><i style="background:var(--ok)"></i>مسلّمة</span><span><i style="background:var(--ready)"></i>قيد التسليم</span><span><i style="background:var(--notready)"></i>متبقية</span></div>';
+  var effC = { bad: '#FF5A72', ok1: '#FF9F5A', ok2: '#F2C14E', gd: '#4FD8E8', vg: '#5BE3A8', ex: '#38E2A0' };
+  // ---- ملخص علوي مضغوط
+  h += '<div class="card cwtop"><div class="cwnums">' +
+    '<span><b>' + list.length + '</b>مقاول</span><span><b>' + T.t + '</b>الكلي</span><span class="d"><b>' + T.d + '</b>مسلّمة · ' + pc(T.d, T.t) + '٪</span><span class="p"><b>' + all.all.length + '</b>قيد التسليم</span>' +
+    '<span class="d"><b>' + all.ready.length + '</b>جاهزة</span><span class="r"><b>' + all.notready.length + '</b>غير جاهزة</span>' +
+    '<span class="eff ' + allR.c + '"><b>' + (all.eff == null ? '—' : all.eff + '٪') + '</b>الكفاءة العامة · ' + allR.t + '</span></div>' + bar(T, true) + '</div>';
+  // ---- خريطة: أفقي = نسبة الإنجاز، عمودي = الكفاءة؛ حجم النقطة = عدد قيد التسليم
+  var sel = list.find(function (g) { return g.n === S.cwSel; }) || list[0]; S.cwSel = sel.n;
+  var mx = Math.max.apply(null, list.map(function (g) { return g.st.all.length; }).concat([1]));
+  var W = Math.round(Math.min(1000, Math.max(340, document.documentElement.clientWidth - 90))), Hh = Math.round(Math.max(320, Math.min(440, W * 0.5))), sc = Math.max(0.62, W / 1000), P = { l: 44, r: 16, t: 26, b: 40 }, iw = W - P.l - P.r, ih = Hh - P.t - P.b;
+  function X(p) { return P.l + iw * (1 - p / 100); } // RTL: 100٪ على اليسار، 0 على اليمين
+  function Y(p) { return P.t + ih * (1 - p / 100); }
+  var grid = '';
+  [0, 25, 50, 75, 100].forEach(function (v) { grid += '<line class="gl" x1="' + P.l + '" x2="' + (W - P.r) + '" y1="' + Y(v) + '" y2="' + Y(v) + '"/><text class="ax" x="' + (P.l - 8) + '" y="' + (Y(v) + 4) + '" text-anchor="end">' + v + '٪</text>'; grid += '<line class="gl" y1="' + P.t + '" y2="' + (Hh - P.b) + '" x1="' + X(v) + '" x2="' + X(v) + '"/><text class="ax" y="' + (Hh - P.b + 18) + '" x="' + X(v) + '" text-anchor="middle">' + v + '٪</text>'; });
+  var zones = '<rect class="zn good" x="' + X(100) + '" y="' + Y(100) + '" width="' + (X(50) - X(100)) + '" height="' + (Y(70) - Y(100)) + '"/><text class="zt" x="' + ((X(100) + X(50)) / 2) + '" y="' + (Y(100) + 20) + '" text-anchor="middle">الأفضل: إنجاز وجاهزية عالية</text>' +
+    '<rect class="zn bad" x="' + X(50) + '" y="' + Y(50) + '" width="' + (X(0) - X(50)) + '" height="' + (Y(0) - Y(50)) + '"/><text class="zt" x="' + ((X(50) + X(0)) / 2) + '" y="' + (Y(50) + 20) + '" text-anchor="middle">يحتاج متابعة</text>';
+  var dots = list.slice().sort(function (a, b) { return (a === sel) - (b === sel); }).map(function (g, i) {
+    var p = pc(g.d, g.t), e = g.st.eff == null ? 0 : g.st.eff, r = (10 + 18 * Math.sqrt(g.st.all.length / mx)) * sc, R2 = effRate(g.st.eff), on = g === sel;
+    return '<g class="dot' + (on ? ' on' : '') + '" data-act="cwSel" data-c="' + esc(g.n) + '" tabindex="0" role="button" aria-label="' + esc(g.n) + ' — إنجاز ' + p + '٪، كفاءة ' + e + '٪" style="--i:' + i + ';--x:' + X(p).toFixed(1) + 'px;--y:' + Y(e).toFixed(1) + 'px;--c:' + effC[R2.c] + '">' +
+      '<circle class="halo" r="' + (r + 8).toFixed(1) + '"/><circle class="b" r="' + r.toFixed(1) + '"/><text class="n" y="' + (-r - 8).toFixed(1) + '" text-anchor="middle">' + esc(g.n) + '</text><text class="v" y="4" text-anchor="middle">' + g.st.all.length + '</text></g>';
+  }).join('');
+  h += '<div class="card cwmap"><h2>خريطة المقاولين <small>أفقي: نسبة الإنجاز · عمودي: الكفاءة (نسبة الجاهز) · حجم الدائرة: عدد قيد التسليم · اضغط أي مقاول</small></h2>' +
+    '<svg viewBox="0 0 ' + W + ' ' + Hh + '" class="cwsvg" style="--cx:' + (W / 2) + 'px;--cy:' + (Hh / 2) + 'px" role="img" aria-label="خريطة كفاءة المقاولين">' + zones + grid +
+    '<text class="axl" x="' + (W / 2) + '" y="' + (Hh - 4) + '" text-anchor="middle">نسبة الإنجاز ←</text><text class="axl" transform="translate(12 ' + (Hh / 2) + ') rotate(-90)" text-anchor="middle">الكفاءة ←</text>' + dots + '</svg></div>';
+  // ---- قائمة الترتيب + لوحة التفاصيل
+  var ladder = '<div class="card cwlad"><div class="cwsort" role="group" aria-label="ترتيب">' + [['eff', 'الأعلى كفاءة'], ['pct', 'الأعلى إنجازاً'], ['prog', 'الأكثر قيد التسليم'], ['rem', 'الأكثر متبقي']].map(function (x) { return '<button class="gopt' + (sort === x[0] ? ' on' : '') + '" data-act="cwSort" data-k="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div><ol class="lad">' +
+    list.map(function (g, i) {
+      var R2 = effRate(g.st.eff), e = g.st.eff;
+      return '<li style="--i:' + i + '"><button class="lrow' + (g === sel ? ' on' : '') + '" data-act="cwSel" data-c="' + esc(g.n) + '"><span class="rk">' + (i + 1) + '</span><span class="ln"><b>' + esc(g.n) + '</b><small>' + g.st.ready.length + ' جاهزة من ' + g.st.all.length + ' · إنجاز ' + pc(g.d, g.t) + '٪</small></span>' +
+        '<span class="lb"><i style="--w:' + (e || 0) + '%;--c:' + effC[R2.c] + '"></i></span><span class="lv" style="color:' + effC[R2.c] + '">' + (e == null ? '—' : e + '٪') + '<small>' + R2.t + '</small></span></button></li>';
+    }).join('') + '</ol></div>';
+  var g = sel, st = g.st, R = effRate(st.eff), p = pc(g.d, g.t);
+  function gauge(v, c) { var r = 70, L = Math.PI * r; return '<svg class="gauge" viewBox="0 0 180 104" aria-hidden="true"><path d="M20 94 A70 70 0 0 1 160 94" class="tk"/><path d="M20 94 A70 70 0 0 1 160 94" class="ar" style="stroke:' + c + ';stroke-dasharray:' + L.toFixed(1) + ';--full:' + L.toFixed(1) + ';--off:' + (L * (1 - (v || 0) / 100)).toFixed(1) + '"/></svg>'; }
+  var detail = '<div class="card cwdet" data-k="' + esc(g.n) + '"><header><div><h3>' + esc(g.n) + '</h3><span class="muted">' + g.secs.length + (g.secs.length === 1 ? ' قطاع' : ' قطاعات') + ' · ' + g.t + ' دار بالمجموع</span></div><span class="effb ' + R.c + '"><b>' + (st.eff == null ? '—' : st.eff + '٪') + '</b>' + R.t + '</span></header>' +
+    '<div class="gg"><div class="gw">' + gauge(st.eff, effC[R.c]) + '<b style="color:' + effC[R.c] + '">' + (st.eff == null ? '—' : st.eff + '٪') + '</b><small>الكفاءة · جاهزة ' + st.ready.length + ' من ' + st.all.length + '</small></div>' +
+    '<div class="gw">' + gauge(p, '#38E2A0') + '<b style="color:#38E2A0">' + p + '٪</b><small>نسبة الإنجاز · ' + g.d + ' من ' + g.t + '</small></div></div>' +
+    '<div class="cwk">' + nb('k od', st.all.length, 'قيد التسليم', g.n, 'p') + nb('k odr', st.ready.length, 'جاهزة', g.n, 'ready') + nb('k odn', st.notready.length, 'غير جاهزة', g.n, 'notready') + nb('k dl', g.d, 'مسلّمة', g.n, 'd') + '</div>' +
+    '<div><div class="muted" style="font-size:12.5px;margin-bottom:6px">القطاعات</div><ul class="cwsecs">' + g.secs.map(function (x) { return '<li><span class="s">' + esc(x.s) + '</span>' + bar(x) + '<span class="v">' + x.d + '<small>/' + x.t + '</small></span></li>'; }).join('') + '</ul></div>' +
+    '<div class="legend"><span><i style="background:var(--ok)"></i>مسلّمة</span><span><i style="background:var(--ready)"></i>قيد التسليم</span><span><i style="background:var(--notready)"></i>متبقية</span></div></div>';
+  h += '<div class="cwsplit">' + ladder + detail + '</div>';
+  h += '<p class="muted" style="margin:0;font-size:12.5px;text-align:center">الكفاءة = دور قيد التسليم الجاهزة ÷ كل دور قيد التسليم. دون 50٪ دون المستوى · 50–60 مقبول · 60–70 متوسط · 70–80 جيد · 80–90 جيد جداً · 90 فما فوق ممتاز.</p>';
   return h;
 };
 function cwList(con, t) {
@@ -1531,6 +1557,7 @@ var ACT = {
   anYear: function (d) { S.anY = d.y; S.anM = null; scheduleRender(); },
   anMonth: function (d) { S.anM = +d.m ? { y: d.y, m: +d.m } : null; scheduleRender(); if (+d.m) setTimeout(function () { var p = document.getElementById('panel'); if (p) p.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80); },
   cwList: function (d) { cwList(d.c, d.t); },
+  cwSel: function (d) { S.cwSel = d.c; renderAll(); if (window.innerWidth < 900) setTimeout(function () { var e = document.querySelector('.cwdet'); if (e) e.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60); },
   grp: function (d) { S.grp[d.id] = d.g; lsSet('a2_grp', S.grp); if (MODAL.cw && d.id === 'cw') { var m = MODAL.cw; cwList(m.con, m.t); return; } renderAll(); },
   grpTog: function (d, el) { var sec = el.closest('.grp'); S.grpC[d.k] = !sec.classList.contains('col'); if (MODAL.cw && el.closest('.modal')) { var m = MODAL.cw; cwList(m.con, m.t); return; } renderAll(); },
   cwSort: function (d) { S.cwSort = d.k; scheduleRender(); },
