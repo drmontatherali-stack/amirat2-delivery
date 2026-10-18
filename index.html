@@ -307,6 +307,41 @@ details.sec>.in{padding:0 14px 14px}
   #topbar{padding:10px 16px}
   .split>.l{max-height:none}
 }
+/* ---------- موقف المقاولين: بطاقة لكل مقاول ---------- */
+.cwsum{display:flex;flex-direction:column;gap:14px}
+.cwhead{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.cwnums{display:flex;gap:18px;flex-wrap:wrap}
+.cwnums span{display:flex;flex-direction:column;font-size:12.5px;color:var(--muted)}
+.cwnums b{font-family:'Readex Pro';font-size:26px;line-height:1.1;color:var(--ink);font-variant-numeric:tabular-nums}
+.cwnums.sm{gap:14px}.cwnums.sm b{font-size:18px}
+.cwnums .d b{color:var(--ok)}.cwnums .p b{color:var(--ready)}.cwnums .r b{color:var(--notready)}
+.cwbar{display:flex;height:8px;border-radius:99px;overflow:hidden;background:var(--soft);gap:2px}
+.cwbar.big{height:14px}
+.cwbar i{display:block;height:100%;width:var(--w);border-radius:99px;transform-origin:right;animation:cwGrow .9s cubic-bezier(.2,.8,.2,1) backwards;animation-delay:calc(var(--i,0)*45ms + .1s)}
+.cwbar i.d{background:linear-gradient(90deg,var(--ok),color-mix(in srgb,var(--ok) 70%,var(--brand)))}
+.cwbar i.p{background:var(--ready)}.cwbar i.r{background:var(--notready);opacity:.85}
+@keyframes cwGrow{from{transform:scaleX(0)}}
+.cwsort{gap:8px}.cwsort .secchip{height:34px;font-size:13px}
+.cwgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(330px,100%),1fr));gap:14px}
+.cwcard{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow);animation:cwIn .5s ease backwards;animation-delay:calc(var(--i)*45ms);position:relative;overflow:hidden}
+.cwcard::before{content:"";position:absolute;inset-inline:18px;top:0;height:1px;background:linear-gradient(90deg,transparent,var(--brand),transparent);opacity:.5}
+@keyframes cwIn{from{opacity:0;transform:translateY(10px)}}
+.cwcard header{display:flex;align-items:center;gap:14px;position:relative}
+.cwcard h3{margin:0;font-size:17px;font-family:'Reem Kufi','Readex Pro',sans-serif;font-weight:600}
+.cwcard .nm span{font-size:12.5px}
+.cwring{width:64px;height:64px;transform:rotate(-90deg);flex:none}
+.cwring circle{fill:none;stroke-width:6}
+.cwring .tk{stroke:var(--soft)}
+.cwring .ar{stroke:var(--ok);stroke-linecap:round;stroke-dashoffset:var(--off);animation:cwRing 1.1s cubic-bezier(.3,0,.2,1) backwards;filter:drop-shadow(0 0 4px color-mix(in srgb,var(--ok) 60%,transparent))}
+@keyframes cwRing{from{stroke-dashoffset:var(--full)}}
+.cwcard .rw{position:relative;width:64px;height:64px;flex:none}
+.cwpct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Readex Pro';font-size:17px}
+.cwpct small{font-size:11px;color:var(--muted)}
+.cwsecs{list-style:none;margin:0;padding:10px 0 0;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:8px}
+.cwsecs li{display:grid;grid-template-columns:minmax(78px,auto) 1fr 52px;align-items:center;gap:10px;font-size:13px}
+.cwsecs .s{color:var(--muted);white-space:nowrap}
+.cwsecs .v{text-align:left;font-weight:700;font-variant-numeric:tabular-nums}.cwsecs .v small{color:var(--muted);font-weight:400}
+@media (prefers-reduced-motion:reduce){.cwbar i,.cwcard,.cwring .ar{animation:none}}
 @media print{#rail,#topbar,.noprint{display:none!important}#main{margin:0}}
 /* ================= هوية "المستقبل": كحلي فضائي + سماوي هولوغرامي + لمسة ذهب الشعار ================= */
 :root[data-mode]{
@@ -414,7 +449,7 @@ details.sec>.in{padding:0 14px 14px}
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="config.js?v=1.4.0"></script>
-<script src="app.js?v=1.4.0"></script>
+<script src="config.js?v=1.4.1"></script>
+<script src="app.js?v=1.4.1"></script>
 </body>
 </html>

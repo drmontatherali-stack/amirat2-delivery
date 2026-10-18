@@ -1212,15 +1212,31 @@ VIEWS.weekly = function () {
   var h = '<div class="card" style="padding:14px 16px"><div class="row" style="justify-content:space-between"><span class="muted" style="font-size:13px">' + (S.cwErr ? '❌ ' + esc(S.cwErr) : '✅ آخر تحديث: ' + esc(S.cwLast || 'لم يتم بعد') + ' — ' + S.cw.length + ' صف') + ' · المصدر: ملف موقف المقاولين</span>' +
     '<button class="btn sm" data-act="syncCw">🔄 تحديث</button></div></div>';
   if (!S.cw.length) return h + '<div class="card empty">لا توجد بيانات بعد — بانتظار أول مزامنة.</div>';
-  var T = { t: 0, d: 0, p: 0, r: 0 };
-  var rows = S.cw.map(function (r) {
-    var t = Number(r.total) || 0, d = Number(r.delivered) || 0, p = Number(r.inProgress) || 0, rm = Number(r.remaining) || 0; T.t += t; T.d += d; T.p += p; T.r += rm;
-    var pc = t ? Math.round(d / t * 100) : 0;
-    return '<tr><td style="font-weight:700;color:var(--brand)">' + esc(r.contractor || 'غير محدد') + '</td><td>' + esc(r.sector) + '</td><td>' + esc(r.total) + '</td><td style="color:var(--ok);font-weight:700">' + esc(r.delivered) + '</td><td style="color:var(--ready-fg)">' + esc(r.inProgress) + '</td><td style="color:var(--notready-fg)">' + esc(r.remaining) + '</td>' +
-      '<td style="min-width:170px"><span class="row" style="gap:8px;flex-wrap:nowrap"><span class="tr" style="flex:1;display:flex;height:9px;border-radius:5px;overflow:hidden;background:var(--soft)"><i style="width:' + pc + '%;background:var(--ok)"></i></span><b style="font-size:13px;min-width:38px">' + (t ? pc + '٪' : '-') + '</b></span></td></tr>';
-  }).join('');
-  h += '<div class="kpis">' + kpi('الكلي', T.t, 'كل المقاولين', 'var(--brand)', 'weekly') + kpi('المسلّمة', T.d, (T.t ? Math.round(T.d / T.t * 100) : 0) + '٪', 'var(--ok)', 'weekly') + kpi('قيد التسليم', T.p, '', 'var(--ready)', 'weekly') + kpi('المتبقية', T.r, '', 'var(--notready)', 'weekly') + '</div>';
-  h += '<div class="scroll" style="max-height:calc(100vh - 330px)"><table class="tbl"><thead><tr><th>المقاول</th><th>القطاع</th><th>الكلي</th><th>مسلّمة</th><th>قيد التسليم</th><th>متبقية</th><th>الإنجاز</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  function N(v) { return Number(v) || 0; }
+  // تجميع: كل مقاول مرة وحدة، وتحته قطاعاته
+  var by = {}, ord = [], T = { t: 0, d: 0, p: 0, r: 0 };
+  S.cw.forEach(function (r) {
+    var k = r.contractor || 'غير محدد';
+    if (!by[k]) { by[k] = { n: k, t: 0, d: 0, p: 0, r: 0, secs: [] }; ord.push(k); }
+    var t = N(r.total), d = N(r.delivered), p = N(r.inProgress), rm = N(r.remaining), g = by[k];
+    g.t += t; g.d += d; g.p += p; g.r += rm; g.secs.push({ s: r.sector || '-', t: t, d: d, p: p, r: rm });
+    T.t += t; T.d += d; T.p += p; T.r += rm;
+  });
+  var sort = S.cwSort || 'total', list = ord.map(function (k) { return by[k]; });
+  list.sort(function (a, b) { return sort === 'pct' ? (b.t ? b.d / b.t : 0) - (a.t ? a.d / a.t : 0) : (sort === 'rem' ? b.r - a.r : (sort === 'prog' ? b.p - a.p : b.t - a.t)); });
+  function pc(x, t) { return t ? Math.round(x * 100 / t) : 0; }
+  function bar(o, big) { var t = o.t || 1; return '<div class="cwbar' + (big ? ' big' : '') + '" role="img" aria-label="مسلّمة ' + o.d + '، قيد التسليم ' + o.p + '، متبقية ' + o.r + '"><i class="d" style="--w:' + (o.d * 100 / t).toFixed(2) + '%"></i><i class="p" style="--w:' + (o.p * 100 / t).toFixed(2) + '%"></i><i class="r" style="--w:' + (o.r * 100 / t).toFixed(2) + '%"></i></div>'; }
+  function ring(p) { var r = 30, c = 2 * Math.PI * r; return '<span class="rw"><svg class="cwring" viewBox="0 0 72 72" aria-hidden="true"><circle cx="36" cy="36" r="' + r + '" class="tk"/><circle cx="36" cy="36" r="' + r + '" class="ar" style="stroke-dasharray:' + c.toFixed(1) + ';--off:' + (c * (1 - p / 100)).toFixed(1) + ';--full:' + c.toFixed(1) + '"/></svg><b class="cwpct">' + p + '<small>٪</small></b></span>'; }
+  h += '<div class="card cwsum"><div class="cwhead"><div><h2 style="margin:0">موقف المقاولين <small>' + list.length + ' مقاول</small></h2></div>' +
+    '<div class="cwnums"><span><b>' + T.t + '</b>الكلي</span><span class="d"><b>' + T.d + '</b>مسلّمة · ' + pc(T.d, T.t) + '٪</span><span class="p"><b>' + T.p + '</b>قيد التسليم</span><span class="r"><b>' + T.r + '</b>متبقية</span></div></div>' + bar(T, true) +
+    '<div class="row cwsort" role="group" aria-label="ترتيب">' + [['total', 'الأكبر'], ['pct', 'الأعلى إنجازاً'], ['prog', 'الأكثر قيد التسليم'], ['rem', 'الأكثر متبقي']].map(function (x) { return '<button class="secchip' + (sort === x[0] ? ' on' : '') + '" data-act="cwSort" data-k="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div></div>';
+  h += '<div class="cwgrid">' + list.map(function (g, i) {
+    var p = pc(g.d, g.t);
+    return '<article class="cwcard" style="--i:' + i + '"><header>' + ring(p) + '<div class="nm"><h3>' + esc(g.n) + '</h3><span class="muted">' + g.secs.length + (g.secs.length === 1 ? ' قطاع' : ' قطاعات') + ' · ' + g.t + ' دار</span></div></header>' +
+      '<div class="cwnums sm"><span class="d"><b>' + g.d + '</b>مسلّمة</span><span class="p"><b>' + g.p + '</b>قيد التسليم</span><span class="r"><b>' + g.r + '</b>متبقية</span></div>' + bar(g) +
+      '<ul class="cwsecs">' + g.secs.map(function (x) { return '<li><span class="s">' + esc(x.s) + '</span>' + bar(x) + '<span class="v">' + x.d + '<small>/' + x.t + '</small></span></li>'; }).join('') + '</ul></article>';
+  }).join('') + '</div>';
+  h += '<div class="legend" style="justify-content:center"><span><i style="background:var(--ok)"></i>مسلّمة</span><span><i style="background:var(--ready)"></i>قيد التسليم</span><span><i style="background:var(--notready)"></i>متبقية</span></div>';
   return h;
 };
 
@@ -1371,6 +1387,7 @@ var ACT = {
   logout: function () { confirmBox('👤 تبديل المستخدم؟', 'يرجع لشاشة اختيار الاسم والرمز. الجهاز يبقى مربوط بالسحابة.', function () { lsSet('a2_user', null); location.reload(); }, 'تبديل'); },
   deviceSignOut: function () { confirmBox('🚪 فصل هذا الجهاز عن السحابة؟', 'حتى يرجع يشتغل لازم تكتب كلمة سر السحابة مرة ثانية.' + (OB.length ? ' ⚠️ عندك ' + OB.length + ' تعديل لسه ما انرفع — انتظر يرجع النت أولاً.' : ''), function () { lsSet('a2_user', null); auth.signOut().then(function () { location.reload(); }); }, 'فصل الجهاز', true); },
   syncAll: function () { toast('⏳ جاري التحديث من الشيتات...', 'info'); syncAll(true); },
+  cwSort: function (d) { S.cwSort = d.k; scheduleRender(); },
   syncCw: function () { syncContractors(true); },
   pick: function (d) { S.sel = d.k; scheduleRender(); },
   house: function (d) { openHouse(d.h); },
