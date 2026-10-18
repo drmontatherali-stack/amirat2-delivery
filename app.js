@@ -840,11 +840,13 @@ function renderAll() {
   var ae = document.activeElement, aid = ae && ae.id, ss = null, se = null;
   if (aid && ae.setSelectionRange && /^(INPUT|TEXTAREA)$/.test(ae.tagName)) { try { ss = ae.selectionStart; se = ae.selectionEnd; } catch (e) {} }
   var view = document.getElementById('view');
-  var fnc = VIEWS[S.view] || VIEWS.search;
+  var fnc = VIEWS[S.view] || VIEWS.search; S._metaT = (S._metaT || 0) + 1;
   var wasInView = ae && view.contains(ae);
   if (S.view === 'hub' && !S.hubAnim && S.hubBusyUntil && Date.now() < S.hubBusyUntil) { setTimeout(scheduleRender, S.hubBusyUntil - Date.now() + 20); return; } // لا تقطع حركة الانبثاق
   var html = fnc();
   if (S.view === 'hub' && html.replace(/ anim"/, '"') === view.getAttribute('data-h')) return;
+  if (S.view !== 'hub' && view._last === html && view._lastView === S.view) { if (MODAL.house) refreshHouseModal(); return; }
+  view._last = html; view._lastView = S.view;
   view.setAttribute('data-h', S.view === 'hub' ? html.replace(/ anim"/, '"') : '');
   view.innerHTML = html;
   document.getElementById('app').classList.toggle('hubmode', S.view === 'hub');
@@ -895,10 +897,10 @@ VIEWS.search = function () {
     return h;
   }
   if (!res.length) return h + '<div class="card empty">لا نتائج مطابقة ضمن أي قائمة (قيد التسليم / المراجعة / المسلّمة).</div>';
-  h += '<div class="split"><div class="l"><div class="muted" style="font-size:13px">' + res.length + ' نتيجة</div>' + res.map(function (r) {
+  h += '<div class="split"><div class="l"><div class="muted" style="font-size:13px">' + res.length + ' نتيجة</div>' + (res.length > 1 ? grpBar('srch') : '') + groupedHTML('srch', res.map(function (r) {
     var st = statusLabel(r), rd = r.inWS ? (isReady(r.houseNo) ? '<span class="pill p-ready">جاهز</span>' : '<span class="pill p-not">غير جاهز</span>') : '<span class="pill ' + st.c + '">' + (r.inDelivered ? 'مستلمة' : 'مراجعة') + '</span>';
-    return '<button class="res' + (r.key === S.sel ? ' on' : '') + '" data-act="pick" data-k="' + esc(r.key) + '"><span><span class="no">' + esc(r.houseNo) + '</span><small>' + esc(r.sector || '-') + ' · ' + esc(r.contractor || r.executionType || r.delName || '-') + '</small></span>' + rd + '</button>';
-  }).join('') + '</div><div class="r">' + houseCardHTML(Object.assign(houseInfo(sel.houseNo), { key: sel.key })) + '</div></div>';
+    return { h: r.houseNo, html: '<button class="res' + (r.key === S.sel ? ' on' : '') + '" data-act="pick" data-k="' + esc(r.key) + '"><span><span class="no">' + esc(r.houseNo) + '</span><small>' + esc(r.sector || '-') + ' · ' + esc(r.contractor || r.executionType || r.delName || '-') + '</small></span>' + rd + '</button>' };
+  }), 'rlist') + '</div><div class="r">' + houseCardHTML(Object.assign(houseInfo(sel.houseNo), { key: sel.key })) + '</div></div>';
   return h;
 };
 /* ----- إشعارات خانة البحث: دور جديدة + وقّعت محضر استلام ----- */
@@ -984,6 +986,45 @@ function hubHot(n) {
 }
 window.addEventListener('resize', function () { if (S.view === 'hub') scheduleRender(); });
 
+/* ----- فرز القوائم: بدون / المقاول / القطاع / الفئة — بكل مكان تنعرض بيه الدور ----- */
+S.grp = lsGet('a2_grp', {}); S.grpC = {};
+function houseMeta(h) {
+  var g = S._metaGen; if (!g || g.t !== S._metaT) { g = S._metaGen = { t: S._metaT, ws: {}, rec: {}, del: {} }; wsUnits().forEach(function (u) { g.ws[normH(u.unit)] = u; }); oldRecs().forEach(function (r) { g.rec[normH(r.houseNo)] = r; }); S.del.forEach(function (x) { g.del[normS(x.houseNo)] = x; }); g.nh = nhStatusMap(); }
+  var k = normH(h), u = g.ws[k], r = g.rec[k], e = g.nh[k], d = g.del[normS(h)], eu = e && e.unit;
+  var con = (u && (u.contractor || u.executionType)) || (r && (r.contractorName || r.executionType)) || (eu && (eu.contractor || eu.executionType)) || '';
+  var sec = (u && u.sector) || (r && r.sectorNo) || (eu && eu.sector) || (d && d.sector) || '';
+  return { con: conDisplay(con), sec: sec || 'قطاع غير محدد', cat: catOf(h) };
+}
+function conDisplay(n) {
+  if (!n) return 'مقاول غير معروف';
+  var k = conResolve(n), hit = (S.cw || []).find(function (r) { return conKey(r.contractor) === k; });
+  return hit ? hit.contractor : n;
+}
+var GRP_OPTS = [['none', 'بدون فرز'], ['con', 'المقاول'], ['sec', 'القطاع'], ['cat', 'الفئة']];
+function grpBar(id) {
+  var g = S.grp[id] || 'none';
+  return '<div class="grpbar" role="group" aria-label="فرز القائمة"><span class="muted">فرز:</span>' + GRP_OPTS.map(function (o) { return '<button class="gopt' + (g === o[0] ? ' on' : '') + '" data-act="grp" data-id="' + esc(id) + '" data-g="' + o[0] + '" aria-pressed="' + (g === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div>';
+}
+// items: [{h, html}] — html هو شكل العنصر نفسه
+function groupedHTML(id, items, cls) {
+  var g = S.grp[id] || 'none', wrap = cls || 'plist';
+  function it(x, i) { return x.html.replace(/^<(\w+) /, '<$1 style="--i:' + Math.min(i, 18) + '" '); }
+  if (g === 'none' || !items.length) return '<div class="' + wrap + ' glist">' + items.map(it).join('') + '</div>';
+  var groups = {}, ord = [];
+  items.forEach(function (x) { var m = houseMeta(x.h), k = g === 'con' ? m.con : (g === 'sec' ? m.sec : 'فئة ' + m.cat); if (!groups[k]) { groups[k] = []; ord.push(k); } groups[k].push(x); });
+  ord.sort(function (a, b) {
+    if (g === 'sec') { var ia = SECTOR_NAMES.indexOf(a), ib = SECTOR_NAMES.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b); }
+    if (g === 'cat') return a.localeCompare(b);
+    return groups[b].length - groups[a].length || a.localeCompare(b);
+  });
+  var max = Math.max.apply(null, ord.map(function (k) { return groups[k].length; })), big = items.length > 200;
+  return '<div class="groups">' + ord.map(function (k, gi) {
+    var ck = id + '|' + g + '|' + k, col = S.grpC[ck] != null ? S.grpC[ck] : (big && gi > 0), n = groups[k].length;
+    return '<section class="grp' + (col ? ' col' : '') + '" style="--gi:' + Math.min(gi, 12) + '"><button class="ghead" data-act="grpTog" data-k="' + esc(ck) + '" aria-expanded="' + !col + '"><span class="gt">' + esc(k) + '</span><span class="gc">' + n + '</span><span class="gbar"><i style="--w:' + (n * 100 / max).toFixed(1) + '%"></i></span><svg class="chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>' +
+      (col ? '' : '<div class="gbody ' + wrap + '">' + groups[k].map(it).join('') + '</div>') + '</section>';
+  }).join('') + '</div>';
+}
+
 /* ----- المربعات: الضغط على أي مربع يعرض دوره بس ----- */
 function wsItem(u) {
   var r = isReady(u.unit), rv = !!reviewOf(u.unit);
@@ -1034,12 +1075,12 @@ function panelHTML(view, defs) {
   if (!d) return '';
   var close = '<button class="btn sm" data-act="tile" data-g="' + view + '" data-k="' + d.k + '">✕ إغلاق</button>';
   if (d.html) return '<section class="card" id="panel"><h2><span>' + esc(d.label) + ' <small>' + d.n + '</small></span>' + close + '</h2>' + d.html() + '</section>';
-  var data = d.list(), items = data.items, shown = items.slice(0, S.panelShow);
+  var data = d.list(), items = data.items, shown = items.slice(0, S.panelShow), gid = 'p:' + view + ':' + d.k, grouped = (S.grp[gid] || 'none') !== 'none';
   S.panel = { title: d.label, head: data.head, rows: items.map(function (i) { return i.xl; }) };
   return '<section class="card" id="panel"><h2><span>' + esc(d.label) + ' <small>' + items.length + ' دار</small></span><span class="row" style="gap:8px"><button class="btn sm" data-act="panelXl">' + ico('xls', 16) + ' Excel</button>' + close + '</span></h2>' +
-    (items.length ? '<div class="plist">' + shown.map(function (it) {
-      return '<button class="aitem" data-act="house" data-h="' + esc(it.h) + '"><span class="m"><b class="ltr" style="text-align:right">' + esc(it.h) + '</b><small>' + esc(it.sub) + '</small></span><span class="pill ' + it.pill[0] + '" style="white-space:normal">' + esc(it.pill[1]) + '</span></button>';
-    }).join('') + '</div>' + (items.length > shown.length ? '<div class="row" style="justify-content:center;margin-top:12px"><button class="btn" data-act="panelMore">⬇️ عرض المزيد (' + shown.length + ' من ' + items.length + ')</button></div>' : '')
+    (items.length ? grpBar(gid) + groupedHTML(gid, (grouped ? items : shown).map(function (it) {
+      return { h: it.h, html: '<button class="aitem" data-act="house" data-h="' + esc(it.h) + '"><span class="m"><b class="ltr" style="text-align:right">' + esc(it.h) + '</b><small>' + esc(it.sub) + '</small></span><span class="pill ' + it.pill[0] + '" style="white-space:normal">' + esc(it.pill[1]) + '</span></button>' };
+    })) + (!grouped && items.length > shown.length ? '<div class="row" style="justify-content:center;margin-top:12px"><button class="btn" data-act="panelMore">⬇️ عرض المزيد (' + shown.length + ' من ' + items.length + ')</button></div>' : '')
       : '<div class="empty">لا توجد دور ضمن هذا المربع حالياً.</div>') + '</section>';
 }
 function kpi(label, val, sub, color, go, extra) {
@@ -1195,11 +1236,13 @@ VIEWS.delivered = function () {
   var q = normS(arDigits(S.delQ)), items = S.del.slice();
   if (q) items = items.filter(function (x) { return normS(x.houseNo).indexOf(q) >= 0 || normS(x.name).indexOf(q) >= 0 || normS(x.sector).indexOf(q) >= 0; });
   items.sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); });
-  var shown = items.slice(0, S.delShow);
+  var shown = items.slice(0, S.delShow), dg = (S.grp.del || 'none') !== 'none';
   var h = '<div class="card" style="padding:14px 16px"><div class="row"><input class="inp" id="delq" type="search" data-in="delq" value="' + esc(S.delQ) + '" placeholder="🔍 بحث برقم الدار / الاسم / القطاع" style="flex:1 1 260px"><span class="muted" style="font-size:13px">' +
     (S.delErr ? '❌ ' + esc(S.delErr) : '✅ آخر تحديث من الشيت: ' + esc(S.delLast || 'لم يتم بعد') + ' — ' + S.del.length + ' دار مسلَّمة بالشيت') + '</span></div></div>';
   if (!S.del.length) return h + '<div class="card empty">لا توجد بيانات بعد — بانتظار مزامنة الشيت.</div>';
   if (!items.length) return h + '<div class="card empty">لا نتائج مطابقة للبحث.</div>';
+  h += grpBar('del');
+  if (dg) return h + groupedHTML('del', items.map(function (x) { return { h: x.houseNo, html: '<button class="aitem" data-act="house" data-h="' + esc(x.houseNo) + '"><span class="m"><b class="ltr" style="text-align:right">' + esc(x.houseNo) + '</b><small>' + esc(x.name || '-') + ' · ' + esc(x.sector || '-') + '</small></span><span class="pill p-ok">🏠 ' + esc(x.date || '-') + '</span></button>' }; }));
   h += '<div class="scroll" style="max-height:calc(100vh - 250px)"><table class="tbl"><thead><tr><th>ت</th><th>رقم البلوك والدار</th><th>اسم المستفيد</th><th>القطاع</th><th>تاريخ الاستلام</th></tr></thead><tbody>' +
     shown.map(function (x) { return '<tr><td class="muted">' + esc(x.serial || '') + '</td><td><button class="btn sm" style="font-weight:700" data-act="house" data-h="' + esc(x.houseNo) + '"><span class="ltr">' + esc(x.houseNo) + '</span></button></td><td>' + esc(x.name || '-') + '</td><td>' + esc(x.sector || '-') + '</td><td>' + esc(x.date) + adminPill(x.date) + '</td></tr>'; }).join('') +
     '</tbody></table></div><div class="row" style="justify-content:space-between"><span class="muted">معروض: ' + shown.length + ' من ' + items.length + ' مطابق (الإجمالي الكلي: ' + S.del.length + ' دار)</span>' +
@@ -1295,14 +1338,15 @@ function cwList(con, t) {
   if (t === 'd') {
     var dl = (IX.del[k] || []).slice().sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); });
     var tot = 0; (S.cw || []).forEach(function (r) { if (conKey(r.contractor) === k) tot += Number(r.delivered) || 0; });
-    items = dl.map(function (x) { return '<button class="aitem" data-act="house" data-h="' + esc(x.houseNo) + '"><span class="m"><b class="ltr" style="text-align:right">' + esc(x.houseNo) + '</b><small>تاريخ الاستلام: ' + esc(x.date || '-') + (x.sector ? ' · ' + esc(x.sector) : '') + '</small></span><span class="pill p-ok">🏠 مسلّمة</span></button>'; }).join('');
+    items = dl.length ? grpBar('cw') + groupedHTML('cw', dl.map(function (x) { return { h: x.houseNo, html: '<button class="aitem" data-act="house" data-h="' + esc(x.houseNo) + '"><span class="m"><b class="ltr" style="text-align:right">' + esc(x.houseNo) + '</b><small>تاريخ الاستلام: ' + esc(x.date || '-') + (x.sector ? ' · ' + esc(x.sector) : '') + '</small></span><span class="pill p-ok">🏠 مسلّمة</span></button>' }; }), 'alist') : '';
     items = (dl.length < tot ? '<p class="muted" style="margin:0 0 8px;font-size:13px">يطلع ' + dl.length + ' من ' + tot + ' دار — الباقي انسلّم قبل ما يبدأ النظام يسجّل مقاول كل دار، فما معروف مقاوله بشيت تواريخ الاستلام.</p>' : '') + (items || '<div class="empty">ما أكو دور معروفة لهذا المقاول.</div>');
   } else {
     var src = t === 'p' ? units : st[t] || [];
     src = src.slice().sort(function (a, b) { return (daysDiff(a.deliveryDate) || 0) - (daysDiff(b.deliveryDate) || 0); });
-    items = src.map(function (u) { var r = isReady(u.unit); return '<button class="aitem" data-act="house" data-h="' + esc(u.unit) + '"><span class="m"><b class="ltr" style="text-align:right">' + esc(u.unit) + '</b><small>' + esc(u.sector || '-') + ' · 📥 ' + esc(u.incomingDate || '-') + ' · 📤 ' + esc(u.deliveryDate || '-') + '</small></span><span class="pill ' + (r ? 'p-ready">✅ جاهز' : 'p-not">⛔ غير جاهز') + esc(overdueText(u.deliveryDate)) + '</span></button>'; }).join('') || '<div class="empty">ماكو دور.</div>';
+    items = src.length ? grpBar('cw') + groupedHTML('cw', src.map(function (u) { var r = isReady(u.unit); return { h: u.unit, html: '<button class="aitem" data-act="house" data-h="' + esc(u.unit) + '"><span class="m"><b class="ltr" style="text-align:right">' + esc(u.unit) + '</b><small>' + esc(u.sector || '-') + ' · 📥 ' + esc(u.incomingDate || '-') + ' · 📤 ' + esc(u.deliveryDate || '-') + '</small></span><span class="pill ' + (r ? 'p-ready">✅ جاهز' : 'p-not">⛔ غير جاهز') + esc(overdueText(u.deliveryDate)) + '</span></button>' }; }), 'alist') : '<div class="empty">ماكو دور.</div>';
   }
-  openModal('<header><h3>' + esc(title) + '</h3><button class="iconbtn" data-act="closeModal" aria-label="إغلاق">' + ico('close') + '</button></header><div class="bd"><div class="alist">' + items + '</div></div>', true);
+  openModal('<header><h3>' + esc(title) + '</h3><button class="iconbtn" data-act="closeModal" aria-label="إغلاق">' + ico('close') + '</button></header><div class="bd">' + items + '</div>', true);
+  MODAL.cw = { con: con, t: t };
 }
 
 /* ----- عرض: الجرد السنوي ----- */
@@ -1348,8 +1392,8 @@ VIEWS.annual = function () {
   // تفاصيل الشهر المختار
   if (sel) {
     var key = Y + '-' + pad2(sel), list = S.del.filter(function (x) { return String(x.date || '').slice(0, 7) === key; }).sort(function (a, b) { return String(a.houseNo).localeCompare(String(b.houseNo), undefined, { numeric: true }); });
-    h += '<div class="card" id="panel"><h2>' + AN_MN[sel] + ' ' + Y + ' <small>' + list.length + ' دار مسلّمة</small><button class="btn sm" data-act="anMonth" data-y="' + Y + '" data-m="0">✕ إغلاق</button></h2><div class="anlist">' +
-      list.map(function (x) { var c = catOf(x.houseNo); return '<button class="hchip" data-act="house" data-h="' + esc(x.houseNo) + '" style="--c:' + (col[c] || 'var(--brand)') + '"><b class="ltr">' + esc(x.houseNo) + '</b><small>' + esc(String(x.date || '').slice(8, 10)) + '</small></button>'; }).join('') + '</div></div>';
+    h += '<div class="card" id="panel"><h2>' + AN_MN[sel] + ' ' + Y + ' <small>' + list.length + ' دار مسلّمة</small><button class="btn sm" data-act="anMonth" data-y="' + Y + '" data-m="0">✕ إغلاق</button></h2>' + grpBar('an') +
+      groupedHTML('an', list.map(function (x) { var c = catOf(x.houseNo); return { h: x.houseNo, html: '<button class="hchip" data-act="house" data-h="' + esc(x.houseNo) + '" style="--c:' + (col[c] || 'var(--brand)') + '"><b class="ltr">' + esc(x.houseNo) + '</b><small>' + esc(String(x.date || '').slice(8, 10)) + '</small></button>' }; }), 'anlist') + '</div>';
   }
   if (unk) h += '<div class="muted" style="font-size:13px">ملاحظة: ' + unk + ' دار بشيت تواريخ الاستلام تاريخها مو مقروء (مثلاً "خاص") وما داخلة بالأشهر.</div>';
   return h;
@@ -1487,6 +1531,8 @@ var ACT = {
   anYear: function (d) { S.anY = d.y; S.anM = null; scheduleRender(); },
   anMonth: function (d) { S.anM = +d.m ? { y: d.y, m: +d.m } : null; scheduleRender(); if (+d.m) setTimeout(function () { var p = document.getElementById('panel'); if (p) p.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80); },
   cwList: function (d) { cwList(d.c, d.t); },
+  grp: function (d) { S.grp[d.id] = d.g; lsSet('a2_grp', S.grp); if (MODAL.cw && d.id === 'cw') { var m = MODAL.cw; cwList(m.con, m.t); return; } renderAll(); },
+  grpTog: function (d, el) { var sec = el.closest('.grp'); S.grpC[d.k] = !sec.classList.contains('col'); if (MODAL.cw && el.closest('.modal')) { var m = MODAL.cw; cwList(m.con, m.t); return; } renderAll(); },
   cwSort: function (d) { S.cwSort = d.k; scheduleRender(); },
   syncCw: function () { syncContractors(true); },
   pick: function (d) { S.sel = d.k; scheduleRender(); },
