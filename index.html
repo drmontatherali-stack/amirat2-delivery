@@ -470,6 +470,27 @@ details.sec>.in{padding:0 14px 14px}
 .cwdet .cwk .dl b{color:var(--ok)}
 @media (max-width:900px){.cwsplit{grid-template-columns:1fr}.cwlad{position:static}.lad{max-height:none}.cwsvg .dot .n{font-size:15px}}
 @media (prefers-reduced-motion:reduce){.cwsvg .dot,.lad li,.lrow .lb i,.cwdet,.gauge .ar,.cwsvg .dot.on .halo{animation:none}}
+/* ---------- كفاءة المقاولين: جدول واحد بسيط ---------- */
+.ctab{padding:8px}
+.crow{display:grid;grid-template-columns:minmax(120px,1.4fr) 90px 80px 90px minmax(170px,1.6fr);align-items:center;gap:10px;width:100%;padding:13px 14px;border:0;border-radius:12px;background:transparent;color:var(--ink);text-align:right;font-family:inherit;font-size:15px}
+button.crow{cursor:pointer;animation:gItem .4s cubic-bezier(.2,.8,.2,1) backwards;animation-delay:calc(var(--i)*30ms);transition:background .2s}
+button.crow+button.crow,.cmore+button.crow{border-top:1px solid var(--line);border-radius:0}
+button.crow:hover{background:var(--soft)}
+button.crow.open{background:color-mix(in srgb,var(--brand) 9%,transparent);border-radius:12px 12px 0 0}
+.chead{font-size:12.5px;color:var(--muted);font-weight:600;padding-top:8px;padding-bottom:8px}
+.cth{border:0;background:transparent;color:var(--muted);font:inherit;text-align:right;padding:0;cursor:pointer}
+.cth.on{color:var(--brand)}
+.crow .cn b{font-weight:700}
+.crow .cv{font-family:'Readex Pro';font-weight:700;font-size:17px;font-variant-numeric:tabular-nums}
+.crow .cv.ok{color:var(--ok)}.crow .cv.no{color:var(--notready)}
+.crow .ce{display:grid;grid-template-columns:1fr 46px 78px;align-items:center;gap:8px}
+.crow .ce b{font-family:'Readex Pro';font-size:16px}.crow .ce small{font-size:12px;font-weight:700}
+.crow .cb{height:8px;border-radius:99px;background:var(--soft);overflow:hidden}
+.crow .cb i{display:block;height:100%;width:var(--w);background:var(--c);border-radius:99px;transform-origin:right;animation:cwGrow .9s cubic-bezier(.2,.8,.2,1) backwards;animation-delay:calc(var(--i)*30ms + .15s)}
+.cmore{display:flex;flex-direction:column;gap:10px;padding:12px 14px 16px;background:color-mix(in srgb,var(--brand) 9%,transparent);border-radius:0 0 12px 12px;animation:cOpen .35s cubic-bezier(.2,.8,.2,1)}
+@keyframes cOpen{from{opacity:0;transform:translateY(-6px)}}
+@media (max-width:700px){.crow{grid-template-columns:1fr 54px 54px 54px;font-size:14px}.crow .ce{grid-column:1/-1}.chead .cth:last-child{display:none}}
+@media (prefers-reduced-motion:reduce){button.crow,.crow .cb i,.cmore{animation:none}}
 @media print{#rail,#topbar,.noprint{display:none!important}#main{margin:0}}
 /* ================= هوية "المستقبل": كحلي فضائي + سماوي هولوغرامي + لمسة ذهب الشعار ================= */
 :root[data-mode]{
@@ -577,7 +598,7 @@ details.sec>.in{padding:0 14px 14px}
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="config.js?v=1.7.0"></script>
-<script src="app.js?v=1.7.0"></script>
+<script src="config.js?v=1.7.1"></script>
+<script src="app.js?v=1.7.1"></script>
 </body>
 </html>
