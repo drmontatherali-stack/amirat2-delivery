@@ -24,7 +24,7 @@ var USERS = [
 var DEFAULT_CONTRACTORS = ['أحمد عواد', 'عادل عرار', 'محمد عرار', 'جاسم زراك', 'دياري كريم', 'علي الكوفي', 'علي هويدي', 'علي محمد حسين', 'طه عبد الله', 'اكام بهاء', 'ثامر عطار', 'سمير حنون', 'عمر بولات', 'اسعد هادي', 'اوات جمال', 'يوسف حسن'];
 var AR_MONTHS = ['', 'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 var AR_MONTHS_SHORT = ['', 'كانون٢', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران', 'تموز', 'آب', 'أيلول', 'تشرين١', 'تشرين٢', 'كانون١'];
-var VERSION = '1.8.2';
+var VERSION = '1.8.3';
 var ADMIN_UID = 'PsrknBOyOxUU3PM0xqXZvBhRaul1'; // حساب منتظر علي (مدير النظام)
 var BAKROOT = 'amirat2_logs/backups'; // داخل مسار مسموح بقواعد قاعدة البيانات الحالية
 var ACLROOT = 'amirat2_acl';
@@ -1518,9 +1518,9 @@ function xlsxPro(sheets, file) {
     files.push(['xl/worksheets/sheet' + (si + 1) + '.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
       '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="' + ref + '"/><sheetViews><sheetView rightToLeft="1" workbookViewId="0"' + (si ? '' : ' tabSelected="1"') + '><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/>' +
       '<cols>' + sh.cols.map(function (w, ci) { return '<col min="' + (ci + 1) + '" max="' + (ci + 1) + '" width="' + w + '" customWidth="1"/>'; }).join('') + '</cols><sheetData>' + rowsX + '</sheetData>' +
-      '<autoFilter ref="A1:' + last + (sh.rows.length + 1) + '"/>' + (sh.total && sh.totMerge ? '<mergeCells count="' + sh.totMerge.length + '">' + sh.totMerge.map(function (m) { return '<mergeCell ref="' + col(m[0]) + all.length + ':' + col(m[1]) + all.length + '"/>'; }).join('') + '</mergeCells>' : '') + '<printOptions horizontalCentered="1"/><pageMargins left="0.3" right="0.3" top="0.45" bottom="0.5" header="0.2" footer="0.25"/>' +
+      (sh.total && sh.totMerge ? '<mergeCells count="' + sh.totMerge.length + '">' + sh.totMerge.map(function (m) { return '<mergeCell ref="' + col(m[0]) + all.length + ':' + col(m[1]) + all.length + '"/>'; }).join('') + '</mergeCells>' : '') + '<printOptions horizontalCentered="1"/><pageMargins left="0.3" right="0.3" top="0.45" bottom="0.5" header="0.2" footer="0.25"/>' +
       '<pageSetup paperSize="9" orientation="' + (sh.portrait ? 'portrait' : 'landscape') + '" fitToWidth="1" fitToHeight="0"/><headerFooter><oddHeader>' + x('&C&"Arial,Bold"' + sh.title) + '</oddHeader><oddFooter>' + x('&R&P / &N&L' + todayStr()) + '</oddFooter></headerFooter></worksheet>']);
-    defs += '<definedName name="_xlnm._FilterDatabase" localSheetId="' + si + '" hidden="1">' + x("'" + sh.name + "'!$A$1:$" + last + '$' + (sh.rows.length + 1)) + '</definedName><definedName name="_xlnm.Print_Titles" localSheetId="' + si + '">' + x("'" + sh.name + "'!$1:$1") + '</definedName>';
+    defs += '<definedName name="_xlnm.Print_Titles" localSheetId="' + si + '">' + x("'" + sh.name + "'!$1:$1") + '</definedName>';
   });
   files.push(['[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
     sheets.map(function (sh, si) { return '<Override PartName="/xl/worksheets/sheet' + (si + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'; }).join('') + '</Types>']);
