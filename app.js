@@ -1482,21 +1482,20 @@ VIEWS.rvsum = function () {
 function exportRvSum() {
   var rows = rvSumFiltered(); if (!rows.length) { toast('لا توجد دور للتصدير.', false); return; }
   var mx = 1; rows.forEach(function (r) { mx = Math.max(mx, r.rounds.length); });
-  var head = ['ت', 'المقاول', 'القطاع', 'رقم البلوك والدار', 'تاريخ الوارد', 'تاريخ التسليم', 'مدة التسليم المعطاة (يوم)', 'عدد المراجعات'], cols = [5, 22, 12, 16, 13, 13, 14, 10];
-  for (var k = 1; k <= mx; k++) { head.push('مراجعة ' + k + ' — التاريخ', 'مراجعة ' + k + ' — موعد الإكمال', 'مراجعة ' + k + ' — أيام'); cols.push(15, 17, 10); }
-  head.push('إجمالي أيام المراجعات', 'موقف الدار'); cols.push(14, 44);
-  var aoa = [['ملخص المراجعات — مجمع الأميرات 2 — ' + todayStr() + ' — عدد الدور: ' + rows.length], head];
+  var head = ['ت', 'المقاول', 'القطاع', 'رقم البلوك والدار', 'تاريخ التسليم', 'عدد المراجعات'], cols = [5, 22, 12, 16, 13, 10];
+  for (var k = 1; k <= mx; k++) { head.push('المراجعة ' + k); cols.push(40); }
+  head.push('عدد أيام المراجعات الكلي', 'موقف الدار'); cols.push(14, 44);
+  var aoa = [head];
   rows.forEach(function (r, i) {
-    var row = [i + 1, r.con, r.sec, stripBidi(r.h), r.inc || '', r.dlv || '', r.give != null ? r.give : '', r.rounds.length];
-    for (var k = 0; k < mx; k++) { var x = r.rounds[k]; row.push(x ? x.r : '', x ? x.c : '', x && x.d != null ? x.d : ''); }
+    var row = [i + 1, r.con, r.sec, stripBidi(r.h), r.dlv || '', r.rounds.length];
+    for (var k = 0; k < mx; k++) { var x = r.rounds[k]; row.push(x ? 'حضور: ' + (x.r || '-') + ' | إنهاء: ' + (x.c || '-') : ''); }
     row.push(r.tot, stripBidi(r.st).replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '').replace(/\s+/g, ' ').trim()); aoa.push(row);
   });
   var wb = XLSX.utils.book_new(), ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols'] = cols.map(function (w) { return { wch: w }; });
-  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: head.length - 1 } }];
-  ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 1, c: 0 }, e: { r: aoa.length - 1, c: head.length - 1 } }) };
+  ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa.length - 1, c: head.length - 1 } }) };
   ws['!views'] = [{ rightToLeft: true }];
-  XLSX.utils.book_append_sheet(wb, ws, 'ملخص المراجعات'); XLSX.writeFile(wb, 'ملخص_المراجعات_' + todayStr() + '.xlsx');
+  XLSX.utils.book_append_sheet(wb, ws, 'المراجعات'); XLSX.writeFile(wb, 'المراجعات_' + todayStr() + '.xlsx');
 }
 
 /* ----- عرض: جدول الأعمال ----- */
