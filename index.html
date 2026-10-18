@@ -605,6 +605,25 @@ button.crow.open{background:color-mix(in srgb,var(--brand) 9%,transparent);borde
 @keyframes spUp{from{opacity:0;filter:blur(6px);transform:translateY(8px)}}
 @media (prefers-reduced-motion:reduce){#splash *{animation:none!important}}
 
+
+/* ---------- ملخص المراجعات ---------- */
+.rsstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.rsstats .card{padding:12px 14px;display:flex;flex-direction:column;gap:2px;animation:rsin .4s both}
+.rsstats .card b{font-size:24px;color:var(--brand);font-variant-numeric:tabular-nums}
+.rsstats .card span{font-size:12.5px;color:var(--muted)}
+.rstbl td{font-size:13.5px}
+.rstbl tbody tr{animation:rsin .35s both;animation-delay:calc(var(--i,0) * 25ms)}
+.rstbl tbody tr:hover td{background:var(--soft)}
+.rsn{display:inline-grid;place-items:center;min-width:32px;height:32px;border-radius:50%;font-weight:800;color:var(--brand);box-shadow:inset 0 0 0 2px var(--brand)}
+.rsrounds{display:flex;flex-direction:column;gap:4px;min-width:220px}
+.rsr{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12.5px;padding:3px 8px;border-radius:8px;background:var(--soft)}
+.rsr i{font-style:normal;font-weight:800;color:var(--brand2,var(--brand))}
+.rsr em{font-style:normal;margin-inline-start:auto;font-weight:700;color:var(--gold,var(--brand))}
+.rsdr{direction:ltr;unicode-bidi:isolate;white-space:nowrap;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.rsr .rsdr{color:inherit}
+.rstot{font-size:18px;color:var(--gold,var(--brand))}
+@keyframes rsin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.rsstats .card,.rstbl tbody tr{animation:none}}
 </style>
 </head>
 <body>
@@ -623,7 +642,7 @@ button.crow.open{background:color-mix(in srgb,var(--brand) 9%,transparent);borde
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="config.js?v=1.7.2"></script>
-<script src="app.js?v=1.7.2"></script>
+<script src="config.js?v=1.8.0"></script>
+<script src="app.js?v=1.8.0"></script>
 </body>
 </html>

@@ -24,7 +24,7 @@ var USERS = [
 var DEFAULT_CONTRACTORS = ['أحمد عواد', 'عادل عرار', 'محمد عرار', 'جاسم زراك', 'دياري كريم', 'علي الكوفي', 'علي هويدي', 'علي محمد حسين', 'طه عبد الله', 'اكام بهاء', 'ثامر عطار', 'سمير حنون', 'عمر بولات', 'اسعد هادي', 'اوات جمال', 'يوسف حسن'];
 var AR_MONTHS = ['', 'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 var AR_MONTHS_SHORT = ['', 'كانون٢', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران', 'تموز', 'آب', 'أيلول', 'تشرين١', 'تشرين٢', 'كانون١'];
-var VERSION = '1.4.0';
+var VERSION = '1.8.0';
 var ADMIN_UID = 'PsrknBOyOxUU3PM0xqXZvBhRaul1'; // حساب منتظر علي (مدير النظام)
 var BAKROOT = 'amirat2_logs/backups'; // داخل مسار مسموح بقواعد قاعدة البيانات الحالية
 var ACLROOT = 'amirat2_acl';
@@ -105,6 +105,7 @@ var ICONS = {
   delivered: 'M3 11l9-7 9 7v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1zM9 15l2 2 4-4',
   weekly: 'M5 20V11M12 20V5M19 20v-6M3 20h18',
   annual: 'M4 6h16v14H4zM4 10h16M8 3v4M16 3v4',
+  rvsum: 'M9 3h6v4H9zM7 5H5v16h14V5h-2M8 11h8M8 15h8M8 19h5',
   agenda: 'M12 7v5l3 2M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z',
   settings: 'M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M9 10v4M17 16v4',
   sun: 'M12 4V2M12 22v-2M4 12H2M22 12h-2M5.6 5.6 4.2 4.2M19.8 19.8l-1.4-1.4M5.6 18.4l-1.4 1.4M19.8 4.2l-1.4 1.4M12 7a5 5 0 1 0 0 10a5 5 0 1 0 0-10z',
@@ -856,7 +857,7 @@ function renderAll() {
 }
 var NAV = [
   ['search', 'بحث سريع'], ['dash', 'لوحة المؤشرات'], ['ws', 'قيد التسليم (الأبراج)'], ['today', 'التنبيهات'],
-  ['delivered', 'الدور المسلّمة'], ['weekly', 'كفاءة المقاولين'], ['annual', 'الجرد السنوي'],
+  ['delivered', 'الدور المسلّمة'], ['rvsum', 'ملخص المراجعات'], ['weekly', 'كفاءة المقاولين'], ['annual', 'الجرد السنوي'],
   ['agenda', 'جدول الأعمال'], ['settings', 'الإعدادات']
 ];
 function renderRail() {
@@ -869,7 +870,7 @@ function renderRail() {
       return '<button class="navbtn' + (S.view === x[0] ? ' on' : '') + '" data-act="go" data-v="' + x[0] + '" title="' + esc(x[1]) + '">' + ico(x[0] === 'ws' ? 'ws' : x[0], 22) + '<span class="lbl">' + esc(x[1]) + '</span>' + b + '</button>';
     }).join('') + '</nav><div class="foot">' + (rail.classList.contains('open') ? 'Design by: Montather Ali' : 'MA') + '</div>';
 }
-var TITLES = { hub: '', search: 'ابحث عن دار', dash: 'لوحة المؤشرات', ws: 'قيد التسليم', today: 'التنبيهات وشغل اليوم', delivered: 'الدور المسلّمة', weekly: 'كفاءة المقاولين', annual: 'الجرد السنوي', agenda: 'جدول الأعمال', settings: 'الإعدادات' };
+var TITLES = { hub: '', search: 'ابحث عن دار', dash: 'لوحة المؤشرات', ws: 'قيد التسليم', today: 'التنبيهات وشغل اليوم', delivered: 'الدور المسلّمة', weekly: 'كفاءة المقاولين', annual: 'الجرد السنوي', agenda: 'جدول الأعمال', rvsum: 'ملخص المراجعات', settings: 'الإعدادات' };
 function renderTop() {
   var top = document.getElementById('topbar'); if (!S.user) return;
   var n = alertBadgeCount();
@@ -925,8 +926,8 @@ function noticesHTML() {
   return h;
 }
 /* ----- الشبكة الرئيسية (مستقبلية): 8 أقسام متساوية على مدار واحد، نواة أكبر، حلقات تقدّم، نبض، شرارات تسري ----- */
-var HUB = ['search', 'today', 'ws', 'delivered', 'dash', 'weekly', 'annual', 'agenda'];
-var HUB_LBL = { search: 'البحث السريع', dash: 'لوحة المؤشرات', ws: 'قيد التسليم', today: 'التنبيهات', delivered: 'الدور المسلّمة', weekly: 'كفاءة المقاولين', annual: 'الجرد السنوي', agenda: 'جدول الأعمال' };
+var HUB = ['search', 'today', 'ws', 'delivered', 'rvsum', 'dash', 'weekly', 'annual', 'agenda'];
+var HUB_LBL = { search: 'البحث السريع', dash: 'لوحة المؤشرات', ws: 'قيد التسليم', today: 'التنبيهات', delivered: 'الدور المسلّمة', weekly: 'كفاءة المقاولين', annual: 'الجرد السنوي', agenda: 'جدول الأعمال', rvsum: 'ملخص المراجعات' };
 function hubStats() {
   var ws = wsUnits(), wsN = ws.length, rdy = ws.filter(function (u) { return isReady(u.unit); }).length, al = alertBadgeCount();
   var A = computeAlerts(), cwT = 0, cwD = 0; (S.cw || []).forEach(function (r) { cwT += Number(r.total) || 0; cwD += Number(r.delivered) || 0; });
@@ -940,7 +941,8 @@ function hubStats() {
     dash: { c: wsN ? 'جاهزة ' + Math.round(rdy * 100 / wsN) + '٪' : '—', p: wsN ? rdy / wsN : 0 },
     weekly: { c: cwT ? 'منجز ' + Math.round(cwD * 100 / cwT) + '٪' : 'حسب المقاول', p: cwT ? cwD / cwT : null },
     annual: { c: yN + ' دار بـ' + nowY, p: null },
-    agenda: { c: mv ? mv + ' حركة اليوم' : 'حركات اليوم', p: null }
+    agenda: { c: mv ? mv + ' حركة اليوم' : 'حركات اليوم', p: null },
+    rvsum: (function () { var rs = oldRecs(), n = 0; rs.forEach(function (r) { n += rvRounds(r).length; }); return { c: rs.length + ' دار · ' + n + ' مراجعة', p: null }; })()
   };
 }
 VIEWS.hub = function () {
@@ -950,15 +952,15 @@ VIEWS.hub = function () {
   var R = Math.min((W / 2 - 14) / 1.3, (H / 2 - 28) / 1.3, 320), k = Math.max(0.5, Math.min(1.25, R / 250));
   var cx = W / 2, cy = H / 2 - 6, d = R * 0.56, dC = R * 0.98;
   var st = hubStats(), cnt = { search: noticeCount(), today: alertBadgeCount() };
-  var pts = HUB.map(function (v, i) { var a = -Math.PI / 2 + i * Math.PI / 4; return { v: v, i: i, x: cx + R * Math.cos(a), y: cy + R * Math.sin(a), a: a }; });
+  var NN = HUB.length, pts = HUB.map(function (v, i) { var a = -Math.PI / 2 + i * 2 * Math.PI / NN; return { v: v, i: i, x: cx + R * Math.cos(a), y: cy + R * Math.sin(a), a: a }; });
   function f(n) { return n.toFixed(1); }
-  function poly(step, cls) { var ps = [], i = 0, n = 0, L = 0; do { ps.push(pts[i]); i = (i + step) % 8; n++; } while (i !== 0 && n < 9); for (var q = 0; q < ps.length; q++) { var A = ps[q], B = ps[(q + 1) % ps.length]; L += Math.hypot(B.x - A.x, B.y - A.y); } return '<polygon class="' + cls + '" points="' + ps.map(function (p) { return f(p.x) + ',' + f(p.y); }).join(' ') + '" style="--len:' + Math.round(L) + '"/>'; }
+  function poly(step, cls) { var ps = [], i = 0, n = 0, L = 0; do { ps.push(pts[i]); i = (i + step) % NN; n++; } while (i !== 0 && n < NN + 1); for (var q = 0; q < ps.length; q++) { var A = ps[q], B = ps[(q + 1) % ps.length]; L += Math.hypot(B.x - A.x, B.y - A.y); } return '<polygon class="' + cls + '" points="' + ps.map(function (p) { return f(p.x) + ',' + f(p.y); }).join(' ') + '" style="--len:' + Math.round(L) + '"/>'; }
   function circ(r, cls) { return '<circle class="orbit ' + cls + '" cx="' + f(cx) + '" cy="' + f(cy) + '" r="' + f(r) + '" style="--len:' + Math.round(2 * Math.PI * r) + '"/>'; }
   var ticks = ''; for (var t = 0; t < 48; t++) { var ta = t * Math.PI / 24, r1 = R * 1.3, r2 = R * (t % 6 ? 1.33 : 1.38); ticks += '<line class="tick" x1="' + f(cx + r1 * Math.cos(ta)) + '" y1="' + f(cy + r1 * Math.sin(ta)) + '" x2="' + f(cx + r2 * Math.cos(ta)) + '" y2="' + f(cy + r2 * Math.sin(ta)) + '"/>'; }
   var sparks = pts.map(function (p, i) { var bg = (1.6 + i * 0.45).toFixed(2); return '<circle class="spark" opacity="0" r="' + f(2.2 * k) + '"><set attributeName="opacity" to="1" begin="' + bg + 's"/><animateMotion dur="' + (3.2 + (i % 3) * 0.6).toFixed(1) + 's" begin="' + (1.6 + i * 0.45).toFixed(2) + 's" repeatCount="indefinite" path="M' + f(cx) + ',' + f(cy) + ' L' + f(p.x) + ',' + f(p.y) + '"/></circle>'; }).join('');
   var web = '<defs><linearGradient id="hg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4FD8E8"/><stop offset=".55" stop-color="#8E7CFF"/><stop offset="1" stop-color="#E2C47A"/></linearGradient>' +
     '<linearGradient id="ag" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4FD8E8"/><stop offset="1" stop-color="#8E7CFF"/></linearGradient></defs>' +
-    circ(R, '') + circ(R * 1.3, 'o2') + circ(dC / 2 + R * 0.12, 'o3') + ticks + poly(3, 'star') + poly(2, 'star s2') +
+    circ(R, '') + circ(R * 1.3, 'o2') + circ(dC / 2 + R * 0.12, 'o3') + ticks + poly(NN === 8 ? 3 : 4, 'star') + poly(2, 'star s2') +
     pts.map(function (p) { return '<line class="spoke" data-i="' + p.v + '" x1="' + f(cx) + '" y1="' + f(cy) + '" x2="' + f(p.x) + '" y2="' + f(p.y) + '"/>'; }).join('') + sparks;
   var rr = d / 2 - 2, full = 2 * Math.PI * rr;
   var nodes = pts.map(function (p, i) {
@@ -1420,6 +1422,83 @@ VIEWS.annual = function () {
   return h;
 };
 
+/* ----- عرض: ملخص المراجعات — جدول لكل دار مراجع عليها ----- */
+function dSpan(a, b) { var x = parseAny(a), y = parseAny(b); if (!x || !y) return null; x.setHours(0, 0, 0, 0); y.setHours(0, 0, 0, 0); return Math.round((y - x) / 86400000); }
+function rvSumRows() {
+  return oldRecs().map(function (rec) {
+    var rd = rvDates(rec), del = isDeliveredRec(rec), ws = !del && wsByKey(rec.houseNo);
+    var rounds = rvRounds(rec).filter(function (x, i) { return i === 0 || x.reviewDate || x.completionDate || x.notes; }).map(function (x) { var dd = dSpan(x.reviewDate, x.completionDate); return { n: x.n, r: x.reviewDate || '', c: x.completionDate || '', d: dd != null && dd >= 0 ? dd : null }; });
+    var tot = 0; rounds.forEach(function (x) { tot += x.d || 0; });
+    var give = dSpan(rd.incomingDate, rd.deliveryDate);
+    var st, cls, done = rec.notesCompleted === true;
+    if (del) { var dd2 = rvDeliveredDate(rec); st = '🏠 مسلّمة' + (dd2 ? ' · ' + dd2 : ''); cls = 'p-ok'; }
+    else { var s2 = rvStatus(rec); st = (ws ? (isReady(rec.houseNo) ? '📋 قيد التسليم · جاهزة' : '📋 قيد التسليم · غير جاهزة') : '🔍 قيد المراجعة') + ' — ' + (done ? '✅ أُكملت الملاحظات' : s2.t); cls = done ? 'p-ok' : s2.c; }
+    return { rec: rec, h: rec.houseNo, con: conDisplay(rec.contractorName || rec.executionType || (ws && (ws.contractor || ws.executionType)) || ''), sec: rec.sectorNo || (ws && ws.sector) || '', inc: rd.incomingDate, dlv: rd.deliveryDate, give: give != null && give >= 0 ? give : null, rounds: rounds, tot: tot, st: st, cls: cls, del: del, late: !del && !done && cls === 'p-not' };
+  });
+}
+function rvSumFiltered() {
+  var q = normS(arDigits(S.rsQ || '')), f = S.rsF || 'all', so = S.rsSort || 'n';
+  var rows = rvSumRows().filter(function (r) {
+    if (f === 'open' && r.del) return false; if (f === 'del' && !r.del) return false; if (f === 'late' && !r.late) return false;
+    return !q || normS(arDigits(r.h + ' ' + r.con + ' ' + r.sec)).indexOf(q) >= 0;
+  });
+  function hn(a, b) { return String(a.h).localeCompare(String(b.h), undefined, { numeric: true }); }
+  rows.sort(so === 'con' ? function (a, b) { return a.con.localeCompare(b.con) || hn(a, b); } : so === 'days' ? function (a, b) { return b.tot - a.tot || hn(a, b); } : so === 'h' ? hn : function (a, b) { return b.rounds.length - a.rounds.length || b.tot - a.tot || hn(a, b); });
+  return rows;
+}
+VIEWS.rvsum = function () {
+  var all = rvSumRows(); if (!all.length) return '<div class="card empty">لا توجد دور مراجع عليها بعد.</div>';
+  var rows = rvSumFiltered(), f = S.rsF || 'all', so = S.rsSort || 'n';
+  var nR = 0, nD = 0, nG = 0, cG = 0; rows.forEach(function (r) { nR += r.rounds.length; nD += r.tot; if (r.give != null) { nG += r.give; cG++; } });
+  var cnt = { all: all.length, open: all.filter(function (r) { return !r.del; }).length, del: all.filter(function (r) { return r.del; }).length, late: all.filter(function (r) { return r.late; }).length };
+  function chip(v, t) { return '<button class="secchip' + (f === v ? ' on' : '') + '" data-act="rsF" data-v="' + v + '">' + t + ' <b>' + cnt[v] + '</b></button>'; }
+  function sb(v, t) { return '<button class="secchip' + (so === v ? ' on' : '') + '" data-act="rsSort" data-v="' + v + '">' + t + '</button>'; }
+  var h = '<div class="card" style="padding:14px 16px"><div class="row"><input class="inp" id="rsq" type="search" data-in="rsq" value="' + esc(S.rsQ || '') + '" placeholder="🔍 بحث برقم الدار / المقاول / القطاع" style="flex:1 1 240px">' +
+    '<button class="btn wa" data-act="exportRvSum">' + ico('xls', 16) + ' تصدير Excel</button></div>' +
+    '<div class="row cwsort" style="margin-top:10px">' + chip('all', 'الكل') + chip('open', 'غير مسلّمة') + chip('del', 'مسلّمة') + chip('late', '⚠️ متجاوزة') + '</div>' +
+    '<div class="row cwsort" style="margin-top:8px"><span class="muted" style="font-size:13px">ترتيب:</span>' + sb('n', 'الأكثر مراجعات') + sb('days', 'الأكثر أيام') + sb('con', 'المقاول') + sb('h', 'رقم الدار') + '</div></div>';
+  h += '<div class="rsstats">' +
+    '<div class="card"><b>' + rows.length + '</b><span>دار</span></div>' +
+    '<div class="card"><b>' + nR + '</b><span>مراجعة</span></div>' +
+    '<div class="card"><b>' + (rows.length ? (nR / rows.length).toFixed(1) : 0) + '</b><span>معدل المراجعات للدار</span></div>' +
+    '<div class="card"><b>' + (rows.length ? Math.round(nD / rows.length) : 0) + '</b><span>معدل أيام المراجعة للدار</span></div>' +
+    '<div class="card"><b>' + (cG ? Math.round(nG / cG) : '—') + '</b><span>معدل مدة التسليم المعطاة</span></div></div>';
+  if (!rows.length) return h + '<div class="card empty">لا نتائج مطابقة.</div>';
+  var shown = rows.slice(0, S.rsShow || 200);
+  h += '<div class="card" style="padding:0;overflow:hidden"><div class="scroll rstbl" style="max-height:calc(100vh - 300px)"><table class="tbl"><thead><tr><th>ت</th><th>المقاول</th><th>رقم البلوك والدار</th><th>مدة التسليم المعطاة</th><th>عدد المراجعات</th><th>تواريخ المراجعات</th><th>إجمالي أيام المراجعات</th><th>موقف الدار</th></tr></thead><tbody>' +
+    shown.map(function (r, i) {
+      return '<tr style="--i:' + Math.min(i, 18) + '"><td class="muted">' + (i + 1) + '</td><td><b>' + esc(r.con) + '</b>' + (r.sec ? '<div class="muted" style="font-size:12px">' + esc(r.sec) + '</div>' : '') + '</td>' +
+        '<td><button class="btn sm" style="font-weight:700" data-act="house" data-h="' + esc(r.h) + '"><span class="ltr">' + esc(r.h) + '</span></button></td>' +
+        '<td>' + (r.give != null ? '<b>' + r.give + '</b> يوم' : '—') + '<div class="rsdr"><span>' + esc(r.inc || '-') + '</span> → <span>' + esc(r.dlv || '-') + '</span></div></td>' +
+        '<td><span class="rsn">' + r.rounds.length + '</span></td>' +
+        '<td><div class="rsrounds">' + r.rounds.map(function (x) { return '<span class="rsr"><i>م' + x.n + '</i><span class="rsdr"><span>' + esc(x.r || '-') + '</span>' + (x.c ? ' → <span>' + esc(x.c) + '</span>' : '') + '</span>' + (x.d != null ? '<em>' + x.d + ' يوم</em>' : '') + '</span>'; }).join('') + '</div></td>' +
+        '<td><b class="rstot">' + r.tot + '</b> يوم</td>' +
+        '<td><span class="pill ' + r.cls + '" style="white-space:normal">' + esc(r.st) + '</span></td></tr>';
+    }).join('') + '</tbody></table></div></div>';
+  if (rows.length > shown.length) h += '<div class="row" style="justify-content:center"><button class="btn" data-act="rsMore">عرض المزيد (' + (rows.length - shown.length) + ')</button></div>';
+  h += '<p class="muted" style="font-size:12.5px;margin:0">مدة التسليم المعطاة = من تاريخ الوارد لتاريخ التسليم. أيام كل مراجعة = من تاريخ المراجعة لموعد إكمال الملاحظات، والإجمالي مجموعها.</p>';
+  return h;
+};
+function exportRvSum() {
+  var rows = rvSumFiltered(); if (!rows.length) { toast('لا توجد دور للتصدير.', false); return; }
+  var mx = 1; rows.forEach(function (r) { mx = Math.max(mx, r.rounds.length); });
+  var head = ['ت', 'المقاول', 'القطاع', 'رقم البلوك والدار', 'تاريخ الوارد', 'تاريخ التسليم', 'مدة التسليم المعطاة (يوم)', 'عدد المراجعات'], cols = [5, 22, 12, 16, 13, 13, 14, 10];
+  for (var k = 1; k <= mx; k++) { head.push('مراجعة ' + k + ' — التاريخ', 'مراجعة ' + k + ' — موعد الإكمال', 'مراجعة ' + k + ' — أيام'); cols.push(15, 17, 10); }
+  head.push('إجمالي أيام المراجعات', 'موقف الدار'); cols.push(14, 44);
+  var aoa = [['ملخص المراجعات — مجمع الأميرات 2 — ' + todayStr() + ' — عدد الدور: ' + rows.length], head];
+  rows.forEach(function (r, i) {
+    var row = [i + 1, r.con, r.sec, stripBidi(r.h), r.inc || '', r.dlv || '', r.give != null ? r.give : '', r.rounds.length];
+    for (var k = 0; k < mx; k++) { var x = r.rounds[k]; row.push(x ? x.r : '', x ? x.c : '', x && x.d != null ? x.d : ''); }
+    row.push(r.tot, stripBidi(r.st).replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '').replace(/\s+/g, ' ').trim()); aoa.push(row);
+  });
+  var wb = XLSX.utils.book_new(), ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = cols.map(function (w) { return { wch: w }; });
+  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: head.length - 1 } }];
+  ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 1, c: 0 }, e: { r: aoa.length - 1, c: head.length - 1 } }) };
+  ws['!views'] = [{ rightToLeft: true }];
+  XLSX.utils.book_append_sheet(wb, ws, 'ملخص المراجعات'); XLSX.writeFile(wb, 'ملخص_المراجعات_' + todayStr() + '.xlsx');
+}
+
 /* ----- عرض: جدول الأعمال ----- */
 VIEWS.agenda = function () {
   if (!S.agenda) { loadAgenda(); return '<div class="card empty">⏳ جاري التحميل...</div>'; }
@@ -1606,7 +1685,8 @@ var ACT = {
   },
   panelMore: function () { S.panelShow += 150; scheduleRender(); },
   panelXl: function () { var p = S.panel; if (!p || !p.rows.length) { toast('القائمة فارغة', false); return; } xlsx([p.head].concat(p.rows), 'قائمة', p.title.replace(/[^؀-ۿa-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') + '_' + todayStr() + '.xlsx'); },
-  exportReviews: exportReviews, exportAnnual: exportAnnual,
+  exportReviews: exportReviews, exportAnnual: exportAnnual, exportRvSum: exportRvSum,
+  rsF: function (d) { S.rsF = d.v; S.rsShow = 200; renderAll(); }, rsSort: function (d) { S.rsSort = d.v; renderAll(); }, rsMore: function () { S.rsShow = (S.rsShow || 200) + 200; renderAll(); },
   wsMode: function (d) { S.wsF.mode = d.v; if (d.v === 'towers') S.wsF.sort = 'default'; else if (S.wsF.sort === 'default') S.wsF.sort = 'contractor'; scheduleRender(); },
   wsFilter: function (d) { S.wsF = { sector: 'all', contractor: 'all', sort: 'default', q: '', mode: 'towers', label: d.con }; S.openSectors = {}; wsUnits().forEach(function (x) { if (execLabel(x.executionType, x.contractor) === d.con) S.openSectors[x.sector || 'غير محدد'] = true; }); S.view = 'ws'; scheduleRender(); },
   clearLabel: function () { S.wsF.label = ''; scheduleRender(); },
@@ -1646,6 +1726,7 @@ var INP = {
   wsSort: function (el) { S.wsF.sort = el.value; S.wsF.mode = el.value === 'default' ? 'towers' : 'table'; scheduleRender(); },
   rvq: function (el) { S.rvQ = el.value; scheduleRender(); },
   rvSort: function (el) { S.rvSort = el.value; scheduleRender(); },
+  rsq: function (el) { S.rsQ = el.value; S.rsShow = 200; clearTimeout(INP._t); INP._t = setTimeout(scheduleRender, 200); },
   delq: function (el) { S.delQ = el.value; S.delShow = 150; clearTimeout(INP._t); INP._t = setTimeout(scheduleRender, 200); },
   roundEdit: function (el) { if (MODAL.form) MODAL.form.rounds[+el.dataset.i][el.dataset.f] = el.value; },
   execChange: function (el) { var w = document.getElementById('f-con-wrap'); if (w) w.classList.toggle('hidden', el.value !== 'مقاولين'); },
