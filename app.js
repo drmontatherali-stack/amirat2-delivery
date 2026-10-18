@@ -854,7 +854,7 @@ function renderAll() {
 }
 var NAV = [
   ['search', 'بحث سريع'], ['dash', 'لوحة المؤشرات'], ['ws', 'قيد التسليم (الأبراج)'], ['today', 'التنبيهات'],
-  ['delivered', 'الدور المسلّمة'], ['weekly', 'الموقف الأسبوعي'], ['annual', 'الجرد السنوي'],
+  ['delivered', 'الدور المسلّمة'], ['weekly', 'كفاءة المقاولين'], ['annual', 'الجرد السنوي'],
   ['agenda', 'جدول الأعمال'], ['settings', 'الإعدادات']
 ];
 function renderRail() {
@@ -867,7 +867,7 @@ function renderRail() {
       return '<button class="navbtn' + (S.view === x[0] ? ' on' : '') + '" data-act="go" data-v="' + x[0] + '" title="' + esc(x[1]) + '">' + ico(x[0] === 'ws' ? 'ws' : x[0], 22) + '<span class="lbl">' + esc(x[1]) + '</span>' + b + '</button>';
     }).join('') + '</nav><div class="foot">' + (rail.classList.contains('open') ? 'Design by: Montather Ali' : 'MA') + '</div>';
 }
-var TITLES = { hub: '', search: 'ابحث عن دار', dash: 'لوحة المؤشرات', ws: 'قيد التسليم', today: 'التنبيهات وشغل اليوم', delivered: 'الدور المسلّمة', weekly: 'الموقف الأسبوعي للمقاولين', annual: 'الجرد السنوي', agenda: 'جدول الأعمال', settings: 'الإعدادات' };
+var TITLES = { hub: '', search: 'ابحث عن دار', dash: 'لوحة المؤشرات', ws: 'قيد التسليم', today: 'التنبيهات وشغل اليوم', delivered: 'الدور المسلّمة', weekly: 'كفاءة المقاولين', annual: 'الجرد السنوي', agenda: 'جدول الأعمال', settings: 'الإعدادات' };
 function renderTop() {
   var top = document.getElementById('topbar'); if (!S.user) return;
   var n = alertBadgeCount();
@@ -924,7 +924,7 @@ function noticesHTML() {
 }
 /* ----- الشبكة الرئيسية (مستقبلية): 8 أقسام متساوية على مدار واحد، نواة أكبر، حلقات تقدّم، نبض، شرارات تسري ----- */
 var HUB = ['search', 'today', 'ws', 'delivered', 'dash', 'weekly', 'annual', 'agenda'];
-var HUB_LBL = { search: 'البحث السريع', dash: 'لوحة المؤشرات', ws: 'قيد التسليم', today: 'التنبيهات', delivered: 'الدور المسلّمة', weekly: 'موقف المقاولين', annual: 'الجرد السنوي', agenda: 'جدول الأعمال' };
+var HUB_LBL = { search: 'البحث السريع', dash: 'لوحة المؤشرات', ws: 'قيد التسليم', today: 'التنبيهات', delivered: 'الدور المسلّمة', weekly: 'كفاءة المقاولين', annual: 'الجرد السنوي', agenda: 'جدول الأعمال' };
 function hubStats() {
   var ws = wsUnits(), wsN = ws.length, rdy = ws.filter(function (u) { return isReady(u.unit); }).length, al = alertBadgeCount();
   var A = computeAlerts(), cwT = 0, cwD = 0; (S.cw || []).forEach(function (r) { cwT += Number(r.total) || 0; cwD += Number(r.delivered) || 0; });
@@ -1208,12 +1208,40 @@ VIEWS.delivered = function () {
 };
 
 /* ----- عرض: الموقف الأسبوعي (موقف المقاولين) ----- */
+/* ----- عرض: كفاءة المقاولين ----- */
+function conKey(n) { return normS(String(n || '').replace(/^(مقاولين|مقاول)\s*[—-]\s*/, '')); }
+function effRate(p) {
+  if (p == null) return { t: 'ماكو متجاوز', c: 'ex' };
+  if (p < 50) return { t: 'دون المستوى', c: 'bad' };
+  if (p < 60) return { t: 'مقبول', c: 'ok1' };
+  if (p < 70) return { t: 'متوسط', c: 'ok2' };
+  if (p < 80) return { t: 'جيد', c: 'gd' };
+  if (p < 90) return { t: 'جيد جداً', c: 'vg' };
+  return { t: 'ممتاز', c: 'ex' };
+}
+// الدور الحالية (قيد التسليم) والمسلّمة المعروف مقاولها، مجمّعة حسب المقاول
+function conIndex() {
+  var ws = {}, del = {}, nh = nhStatusMap();
+  wsUnits().forEach(function (u) { var k = conKey(u.contractor || u.executionType); if (!k) return; (ws[k] = ws[k] || []).push(u); });
+  S.del.forEach(function (x) {
+    var e = nh[normH(x.houseNo)], c = e && e.unit && (e.unit.contractor || e.unit.executionType);
+    if (!c) { var r = reviewOf(x.houseNo); c = r && (r.contractorName || r.executionType); }
+    var k = conKey(c); if (!k) return; (del[k] = del[k] || []).push(x);
+  });
+  return { ws: ws, del: del };
+}
+function conStats(units) {
+  var o = { ready: [], od: [], odR: [], odN: [] };
+  units.forEach(function (u) { var r = isReady(u.unit), d = daysDiff(u.deliveryDate); if (r) o.ready.push(u); if (d !== null && d <= 0) { o.od.push(u); (r ? o.odR : o.odN).push(u); } });
+  o.eff = o.od.length ? Math.round(o.odR.length * 100 / o.od.length) : null;
+  return o;
+}
 VIEWS.weekly = function () {
-  var h = '<div class="card" style="padding:14px 16px"><div class="row" style="justify-content:space-between"><span class="muted" style="font-size:13px">' + (S.cwErr ? '❌ ' + esc(S.cwErr) : '✅ آخر تحديث: ' + esc(S.cwLast || 'لم يتم بعد') + ' — ' + S.cw.length + ' صف') + ' · المصدر: ملف موقف المقاولين</span>' +
+  var h = '<div class="card" style="padding:14px 16px"><div class="row" style="justify-content:space-between"><span class="muted" style="font-size:13px">' + (S.cwErr ? '❌ ' + esc(S.cwErr) : '✅ آخر تحديث: ' + esc(S.cwLast || 'لم يتم بعد') + ' — ' + S.cw.length + ' صف') + ' · المصدر: ملف موقف المقاولين + قيد التسليم</span>' +
     '<button class="btn sm" data-act="syncCw">🔄 تحديث</button></div></div>';
   if (!S.cw.length) return h + '<div class="card empty">لا توجد بيانات بعد — بانتظار أول مزامنة.</div>';
   function N(v) { return Number(v) || 0; }
-  // تجميع: كل مقاول مرة وحدة، وتحته قطاعاته
+  var IX = conIndex(); S.cwIX = IX;
   var by = {}, ord = [], T = { t: 0, d: 0, p: 0, r: 0 };
   S.cw.forEach(function (r) {
     var k = r.contractor || 'غير محدد';
@@ -1222,23 +1250,48 @@ VIEWS.weekly = function () {
     g.t += t; g.d += d; g.p += p; g.r += rm; g.secs.push({ s: r.sector || '-', t: t, d: d, p: p, r: rm });
     T.t += t; T.d += d; T.p += p; T.r += rm;
   });
-  var sort = S.cwSort || 'total', list = ord.map(function (k) { return by[k]; });
-  list.sort(function (a, b) { return sort === 'pct' ? (b.t ? b.d / b.t : 0) - (a.t ? a.d / a.t : 0) : (sort === 'rem' ? b.r - a.r : (sort === 'prog' ? b.p - a.p : b.t - a.t)); });
+  var list = ord.map(function (k) { var g = by[k]; g.k = conKey(k); g.units = IX.ws[g.k] || []; g.st = conStats(g.units); return g; });
+  var all = conStats(wsUnits()), allR = effRate(all.eff);
+  var sort = S.cwSort || 'eff';
+  function effv(g) { return g.st.eff == null ? 101 : g.st.eff; }
+  list.sort(function (a, b) { return sort === 'eff' ? effv(b) - effv(a) : (sort === 'pct' ? (b.t ? b.d / b.t : 0) - (a.t ? a.d / a.t : 0) : (sort === 'rem' ? b.r - a.r : (sort === 'prog' ? b.p - a.p : b.t - a.t))); });
   function pc(x, t) { return t ? Math.round(x * 100 / t) : 0; }
   function bar(o, big) { var t = o.t || 1; return '<div class="cwbar' + (big ? ' big' : '') + '" role="img" aria-label="مسلّمة ' + o.d + '، قيد التسليم ' + o.p + '، متبقية ' + o.r + '"><i class="d" style="--w:' + (o.d * 100 / t).toFixed(2) + '%"></i><i class="p" style="--w:' + (o.p * 100 / t).toFixed(2) + '%"></i><i class="r" style="--w:' + (o.r * 100 / t).toFixed(2) + '%"></i></div>'; }
   function ring(p) { var r = 30, c = 2 * Math.PI * r; return '<span class="rw"><svg class="cwring" viewBox="0 0 72 72" aria-hidden="true"><circle cx="36" cy="36" r="' + r + '" class="tk"/><circle cx="36" cy="36" r="' + r + '" class="ar" style="stroke-dasharray:' + c.toFixed(1) + ';--off:' + (c * (1 - p / 100)).toFixed(1) + ';--full:' + c.toFixed(1) + '"/></svg><b class="cwpct">' + p + '<small>٪</small></b></span>'; }
-  h += '<div class="card cwsum"><div class="cwhead"><div><h2 style="margin:0">موقف المقاولين <small>' + list.length + ' مقاول</small></h2></div>' +
-    '<div class="cwnums"><span><b>' + T.t + '</b>الكلي</span><span class="d"><b>' + T.d + '</b>مسلّمة · ' + pc(T.d, T.t) + '٪</span><span class="p"><b>' + T.p + '</b>قيد التسليم</span><span class="r"><b>' + T.r + '</b>متبقية</span></div></div>' + bar(T, true) +
-    '<div class="row cwsort" role="group" aria-label="ترتيب">' + [['total', 'الأكبر'], ['pct', 'الأعلى إنجازاً'], ['prog', 'الأكثر قيد التسليم'], ['rem', 'الأكثر متبقي']].map(function (x) { return '<button class="secchip' + (sort === x[0] ? ' on' : '') + '" data-act="cwSort" data-k="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div></div>';
+  function nb(cls, n, lbl, con, t) { return '<button class="' + cls + '" data-act="cwList" data-c="' + esc(con) + '" data-t="' + t + '"' + (n ? '' : ' disabled') + '><b>' + n + '</b>' + lbl + '</button>'; }
+  h += '<div class="card cwsum"><div class="cwhead"><div><h2 style="margin:0">كفاءة المقاولين <small>' + list.length + ' مقاول</small></h2></div>' +
+    '<div class="cwnums"><span><b>' + T.t + '</b>الكلي</span><span class="d"><b>' + T.d + '</b>مسلّمة · ' + pc(T.d, T.t) + '٪</span><span class="p"><b>' + T.p + '</b>قيد التسليم</span><span class="r"><b>' + T.r + '</b>متبقية</span>' +
+    '<span class="eff ' + allR.c + '"><b>' + (all.eff == null ? '—' : all.eff + '٪') + '</b>الكفاءة العامة · ' + allR.t + '</span></div></div>' + bar(T, true) +
+    '<div class="row cwsort" role="group" aria-label="ترتيب">' + [['eff', 'الأعلى كفاءة'], ['pct', 'الأعلى إنجازاً'], ['total', 'الأكبر'], ['prog', 'الأكثر قيد التسليم'], ['rem', 'الأكثر متبقي']].map(function (x) { return '<button class="secchip' + (sort === x[0] ? ' on' : '') + '" data-act="cwSort" data-k="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+    '<p class="muted" style="margin:0;font-size:12.5px">الكفاءة = نسبة الدور الجاهزة من دور قيد التسليم اللي تجاوزت موعد التسليم (اليوم نفسه يُحسب متجاوز). دون 50٪ دون المستوى · 50–60 مقبول · 60–70 متوسط · 70–80 جيد · 80–90 جيد جداً · 90 فما فوق ممتاز. اضغط أي رقم حتى تطلع دوره.</p></div>';
   h += '<div class="cwgrid">' + list.map(function (g, i) {
-    var p = pc(g.d, g.t);
-    return '<article class="cwcard" style="--i:' + i + '"><header>' + ring(p) + '<div class="nm"><h3>' + esc(g.n) + '</h3><span class="muted">' + g.secs.length + (g.secs.length === 1 ? ' قطاع' : ' قطاعات') + ' · ' + g.t + ' دار</span></div></header>' +
-      '<div class="cwnums sm"><span class="d"><b>' + g.d + '</b>مسلّمة</span><span class="p"><b>' + g.p + '</b>قيد التسليم</span><span class="r"><b>' + g.r + '</b>متبقية</span></div>' + bar(g) +
+    var p = pc(g.d, g.t), st = g.st, R = effRate(st.eff), dk = (IX.del[g.k] || []).length;
+    return '<article class="cwcard" style="--i:' + i + '"><header>' + ring(p) + '<div class="nm"><h3>' + esc(g.n) + '</h3><span class="muted">نسبة الإنجاز ' + p + '٪ · ' + g.secs.length + (g.secs.length === 1 ? ' قطاع' : ' قطاعات') + ' · ' + g.t + ' دار</span></div>' +
+      '<span class="effb ' + R.c + '"><b>' + (st.eff == null ? '—' : st.eff + '٪') + '</b>' + R.t + '</span></header>' +
+      '<div class="cwnums sm">' + nb('d', g.d, 'مسلّمة', g.n, 'd') + nb('p', g.units.length || g.p, 'قيد التسليم', g.n, 'p') + '<span class="r"><b>' + g.r + '</b>متبقية</span></div>' + bar(g) +
+      '<div class="cwk">' + nb('k rd', st.ready.length, 'جاهزة', g.n, 'ready') + nb('k od', st.od.length, 'متجاوزة الموعد', g.n, 'od') + nb('k odr', st.odR.length, 'متجاوزة جاهزة', g.n, 'odR') + nb('k odn', st.odN.length, 'متجاوزة غير جاهزة', g.n, 'odN') + '</div>' +
+      (st.od.length ? '<div class="effline"><span style="--w:' + st.eff + '%"></span></div>' : '') +
       '<ul class="cwsecs">' + g.secs.map(function (x) { return '<li><span class="s">' + esc(x.s) + '</span>' + bar(x) + '<span class="v">' + x.d + '<small>/' + x.t + '</small></span></li>'; }).join('') + '</ul></article>';
   }).join('') + '</div>';
   h += '<div class="legend" style="justify-content:center"><span><i style="background:var(--ok)"></i>مسلّمة</span><span><i style="background:var(--ready)"></i>قيد التسليم</span><span><i style="background:var(--notready)"></i>متبقية</span></div>';
   return h;
 };
+function cwList(con, t) {
+  var IX = S.cwIX || conIndex(), k = conKey(con), units = IX.ws[k] || [], st = conStats(units), title, items;
+  var T = { d: 'المسلّمة', p: 'قيد التسليم', ready: 'الجاهزة', od: 'المتجاوزة الموعد', odR: 'المتجاوزة الجاهزة', odN: 'المتجاوزة غير الجاهزة' };
+  title = T[t] + ' — ' + con;
+  if (t === 'd') {
+    var dl = (IX.del[k] || []).slice().sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); });
+    var tot = 0; (S.cw || []).forEach(function (r) { if (conKey(r.contractor) === k) tot += Number(r.delivered) || 0; });
+    items = dl.map(function (x) { return '<button class="aitem" data-act="house" data-h="' + esc(x.houseNo) + '"><span class="m"><b class="ltr" style="text-align:right">' + esc(x.houseNo) + '</b><small>تاريخ الاستلام: ' + esc(x.date || '-') + (x.sector ? ' · ' + esc(x.sector) : '') + '</small></span><span class="pill p-ok">🏠 مسلّمة</span></button>'; }).join('');
+    items = (dl.length < tot ? '<p class="muted" style="margin:0 0 8px;font-size:13px">يطلع ' + dl.length + ' من ' + tot + ' دار — الباقي انسلّم قبل ما يبدأ النظام يسجّل مقاول كل دار، فما معروف مقاوله بشيت تواريخ الاستلام.</p>' : '') + (items || '<div class="empty">ما أكو دور معروفة لهذا المقاول.</div>');
+  } else {
+    var src = t === 'p' ? units : st[t] || [];
+    src = src.slice().sort(function (a, b) { return (daysDiff(a.deliveryDate) || 0) - (daysDiff(b.deliveryDate) || 0); });
+    items = src.map(function (u) { var r = isReady(u.unit); return '<button class="aitem" data-act="house" data-h="' + esc(u.unit) + '"><span class="m"><b class="ltr" style="text-align:right">' + esc(u.unit) + '</b><small>' + esc(u.sector || '-') + ' · 📥 ' + esc(u.incomingDate || '-') + ' · 📤 ' + esc(u.deliveryDate || '-') + '</small></span><span class="pill ' + (r ? 'p-ready">✅ جاهز' : 'p-not">⛔ غير جاهز') + esc(overdueText(u.deliveryDate)) + '</span></button>'; }).join('') || '<div class="empty">ماكو دور.</div>';
+  }
+  openModal('<header><h3>' + esc(title) + '</h3><button class="iconbtn" data-act="closeModal" aria-label="إغلاق">' + ico('close') + '</button></header><div class="bd"><div class="alist">' + items + '</div></div>', true);
+}
 
 /* ----- عرض: الجرد السنوي ----- */
 function catOf(h) { var m = String(h == null ? '' : h).trim().match(/[A-Za-zأ-ي]/); return m ? m[0].toUpperCase() : 'غير محدد'; }
@@ -1421,6 +1474,7 @@ var ACT = {
   syncAll: function () { toast('⏳ جاري التحديث من الشيتات...', 'info'); syncAll(true); },
   anYear: function (d) { S.anY = d.y; S.anM = null; scheduleRender(); },
   anMonth: function (d) { S.anM = +d.m ? { y: d.y, m: +d.m } : null; scheduleRender(); if (+d.m) setTimeout(function () { var p = document.getElementById('panel'); if (p) p.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80); },
+  cwList: function (d) { cwList(d.c, d.t); },
   cwSort: function (d) { S.cwSort = d.k; scheduleRender(); },
   syncCw: function () { syncContractors(true); },
   pick: function (d) { S.sel = d.k; scheduleRender(); },
