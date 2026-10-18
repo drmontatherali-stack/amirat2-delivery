@@ -1249,13 +1249,45 @@ function annualGroups() {
   return { groups: groups, keys: keys, cats: Object.keys(cats).sort() };
 }
 function annualLabel(g) { return g.unknown ? 'تاريخ غير محدد بالشيت' : (AR_MONTHS[parseInt(g.m, 10)] || g.m) + ' ' + g.y; }
+var AN_MN = ['', 'كانون الثاني', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران', 'تموز', 'آب', 'أيلول', 'تشرين الأول', 'تشرين الثاني', 'كانون الأول'];
+var AN_COL = ['#4FD8E8', '#8E7CFF', '#E2C47A', '#38E2A0', '#FF7AA8', '#68B6FF', '#F2B23E', '#B8C4E0'];
 VIEWS.annual = function () {
   if (!S.del.length) return '<div class="card empty">لا توجد بيانات بعد — بانتظار مزامنة الشيت.</div>';
-  var A = annualGroups(), gt = 0, gc = {};
-  var rows = A.keys.slice().reverse().map(function (k) { var g = A.groups[k]; gt += g.total; return '<tr><td><b>' + esc(annualLabel(g)) + '</b></td>' + A.cats.map(function (c) { gc[c] = (gc[c] || 0) + (g.cats[c] || 0); return '<td>' + (g.cats[c] || 0) + '</td>'; }).join('') + '<td><b>' + g.total + '</b></td></tr>'; }).join('');
-  return '<div class="row" style="justify-content:space-between"><span class="muted">كل صف بشيت تواريخ الاستلام كما هو — الفئة = أول حرف من رقم الدار</span><button class="btn wa" data-act="exportAnnual">' + ico('xls', 16) + ' تصدير Excel</button></div>' +
-    '<div class="scroll" style="max-height:calc(100vh - 220px)"><table class="tbl"><thead><tr><th>الشهر/السنة</th>' + A.cats.map(function (c) { return '<th>فئة ' + esc(c) + '</th>'; }).join('') + '<th>الإجمالي</th></tr></thead><tbody>' +
-    '<tr style="font-weight:800;background:var(--soft)"><td>الإجمالي الكلي</td>' + A.cats.map(function (c) { return '<td>' + (gc[c] || 0) + '</td>'; }).join('') + '<td>' + gt + '</td></tr>' + rows + '</tbody></table></div>';
+  var A = annualGroups(), cats = A.cats, col = {}; cats.forEach(function (c, i) { col[c] = AN_COL[i % AN_COL.length]; });
+  var years = []; A.keys.forEach(function (k) { var g = A.groups[k]; if (!g.unknown && years.indexOf(g.y) < 0) years.push(g.y); }); years.sort();
+  var cy = String(new Date().getFullYear()), Y = S.anY && years.indexOf(S.anY) >= 0 ? S.anY : (years.indexOf(cy) >= 0 ? cy : years[years.length - 1]);
+  var unk = A.groups['9999-99'] ? A.groups['9999-99'].total : 0;
+  function yr(y) { var m = [], t = 0, cc = {}; for (var i = 1; i <= 12; i++) { var g = A.groups[y + '-' + pad2(i)] || { total: 0, cats: {} }; m.push(g); t += g.total; cats.forEach(function (c) { cc[c] = (cc[c] || 0) + (g.cats[c] || 0); }); } return { m: m, t: t, cc: cc }; }
+  var cur = yr(Y), prev = years.indexOf(String(+Y - 1)) >= 0 ? yr(String(+Y - 1)) : null;
+  var nowM = new Date().getMonth() + 1, isCur = Y === cy, monthsN = isCur ? nowM : 12;
+  var best = 0; cur.m.forEach(function (g, i) { if (g.total > cur.m[best].total) best = i; });
+  var avg = monthsN ? Math.round(cur.t / monthsN) : 0;
+  var prevSame = 0; if (prev) prev.m.forEach(function (g, i) { if (!isCur || i < nowM) prevSame += g.total; });
+  var delta = prev && prevSame ? Math.round((cur.t - prevSame) * 100 / prevSame) : null;
+  var max = Math.max(1, Math.max.apply(null, cur.m.map(function (g) { return g.total; })));
+  var sel = S.anM && S.anM.y === Y ? S.anM.m : null;
+  var h = '<div class="row" style="justify-content:space-between"><div class="row cwsort" role="group" aria-label="السنة">' + years.map(function (y) { return '<button class="secchip' + (y === Y ? ' on' : '') + '" data-act="anYear" data-y="' + y + '">' + y + '</button>'; }).join('') + '</div>' +
+    '<button class="btn wa" data-act="exportAnnual">' + ico('xls', 16) + ' تصدير Excel</button></div>';
+  // الملخص
+  h += '<div class="card anhero"><div class="big"><span class="muted">المسلّم بسنة ' + Y + (isCur ? ' لحد هسه' : '') + '</span><b>' + cur.t + '</b>' +
+    (delta == null ? '' : '<span class="dl ' + (delta >= 0 ? 'up' : 'dn') + '">' + (delta >= 0 ? '▲ ' : '▼ ') + Math.abs(delta) + '٪ عن نفس الفترة بـ' + (+Y - 1) + '</span>') + '</div>' +
+    '<div class="stats"><span><b>' + avg + '</b>معدل الشهر</span><span><b>' + (cur.m[best].total ? AN_MN[best + 1] : '—') + '</b>أفضل شهر · ' + cur.m[best].total + '</span><span><b>' + cats.length + '</b>فئات</span></div>' +
+    '<div class="cats">' + cats.map(function (c) { var n = cur.cc[c] || 0, p = cur.t ? n * 100 / cur.t : 0; return '<div class="cat"><span class="sw" style="background:' + col[c] + '"></span><span class="nm">فئة ' + esc(c) + '</span><b>' + n + '</b><span class="pc">' + Math.round(p) + '٪</span><span class="ln"><i style="width:' + p.toFixed(1) + '%;background:' + col[c] + '"></i></span></div>'; }).join('') + '</div></div>';
+  // المخطط الشهري (أعمدة مكدّسة حسب الفئة)
+  h += '<div class="card"><h2>التسليم شهرياً <small>اضغط أي شهر حتى تشوف دوره</small></h2><div class="anchart">' + cur.m.map(function (g, i) {
+    var fut = isCur && i + 1 > nowM, hgt = g.total * 100 / max;
+    return '<button class="col' + (sel === i + 1 ? ' on' : '') + (fut ? ' fut' : '') + '" data-act="anMonth" data-y="' + Y + '" data-m="' + (i + 1) + '" style="--i:' + i + '" aria-label="' + AN_MN[i + 1] + ' ' + g.total + ' دار"' + (g.total ? '' : ' disabled') + '>' +
+      '<span class="v">' + (g.total || '') + '</span><span class="stk" style="height:' + hgt.toFixed(1) + '%">' + cats.map(function (c) { var n = g.cats[c] || 0; return n ? '<i style="flex:' + n + ';background:' + col[c] + '"></i>' : ''; }).join('') + '</span>' +
+      (prev ? '<span class="pv" style="bottom:calc(' + (prev.m[i].total * 100 / max).toFixed(1) + '% + 24px)" title="' + (+Y - 1) + ': ' + prev.m[i].total + '"></span>' : '') + '<span class="x">' + AR_MONTHS_SHORT[i + 1] + '</span></button>';
+  }).join('') + '</div>' + (prev ? '<div class="legend" style="margin-top:10px"><span><i style="background:transparent;border-top:2px dashed var(--gold);height:0;border-radius:0;width:14px"></i>نفس الشهر بـ' + (+Y - 1) + '</span></div>' : '') + '</div>';
+  // تفاصيل الشهر المختار
+  if (sel) {
+    var key = Y + '-' + pad2(sel), list = S.del.filter(function (x) { return String(x.date || '').slice(0, 7) === key; }).sort(function (a, b) { return String(a.houseNo).localeCompare(String(b.houseNo), undefined, { numeric: true }); });
+    h += '<div class="card" id="panel"><h2>' + AN_MN[sel] + ' ' + Y + ' <small>' + list.length + ' دار مسلّمة</small><button class="btn sm" data-act="anMonth" data-y="' + Y + '" data-m="0">✕ إغلاق</button></h2><div class="anlist">' +
+      list.map(function (x) { var c = catOf(x.houseNo); return '<button class="hchip" data-act="house" data-h="' + esc(x.houseNo) + '" style="--c:' + (col[c] || 'var(--brand)') + '"><b class="ltr">' + esc(x.houseNo) + '</b><small>' + esc(String(x.date || '').slice(8, 10)) + '</small></button>'; }).join('') + '</div></div>';
+  }
+  if (unk) h += '<div class="muted" style="font-size:13px">ملاحظة: ' + unk + ' دار بشيت تواريخ الاستلام تاريخها مو مقروء (مثلاً "خاص") وما داخلة بالأشهر.</div>';
+  return h;
 };
 
 /* ----- عرض: جدول الأعمال ----- */
@@ -1387,6 +1419,8 @@ var ACT = {
   logout: function () { confirmBox('👤 تبديل المستخدم؟', 'يرجع لشاشة اختيار الاسم والرمز. الجهاز يبقى مربوط بالسحابة.', function () { lsSet('a2_user', null); location.reload(); }, 'تبديل'); },
   deviceSignOut: function () { confirmBox('🚪 فصل هذا الجهاز عن السحابة؟', 'حتى يرجع يشتغل لازم تكتب كلمة سر السحابة مرة ثانية.' + (OB.length ? ' ⚠️ عندك ' + OB.length + ' تعديل لسه ما انرفع — انتظر يرجع النت أولاً.' : ''), function () { lsSet('a2_user', null); auth.signOut().then(function () { location.reload(); }); }, 'فصل الجهاز', true); },
   syncAll: function () { toast('⏳ جاري التحديث من الشيتات...', 'info'); syncAll(true); },
+  anYear: function (d) { S.anY = d.y; S.anM = null; scheduleRender(); },
+  anMonth: function (d) { S.anM = +d.m ? { y: d.y, m: +d.m } : null; scheduleRender(); if (+d.m) setTimeout(function () { var p = document.getElementById('panel'); if (p) p.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80); },
   cwSort: function (d) { S.cwSort = d.k; scheduleRender(); },
   syncCw: function () { syncContractors(true); },
   pick: function (d) { S.sel = d.k; scheduleRender(); },

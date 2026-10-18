@@ -342,6 +342,36 @@ details.sec>.in{padding:0 14px 14px}
 .cwsecs .s{color:var(--muted);white-space:nowrap}
 .cwsecs .v{text-align:left;font-weight:700;font-variant-numeric:tabular-nums}.cwsecs .v small{color:var(--muted);font-weight:400}
 @media (prefers-reduced-motion:reduce){.cwbar i,.cwcard,.cwring .ar{animation:none}}
+/* ---------- الجرد السنوي ---------- */
+.anhero{display:grid;grid-template-columns:minmax(200px,1fr) minmax(220px,1.1fr) minmax(260px,1.4fr);gap:20px;align-items:center}
+.anhero .big{display:flex;flex-direction:column;gap:4px}
+.anhero .big b{font-family:'Readex Pro';font-size:56px;line-height:1;font-variant-numeric:tabular-nums;background:linear-gradient(120deg,var(--brand),var(--brand2,#8E7CFF));-webkit-background-clip:text;background-clip:text;color:transparent}
+.anhero .dl{font-size:13px;font-weight:700}.anhero .dl.up{color:var(--ok)}.anhero .dl.dn{color:var(--notready)}
+.anhero .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.anhero .stats span{display:flex;flex-direction:column;font-size:12.5px;color:var(--muted);padding:10px;border-radius:14px;background:var(--soft2);border:1px solid var(--line)}
+.anhero .stats b{font-family:'Readex Pro';font-size:20px;color:var(--ink)}
+.anhero .cats{display:flex;flex-direction:column;gap:8px}
+.anhero .cat{display:grid;grid-template-columns:12px 60px 44px 40px 1fr;align-items:center;gap:8px;font-size:13px}
+.anhero .cat .sw{width:12px;height:12px;border-radius:4px}
+.anhero .cat b{font-variant-numeric:tabular-nums}.anhero .cat .pc{color:var(--muted)}
+.anhero .cat .ln{height:7px;border-radius:99px;background:var(--soft);overflow:hidden}.anhero .cat .ln i{display:block;height:100%;border-radius:99px;animation:cwGrow .9s ease backwards;transform-origin:right}
+.anchart{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:8px;height:260px;align-items:end;padding-top:10px}
+.anchart .col{position:relative;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;border:0;background:transparent;padding:0 0 24px;border-radius:12px;color:var(--ink);cursor:pointer}
+.anchart .col:disabled{cursor:default}
+.anchart .col:not(:disabled):hover,.anchart .col.on{background:color-mix(in srgb,var(--brand) 9%,transparent)}
+.anchart .col.on{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--brand) 60%,transparent)}
+.anchart .stk{width:min(70%,42px);display:flex;flex-direction:column-reverse;gap:2px;border-radius:8px 8px 3px 3px;overflow:hidden;animation:anUp .8s cubic-bezier(.2,.8,.2,1) backwards;animation-delay:calc(var(--i)*40ms);transform-origin:bottom;min-height:0}
+.anchart .stk i{display:block;min-height:2px}
+.anchart .col.fut .stk{opacity:.35}
+.anchart .v{font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+.anchart .x{position:absolute;bottom:4px;font-size:11.5px;color:var(--muted);white-space:nowrap}
+.anchart .pv{position:absolute;width:min(80%,50px);border-top:2px dashed var(--gold,#E2C47A);opacity:.8;pointer-events:none}
+@keyframes anUp{from{transform:scaleY(0)}}
+.anlist{display:flex;flex-wrap:wrap;gap:8px}
+.hchip{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:var(--soft2);color:var(--ink);box-shadow:inset 3px 0 0 var(--c)}
+.hchip small{color:var(--muted);font-size:11.5px}
+@media (max-width:900px){.anhero{grid-template-columns:1fr}.anchart{gap:4px;height:220px}.anchart .x{font-size:10px}}
+@media (prefers-reduced-motion:reduce){.anchart .stk,.anhero .cat .ln i{animation:none}}
 @media print{#rail,#topbar,.noprint{display:none!important}#main{margin:0}}
 /* ================= هوية "المستقبل": كحلي فضائي + سماوي هولوغرامي + لمسة ذهب الشعار ================= */
 :root[data-mode]{
@@ -449,7 +479,7 @@ details.sec>.in{padding:0 14px 14px}
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="config.js?v=1.4.1"></script>
-<script src="app.js?v=1.4.1"></script>
+<script src="config.js?v=1.4.2"></script>
+<script src="app.js?v=1.4.2"></script>
 </body>
 </html>
