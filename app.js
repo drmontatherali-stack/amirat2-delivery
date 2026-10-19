@@ -24,7 +24,7 @@ var USERS = [
 var DEFAULT_CONTRACTORS = ['أحمد عواد', 'عادل عرار', 'محمد عرار', 'جاسم زراك', 'دياري كريم', 'علي الكوفي', 'علي هويدي', 'علي محمد حسين', 'طه عبد الله', 'اكام بهاء', 'ثامر عطار', 'سمير حنون', 'عمر بولات', 'اسعد هادي', 'اوات جمال', 'يوسف حسن'];
 var AR_MONTHS = ['', 'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 var AR_MONTHS_SHORT = ['', 'كانون٢', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران', 'تموز', 'آب', 'أيلول', 'تشرين١', 'تشرين٢', 'كانون١'];
-var VERSION = '1.9.3';
+var VERSION = '2.0.0';
 var ADMIN_UID = 'PsrknBOyOxUU3PM0xqXZvBhRaul1'; // حساب منتظر علي (مدير النظام)
 var BAKROOT = 'amirat2_logs/backups'; // داخل مسار مسموح بقواعد قاعدة البيانات الحالية
 var ACLROOT = 'amirat2_acl';
@@ -854,7 +854,7 @@ function renderAll() {
   if (S.view === 'hub' && !S.hubAnim && S.hubBusyUntil && Date.now() < S.hubBusyUntil) { setTimeout(scheduleRender, S.hubBusyUntil - Date.now() + 20); return; } // لا تقطع حركة الانبثاق
   var html = fnc();
   if (S.view === 'hub' && html.replace(/ anim"/, '"') === view.getAttribute('data-h')) return;
-  if (S.view !== 'hub' && view._last === html && view._lastView === S.view) { if (MODAL.house) refreshHouseModal(); return; }
+  if (S.view !== 'hub' && view._last === html && view._lastView === S.view) { if (MODAL.house) refreshHouseModal(); afterRender(); return; }
   view._last = html; view._lastView = S.view;
   view.setAttribute('data-h', S.view === 'hub' ? html.replace(/ anim"/, '"') : '');
   view.innerHTML = html;
@@ -862,7 +862,9 @@ function renderAll() {
   if (S.lastView !== S.view) { if (S.lastView && S.view !== 'hub') { view.classList.remove('enter'); void view.offsetWidth; view.classList.add('enter'); } S.lastView = S.view; }
   if (aid && wasInView) { var el2 = document.getElementById(aid); if (el2) { el2.focus(); if (ss != null) try { el2.setSelectionRange(ss, se); } catch (e) {} } }
   if (MODAL.house) refreshHouseModal();
+  afterRender();
 }
+function afterRender() { try { if (window.A2X && A2X.afterRender) A2X.afterRender(S.view); } catch (e) { if (window.console) console.error(e); } }
 var NAV = [
   ['search', 'بحث سريع'], ['dash', 'لوحة المؤشرات'], ['ws', 'قيد التسليم (الأبراج)'], ['today', 'التنبيهات'],
   ['delivered', 'الدور المسلّمة'], ['rvsum', 'ملخص المراجعات'], ['weekly', 'كفاءة المقاولين'], ['annual', 'الجرد السنوي'],
@@ -960,6 +962,7 @@ VIEWS.hub = function () {
   var R = Math.min((W / 2 - 14) / 1.3, (H / 2 - 28) / 1.3, 320), k = Math.max(0.5, Math.min(1.25, R / 250));
   var cx = W / 2, cy = H / 2 - 6, d = R * 0.56, dC = R * 0.98;
   var st = hubStats(), cnt = { search: noticeCount(), today: alertBadgeCount() };
+  try { if (window.A2X && A2X.hubStats) Object.assign(st, A2X.hubStats()); } catch (e) {}
   var NN = HUB.length, pts = HUB.map(function (v, i) { var a = -Math.PI / 2 + i * 2 * Math.PI / NN; return { v: v, i: i, x: cx + R * Math.cos(a), y: cy + R * Math.sin(a), a: a }; });
   function f(n) { return n.toFixed(1); }
   function poly(step, cls) { var ps = [], i = 0, n = 0, L = 0; do { ps.push(pts[i]); i = (i + step) % NN; n++; } while (i !== 0 && n < NN + 1); for (var q = 0; q < ps.length; q++) { var A = ps[q], B = ps[(q + 1) % ps.length]; L += Math.hypot(B.x - A.x, B.y - A.y); } return '<polygon class="' + cls + '" points="' + ps.map(function (p) { return f(p.x) + ',' + f(p.y); }).join(' ') + '" style="--len:' + Math.round(L) + '"/>'; }
@@ -968,7 +971,7 @@ VIEWS.hub = function () {
   var sparks = pts.map(function (p, i) { var bg = (1.6 + i * 0.45).toFixed(2); return '<circle class="spark" opacity="0" r="' + f(2.2 * k) + '"><set attributeName="opacity" to="1" begin="' + bg + 's"/><animateMotion dur="' + (3.2 + (i % 3) * 0.6).toFixed(1) + 's" begin="' + (1.6 + i * 0.45).toFixed(2) + 's" repeatCount="indefinite" path="M' + f(cx) + ',' + f(cy) + ' L' + f(p.x) + ',' + f(p.y) + '"/></circle>'; }).join('');
   var web = '<defs><linearGradient id="hg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4FD8E8"/><stop offset=".55" stop-color="#8E7CFF"/><stop offset="1" stop-color="#E2C47A"/></linearGradient>' +
     '<linearGradient id="ag" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4FD8E8"/><stop offset="1" stop-color="#8E7CFF"/></linearGradient></defs>' +
-    circ(R, '') + circ(R * 1.3, 'o2') + circ(dC / 2 + R * 0.12, 'o3') + ticks + poly(NN === 8 ? 3 : 4, 'star') + poly(2, 'star s2') +
+    circ(R, '') + circ(R * 1.3, 'o2') + circ(dC / 2 + R * 0.12, 'o3') + ticks + poly(NN === 9 ? 4 : 3, 'star') + poly(2, 'star s2') +
     pts.map(function (p) { return '<line class="spoke" data-i="' + p.v + '" x1="' + f(cx) + '" y1="' + f(cy) + '" x2="' + f(p.x) + '" y2="' + f(p.y) + '"/>'; }).join('') + sparks;
   var rr = d / 2 - 2, full = 2 * Math.PI * rr;
   var nodes = pts.map(function (p, i) {
@@ -2124,6 +2127,18 @@ function start() {
   if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
 })();
 
+// واجهة للإضافات المنفصلة (مثل الخريطة التجريبية map.js): قراءة البيانات واستخدام نفس الدوال بدون تعديل النظام
+window.A2X = window.A2X || {};
+Object.assign(window.A2X, {
+  S: S, VIEWS: VIEWS, ACT: ACT, INP: INP, HUB: HUB, HUB_LBL: HUB_LBL, TITLES: TITLES, NAV: NAV, ICONS: ICONS, ROOT: ROOT,
+  D: D, wsUnits: wsUnits, wsByKey: wsByKey, isReady: isReady, normH: normH, normS: normS, daysDiff: daysDiff, reviewOf: reviewOf,
+  isDeliveredRec: isDeliveredRec, oldRecs: oldRecs, rvStatus: rvStatus, rvRounds: rvRounds, getSheetDate: getSheetDate, nhStatusMap: nhStatusMap,
+  pendingNew: pendingNew, dismissedMap: dismissedMap, unitCon: unitCon, recCon: recCon, conKey: conKey, arN: arN, conResolve: conResolve,
+  conDisplay: conDisplay, isDirectExec: isDirectExec, openHouse: openHouse, openModal: openModal, closeModal: closeModal, toast: toast,
+  esc: esc, ico: ico, W: W, lsGet: lsGet, lsSet: lsSet, scheduleRender: scheduleRender, renderAll: renderAll, todayStr: todayStr,
+  xlsxPro: xlsxPro, contractorsList: contractorsList, modal: function () { return MODAL; }
+});
+if (A2X.onReady) try { A2X.onReady(); } catch (e) {}
 // للاختبار
 window.__A = { S: S, parseWeeklySheet: parseWeeklySheet, computeAlerts: computeAlerts, globalSearch: globalSearch, wsUnits: wsUnits, pendingNew: pendingNew };
 })();
