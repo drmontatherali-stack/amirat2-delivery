@@ -5,10 +5,10 @@
 (function () {
 'use strict';
 var X = window.A2X; if (!X || !X.VIEWS) return;
-var V = '2.0.3';
+var V = '2.1.0';
 var S = X.S, esc = X.esc;
 var MD = null, MDerr = '', loading = false;
-var ST = { sec: X.lsGet('mx_sec', 'all'), mode: X.lsGet('mx_mode', 'status'), con: 'all', q: '', sel: null, edit: false, vb: {}, zoomed: false };
+var ST = { sec: X.lsGet('mx_sec', 'all'), mode: X.lsGet('mx_mode', 'status'), con: 'all', flt: 'all', year: String(new Date().getFullYear()), q: '', sel: null, edit: false, vb: {}, zoomed: false };
 var COLORS = { del: '#2ecc71', ready: '#3fa9f5', not: '#f5a623', late: '#ff4d5e', rev: '#a77bff', nw: '#22d3c5', none: null };
 var ST_LBL = { del: 'مسلّمة', ready: 'قيد التسليم · جاهزة', not: 'قيد التسليم · غير جاهزة', late: 'عابر موعدها وغير جاهزة', rev: 'قيد المراجعة', nw: 'جديدة بانتظار التبليغ', none: 'بعدها ما وصلت' };
 var ST_ORD = ['del', 'ready', 'not', 'late', 'rev', 'nw', 'none'];
@@ -16,13 +16,21 @@ var PAL = ['#4FD8E8', '#8E7CFF', '#E2C47A', '#38E2A0', '#FF7AA8', '#68B6FF', '#F
 var DIRECT = 'تنفيذ مباشر';
 var CO_LBL = 'الشركة — تنفيذ مباشر';
 
-/* ---------- تسجيل القسم بالنظام ---------- */
+/* ---------- تسجيل القسم ---------- */
+// MAPAPP = نظام الخريطة المستقل (map.html): نفس البيانات، والخريطة هي الواجهة الوحيدة
+var MAPAPP = window.A2_MODE === 'map';
 X.ICONS.map = 'M9 4 3 6v14l6-2 6 2 6-2V4l-6 2zM9 4v14M15 6v14';
-if (X.HUB.indexOf('map') < 0) X.HUB.push('map');
 X.HUB_LBL.map = 'الخريطة';
-X.TITLES.map = 'الخريطة الحيّة · تجريبي';
-if (!X.NAV.some(function (n) { return n[0] === 'map'; })) X.NAV.splice(X.NAV.length - 1, 0, ['map', 'الخريطة · تجريبي']);
-X.hubStats = function () { return { map: { c: 'تجريبي', p: null } }; };
+if (MAPAPP) {
+  X.TITLES.map = 'خريطة مجمع الأميرات 2 · تجريبي';
+  X.NAV.splice(0, X.NAV.length, ['map', 'الخريطة'], ['settings', 'الإعدادات']);
+  var og = X.ACT.go; X.ACT.go = function (d, el, ev) { if (d && d.v === 'hub') d = { v: 'map' }; return og(d, el, ev); };
+} else {
+  if (X.HUB.indexOf('map') < 0) X.HUB.push('map');
+  X.TITLES.map = 'الخريطة الحيّة · تجريبي';
+  if (!X.NAV.some(function (n) { return n[0] === 'map'; })) X.NAV.splice(X.NAV.length - 1, 0, ['map', 'الخريطة · تجريبي']);
+  X.hubStats = function () { return { map: { c: 'تجريبي', p: null } }; };
+}
 X.VIEWS.map = function () { return '<div id="mxroot" class="mx"></div>'; };
 X.afterRender = function (view) { if (view === 'map') build(); };
 
@@ -90,7 +98,7 @@ function css() {
     '.mx .seg button{border:0;background:transparent;color:var(--muted);padding:8px 12px;font:inherit;font-size:13px;cursor:pointer}',
     '.mx .seg button.on{background:var(--brand);color:#06121f;font-weight:700}',
     '.mx .main{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px;align-items:start}',
-    '.mx .mapbox{position:relative;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--card-solid,var(--card));height:calc(100vh - 250px);min-height:380px;touch-action:none}',
+    '.mx .mapbox{position:relative;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--card-solid,var(--card));height:calc(100vh - 330px);min-height:420px;touch-action:none}',
     '.mx svg.mxs{width:100%;height:100%;display:block;user-select:none;-webkit-user-select:none;cursor:grab}',
     '.mx svg.mxs .geo{fill:none;stroke:var(--muted);stroke-width:.7;opacity:.55;vector-effect:non-scaling-stroke}',
     '.mx svg.mxs .hs{stroke:rgba(0,0,0,.45);stroke-width:.5;vector-effect:non-scaling-stroke;transition:opacity .25s}',
@@ -121,6 +129,11 @@ function css() {
     '.mxt{width:100%;border-collapse:collapse;font-size:13px}.mxt th,.mxt td{border:1px solid var(--line);padding:6px 8px;text-align:center}.mxt th{background:var(--soft2);color:var(--muted);font-weight:600}.mxt td:first-child,.mxt th:first-child{text-align:right}.mxt tr.tot td{font-weight:700;background:var(--soft)}.mxt .bad{color:#ff6b7d;font-weight:700}',
     '.mxlist{display:flex;flex-direction:column;gap:4px;max-height:46vh;overflow:auto}.mxlist button{display:flex;justify-content:space-between;gap:10px;border:1px solid var(--line);background:var(--soft2);color:var(--ink);border-radius:10px;padding:8px 10px;font:inherit;font-size:13px;cursor:pointer;text-align:right}.mxlist button small{color:var(--muted)}',
     '.mxsec{margin:14px 0 6px;font-size:15px}',
+    '.mx .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}',
+    '.mx .kpi{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--muted);font:inherit;font-size:12px;cursor:pointer;text-align:right}',
+    '.mx .kpi b{font-family:"Readex Pro";font-size:22px;color:var(--ink);font-variant-numeric:tabular-nums}',
+    '.mx .kpi.g b{color:#2ecc71}.mx .kpi.b b{color:#3fa9f5}.mx .kpi.r b{color:#ff4d5e}.mx .kpi.p b{color:#a77bff}',
+    '.mx .mxlist button{align-items:center}',
     '#mxprint{display:none}',
     '@media print{html,body.mxprinting{background:#fff!important}body.mxprinting #app::before{display:none}body.mxprinting>*:not(#mxprint){display:none!important}body.mxprinting #mxprint{display:block!important;color:#000;background:#fff}@page{size:A3 landscape;margin:10mm}#mxprint svg{width:100%;height:auto;max-height:240mm}#mxprint .pl{display:flex;flex-wrap:wrap;gap:10px 18px;font:12px sans-serif;margin-top:6px}#mxprint .pl i{display:inline-block;width:12px;height:12px;border:1px solid #333;margin-inline-end:4px;vertical-align:middle}#mxprint h2{font:700 18px sans-serif;margin:0 0 4px}#mxprint .geo{fill:none;stroke:#555;stroke-width:.4}#mxprint .hs{stroke:#333;stroke-width:.25}#mxprint .bl{font:700 7px sans-serif;fill:#000;text-anchor:middle}#mxprint .none-p{fill:#fff}}'
   ].join('\n');
@@ -139,19 +152,22 @@ function build() {
   } else syncToolbar();
   paint();
 }
-function trialBar() { return '<div class="trial">🧪 قسم تجريبي — يقرا بيانات النظام بس، وتعديل توزيع المقاولين هنا ينحفظ بشكل منفصل وما يأثر على أي حساب لحين الاعتماد.</div>'; }
+function trialBar() { return '<div class="trial">🧪 ' + (MAPAPP ? 'نظام الخريطة التجريبي — نفس بيانات مكتب التسليم. أي إجراء على دار (جاهز، مراجعة…) ينحفظ بالنظام نفسه؛ وتعديل توزيع المقاولين ينحفظ بشكل منفصل لحين الاعتماد.' : 'قسم تجريبي — يقرا بيانات النظام بس، وتعديل توزيع المقاولين هنا ينحفظ بشكل منفصل وما يأثر على أي حساب لحين الاعتماد.') + '</div>'; }
+var MODES = [['status', 'الحالة'], ['con', 'المقاولين'], ['eff', 'الكفاءة'], ['alert', 'التنبيهات'], ['rev', 'المراجعات'], ['period', 'التسليم بالأشهر'], ['wait', 'مدة الانتظار'], ['today', 'حركات اليوم']];
 function toolbar() {
   var secs = [['all', 'الكل']].concat([1, 2, 3, 4, 5, 6].map(function (s) { return [String(s), sectorName(s).replace('القطاع ', '')]; }));
-  return '<div class="bar" id="mxbar"><div class="seg" role="group" aria-label="القطاع">' + secs.map(function (s) { return '<button data-mx="sec" data-v="' + s[0] + '" class="' + (String(ST.sec) === s[0] ? 'on' : '') + '">' + esc(s[1]) + '</button>'; }).join('') + '</div>' +
-    '<div class="seg" role="group" aria-label="التلوين"><button data-mx="mode" data-v="status" class="' + (ST.mode === 'status' ? 'on' : '') + '">حسب الحالة</button><button data-mx="mode" data-v="con" class="' + (ST.mode === 'con' ? 'on' : '') + '">حسب المقاول</button></div>' +
+  return '<div class="kpis" id="mxkpi"></div>' +
+    '<div class="bar" id="mxbar"><div class="seg" role="group" aria-label="القطاع">' + secs.map(function (s) { return '<button data-mx="sec" data-v="' + s[0] + '" class="' + (String(ST.sec) === s[0] ? 'on' : '') + '">' + esc(s[1]) + '</button>'; }).join('') + '</div>' +
     '<input class="inp grow" id="mxq" type="search" placeholder="🔍 رقم الدار مثل B40.2" value="' + esc(ST.q) + '" enterkeyhint="search">' +
     '<button class="btn sm" data-mx="check">🔎 فحص التطابق</button><button class="btn sm" data-mx="count">📊 الحصر</button><button class="btn sm" data-mx="print">🖨️ طباعة</button>' +
-    '<button class="btn sm" data-mx="edit" id="mxedit">' + (ST.edit ? '✅ إنهاء التعديل' : '✏️ تعديل التوزيع') + '</button></div>';
+    '<button class="btn sm" data-mx="edit" id="mxedit">' + (ST.edit ? '✅ إنهاء التعديل' : '✏️ تعديل التوزيع') + '</button>' +
+    (MAPAPP ? '' : '<a class="btn sm" href="map.html" title="نفس البيانات، والخريطة هي الواجهة">🗺️ فتح كنظام مستقل</a>') + '</div>' +
+    '<div class="bar"><span class="muted" style="font-size:12.5px">الطبقة:</span><div class="seg" role="group" aria-label="الطبقة" id="mxmodes">' + MODES.map(function (m) { return '<button data-mx="mode" data-v="' + m[0] + '" class="' + (ST.mode === m[0] ? 'on' : '') + '">' + m[1] + '</button>'; }).join('') + '</div></div>';
 }
 function syncToolbar() {
-  var bar = document.getElementById('mxbar'); if (!bar) return;
-  bar.querySelectorAll('[data-mx="sec"]').forEach(function (b) { b.classList.toggle('on', b.dataset.v === String(ST.sec)); });
-  bar.querySelectorAll('[data-mx="mode"]').forEach(function (b) { b.classList.toggle('on', b.dataset.v === ST.mode); });
+  var root = document.getElementById('mxroot'); if (!root) return;
+  root.querySelectorAll('[data-mx="sec"]').forEach(function (b) { b.classList.toggle('on', b.dataset.v === String(ST.sec)); });
+  root.querySelectorAll('[data-mx="mode"]').forEach(function (b) { b.classList.toggle('on', b.dataset.v === ST.mode); });
   var e = document.getElementById('mxedit'); if (e) e.textContent = ST.edit ? '✅ إنهاء التعديل' : '✏️ تعديل التوزيع';
 }
 function secList() { return ST.sec === 'all' ? [1, 2, 3, 4, 5, 6] : [+ST.sec]; }
@@ -176,43 +192,125 @@ function svgHTML(forPrint) {
   return '<svg class="mxs" id="mxsvg" xmlns="http://www.w3.org/2000/svg" viewBox="' + vb.join(' ') + '" preserveAspectRatio="xMidYMid meet">' + g + '<g id="mxh">' + hs + '</g>' + hn + bl + sn + '</svg>';
 }
 
-/* ---------- التلوين واللوحة الجانبية ---------- */
+/* ---------- الطبقات: كل قسم من النظام على الخريطة ---------- */
 var conColor = {};
 function colorForCon(name) { if (name === CO_LBL) return '#6E7891'; if (name === 'غير محدد') return '#ffffff'; if (!conColor[name]) conColor[name] = PAL[Object.keys(conColor).length % PAL.length]; return conColor[name]; }
+var EFF = [['ex', 'ممتاز (90٪ فما فوق)', '#38E2A0'], ['vg', 'جيد جداً (80–90)', '#5BE3A8'], ['gd', 'جيد (70–80)', '#4FD8E8'], ['md', 'متوسط (60–70)', '#F2C14E'], ['ok', 'مقبول (50–60)', '#FF9F5A'], ['bad', 'دون المستوى (أقل من 50)', '#FF5A72'], ['na', 'ماكو دور قيد التسليم', null]];
+function effKey(p) { return p == null ? 'na' : p >= 90 ? 'ex' : p >= 80 ? 'vg' : p >= 70 ? 'gd' : p >= 60 ? 'md' : p >= 50 ? 'ok' : 'bad'; }
+var MON = ['', 'كانون الثاني', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران', 'تموز', 'آب', 'أيلول', 'تشرين الأول', 'تشرين الثاني', 'كانون الأول'];
+function monCol(m) { var t = (m - 1) / 11; return 'hsl(' + Math.round(200 - t * 170) + ',75%,' + Math.round(62 - t * 12) + '%)'; }
+var LD = {
+  status: { t: 'حالة الدور', k: ST_ORD.map(function (k) { return [k, ST_LBL[k], COLORS[k]]; }) },
+  alert: { t: 'التنبيهات', list: true, k: [['ov10', 'قيد التسليم — متجاوزة 10 أيام فأكثر', '#ff3b55'], ['late', 'عابر موعدها وغير جاهزة (أقل من 10 أيام)', '#ff8a3d'], ['cd', 'موعد التسليم خلال 0–3 أيام', '#f5d142'], ['rvov', 'مراجعة — تجاوزت موعد إكمال الملاحظات', '#c04cff'], ['rvcd', 'مراجعة — موعد الإكمال خلال يومين', '#ff7ad9'], ['none', 'ماكو تنبيه', null]] },
+  rev: { t: 'المراجعات', list: true, k: [['rlate', 'تجاوزت مدة الملاحظات', '#ff4d5e'], ['r3', '3 مراجعات فأكثر', '#7b3fe4'], ['r2', 'مراجعتين', '#a77bff'], ['r1', 'مراجعة وحدة', '#d4c2ff'], ['rdone', 'أُكملت الملاحظات', '#2ecc71'], ['none', 'ماكو مراجعة', null]] },
+  wait: { t: 'مدة الانتظار من تاريخ الوارد (قيد التسليم)', list: true, k: [['w0', '0–10 أيام', '#9be7ff'], ['w1', '11–20 يوم', '#4fb3ff'], ['w2', '21–30 يوم', '#f5d142'], ['w3', '31–60 يوم', '#ff8a3d'], ['w4', 'أكثر من 60 يوم', '#ff3b55'], ['wn', 'تاريخ الوارد غير معروف', '#b8c4e0'], ['none', 'مو قيد التسليم', null]] },
+  today: { t: 'حركات جدول الأعمال', list: true, k: [['d0', 'اليوم', '#38E2A0'], ['d1', 'أمس', '#4FD8E8'], ['d7', 'آخر 7 أيام', '#8E7CFF'], ['none', 'ماكو حركة', null]] }
+};
+function pre(I, list) { // حسابات مسبقة للطبقات اللي تحتاج نظرة شاملة
+  var P = { eff: {}, alert: {}, agenda: {}, ydates: {} };
+  var g = {};
+  list.forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { var k = mk(h.id), u = I.ws[k]; if (!u) return; var grp = effCon(h).group, o = g[grp] = g[grp] || { all: 0, late: 0 }; o.all++;
+    var dd = X.daysDiff(u.deliveryDate); if (!X.isReady(u.unit) && dd !== null && dd <= 0) o.late++; }); });
+  Object.keys(g).forEach(function (grp) { var o = g[grp]; o.ratio = Math.round(o.late * 100 / o.all); o.eff = 100 - o.ratio; P.eff[grp] = o; });
+  var t = X.todayStr(), y = new Date(); y.setDate(y.getDate() - 1); var ys = y.toISOString().slice(0, 10), w = new Date(); w.setDate(w.getDate() - 7); var ws = w.toISOString().slice(0, 10);
+  if (ST.mode === 'today') { if (!Array.isArray(S.agenda)) { if (!S.agenda && X.loadAgenda) X.loadAgenda(); } else S.agenda.forEach(function (it) { var k = mk(it.houseNo), d = it.date || ''; if (!k || !d) return; var key = d === t ? 'd0' : d === ys ? 'd1' : d >= ws ? 'd7' : null; if (!key) return; var cur = P.agenda[k]; if (!cur || key < cur.key || (key === cur.key && false)) P.agenda[k] = { key: key, last: it }; if (!P.agenda[k].acts) P.agenda[k].acts = []; P.agenda[k].acts.push(it); }); }
+  return P;
+}
+function delDate(h, I) { var k = mk(h.id), d = I.del[k]; var v = (d && d.date) || X.getSheetDate(h.id) || ''; var m = String(v).match(/^(\d{4})-(\d{2})/); return m ? { y: m[1], m: +m[2], raw: v } : null; }
+function keyOf(h, I, P) {
+  var k = mk(h.id), u = I.ws[k], r = I.rv[k], st = statusOf(h, I);
+  switch (ST.mode) {
+    case 'status': return st;
+    case 'con': return effCon(h).group;
+    case 'eff': { var o = P.eff[effCon(h).group]; return o ? effKey(o.eff) : 'na'; }
+    case 'alert': {
+      if (u) { var dd = X.daysDiff(u.deliveryDate), rd = X.isReady(u.unit); if (dd !== null) { if (dd <= -10) return 'ov10'; if (dd <= 0 && !rd) return 'late'; if (dd >= 0 && dd <= 3) return 'cd'; } }
+      if (r && st !== 'del' && r.notesCompleted !== true) { var rr = X.rvRounds(r)[0], dl = rr ? X.daysDiff(rr.completionDate) : null; if (dl !== null) { if (dl < 0) return 'rvov'; if (dl <= 2) return 'rvcd'; } }
+      return 'none'; }
+    case 'rev': {
+      if (!r) return 'none'; if (r.notesCompleted === true) return 'rdone';
+      var n = X.rvRounds(r).length, f = X.rvRounds(r)[0], dl2 = f ? X.daysDiff(f.completionDate) : null;
+      if (dl2 !== null && dl2 < 0 && st !== 'del') return 'rlate'; return n >= 3 ? 'r3' : n === 2 ? 'r2' : 'r1'; }
+    case 'period': { var dd2 = delDate(h, I); if (!dd2) return st === 'del' ? 'other' : 'none'; return dd2.y === ST.year ? 'm' + dd2.m : 'other'; }
+    case 'wait': { if (!u || st === 'del') return 'none'; var inc = X.daysDiff(u.incomingDate); if (inc === null) return 'wn'; var a = -inc; return a <= 10 ? 'w0' : a <= 20 ? 'w1' : a <= 30 ? 'w2' : a <= 60 ? 'w3' : 'w4'; }
+    case 'today': { var ag = P.agenda[k]; return ag ? ag.key : 'none'; }
+  }
+  return 'none';
+}
+function layerKeys(P) {
+  if (ST.mode === 'con') return Object.keys(ST.cnt).sort(function (a, b) { return ST.cnt[b] - ST.cnt[a]; }).map(function (n) { return [n, n, colorForCon(n)]; });
+  if (ST.mode === 'eff') return EFF.slice();
+  if (ST.mode === 'period') { var a = []; for (var m = 1; m <= 12; m++) a.push(['m' + m, MON[m] + ' ' + ST.year, monCol(m)]); a.push(['other', 'مسلّمة بسنة ثانية', '#8a94ab']); a.push(['none', 'مو مسلّمة', null]); return a; }
+  return LD[ST.mode] ? LD[ST.mode].k : [];
+}
+function colorOfKey(key, P) {
+  if (ST.mode === 'con') return colorForCon(key);
+  var ks = layerKeys(P); for (var i = 0; i < ks.length; i++) if (ks[i][0] === key) return ks[i][2];
+  return null;
+}
 function paint() {
   var svg = document.getElementById('mxsvg'); if (!svg) return;
-  var I = index(), cnt = {}, ccnt = {}, list = secList();
-  ST.I = I;
-  // ثبات ألوان المقاولين
-  Object.keys(MD.H).forEach(function (k) { var h = MD.H[k]; if (list.indexOf(h.s) >= 0) colorForCon(effCon(h).group); });
+  var I = index(), list = secList(), cnt = {}, ccnt = {}, byKey = {};
+  ST.I = I; var P = ST.P = pre(I, list);
+  list.forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { colorForCon(effCon(h).group); }); });
+  var keys = {};
   svg.querySelectorAll('rect.hs').forEach(function (r) {
     var h = MD.H[r.getAttribute('data-k')]; if (!h) return;
-    var st = statusOf(h, I), ec = effCon(h);
-    cnt[st] = (cnt[st] || 0) + 1; ccnt[ec.group] = (ccnt[ec.group] || 0) + 1;
-    var fill = ST.mode === 'con' ? colorForCon(ec.group) : (COLORS[st] || 'var(--mx-none)');
-    r.style.fill = fill;
-    var dim = ST.con !== 'all' && (ST.mode === 'con' ? ec.group !== ST.con : (ST.con.indexOf('st:') === 0 ? 'st:' + st !== ST.con : ec.group !== ST.con));
-    r.classList.toggle('dim', !!dim);
-    var rv = I.rv[mk(h.id)]; r.classList.toggle('rvm', !!rv && st !== 'del' && st !== 'rev' && ST.mode === 'status');
-    r.classList.toggle('sel', ST.sel === mk(h.id));
+    var key = keyOf(h, I, P), ec = effCon(h); keys[r.getAttribute('data-k')] = key;
+    cnt[key] = (cnt[key] || 0) + 1; ccnt[ec.group] = (ccnt[ec.group] || 0) + 1; (byKey[key] = byKey[key] || []).push(h);
   });
-  ST.cnt = cnt; ST.ccnt = ccnt;
-  side();
+  ST.cnt = cnt; ST.ccnt = ccnt; ST.byKey = byKey;
+  var cmap = {}; layerKeys(P).forEach(function (x) { cmap[x[0]] = x[2]; });
+  svg.querySelectorAll('rect.hs').forEach(function (r) {
+    var k = r.getAttribute('data-k'), h = MD.H[k]; if (!h) return; var key = keys[k], ec = effCon(h);
+    r.style.fill = (ST.mode === 'con' ? colorForCon(key) : cmap[key]) || 'var(--mx-none)';
+    var dim = (ST.flt !== 'all' && key !== ST.flt) || (ST.con !== 'all' && ec.group !== ST.con);
+    r.classList.toggle('dim', !!dim);
+    r.classList.toggle('rvm', ST.mode === 'status' && !!I.rv[k] && key !== 'del' && key !== 'rev');
+    r.classList.toggle('sel', ST.sel === k);
+  });
+  kpis(I, list); side();
+}
+function kpis(I, list) {
+  var el = document.getElementById('mxkpi'); if (!el) return;
+  var c = { all: 0, ws: 0, ready: 0, late: 0, del: 0, rev: 0, al: 0, none: 0 };
+  list.forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { var st = statusOf(h, I), k = mk(h.id), u = I.ws[k]; c.all++;
+    if (st === 'del') c.del++; else if (u) { c.ws++; if (st === 'ready') c.ready++; if (st === 'late') c.late++; } else if (st === 'none') c.none++;
+    if (I.rv[k] && st !== 'del') c.rev++; }); });
+  function k(lbl, n, mode, flt, cls) { return '<button class="kpi ' + (cls || '') + '" data-mx="kpi" data-v="' + mode + '|' + flt + '"><b>' + n + '</b><span>' + lbl + '</span></button>'; }
+  el.innerHTML = k('دار بالخريطة', c.all, 'status', 'all') + k('مسلّمة', c.del, 'status', 'del', 'g') + k('قيد التسليم', c.ws, 'status', 'all', 'b') + k('جاهزة', c.ready, 'status', 'ready', 'b') +
+    k('عابر وغير جاهزة', c.late, 'status', 'late', 'r') + k('بالمراجعة', c.rev, 'rev', 'all', 'p') + k('ما وصلت', c.none, 'status', 'none');
 }
 function side() {
   var el = document.getElementById('mxside'); if (!el) return;
-  var h = '';
+  var h = '', P = ST.P || {};
   if (ST.sel && MD.H[ST.sel]) h += housePanel(MD.H[ST.sel]);
   var tot = 0; Object.keys(ST.cnt).forEach(function (k) { tot += ST.cnt[k]; });
-  if (ST.mode === 'status') {
-    h += '<div class="card"><h2 style="margin:0 0 8px;font-size:15px">' + esc(ST.sec === 'all' ? 'كل القطاعات' : sectorName(+ST.sec)) + ' <small>' + tot + ' دار</small></h2><div class="lg">' +
-      ST_ORD.map(function (k) { var n = ST.cnt[k] || 0; return '<button data-mx="flt" data-v="st:' + k + '" class="' + (ST.con === 'st:' + k ? 'on' : '') + '"><i class="' + (k === 'none' ? 'none-sw' : '') + '" style="' + (COLORS[k] ? 'background:' + COLORS[k] : '') + '"></i><span>' + esc(ST_LBL[k]) + '</span><b>' + n + '</b></button>'; }).join('') +
-      '</div><p class="muted" style="font-size:12px;margin:8px 0 0">الإطار البنفسجي = الدار بيها مراجعة. اضغط أي حالة حتى تبيّنها بس.</p>' + conFilter() + '</div>';
-  } else {
-    var names = Object.keys(ST.ccnt).sort(function (a, b) { return ST.ccnt[b] - ST.ccnt[a]; });
-    h += '<div class="card"><h2 style="margin:0 0 8px;font-size:15px">توزيع المقاولين <small>' + tot + ' دار</small></h2><div class="lg">' +
-      '<button data-mx="flt" data-v="all" class="' + (ST.con === 'all' ? 'on' : '') + '"><i style="background:transparent"></i><span>الكل</span><b>' + tot + '</b></button>' +
-      names.map(function (n) { return '<button data-mx="flt" data-v="' + esc(n) + '" class="' + (ST.con === n ? 'on' : '') + '"><i style="background:' + colorForCon(n) + '"></i><span>' + esc(n) + '</span><b>' + ST.ccnt[n] + '</b></button>'; }).join('') + '</div></div>';
+  var title = ST.mode === 'con' ? 'توزيع المقاولين' : ST.mode === 'eff' ? 'كفاءة المقاولين' : ST.mode === 'period' ? 'التسليم بالأشهر' : (LD[ST.mode] || {}).t;
+  h += '<div class="card"><h2 style="margin:0 0 8px;font-size:15px">' + esc(title || '') + ' <small>' + esc(ST.sec === 'all' ? 'كل القطاعات' : sectorName(+ST.sec)) + ' · ' + tot + ' دار</small></h2>';
+  if (ST.mode === 'period') {
+    var ys = {}; Object.keys(MD.H).forEach(function (k) { var d = delDate(MD.H[k], ST.I); if (d) ys[d.y] = 1; });
+    h += '<div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:8px">' + Object.keys(ys).sort().map(function (y) { return '<button class="secchip' + (y === ST.year ? ' on' : '') + '" data-mx="year" data-v="' + y + '">' + y + '</button>'; }).join('') + '</div>';
+  }
+  if (ST.mode === 'today' && !Array.isArray(S.agenda)) h += '<p class="muted" style="font-size:12.5px">' + (S.agenda === 'err' ? '⚠️ تعذّر تحميل جدول الأعمال' : '⏳ جاري تحميل جدول الأعمال…') + '</p>';
+  var keys = layerKeys(P);
+  h += '<div class="lg">' + (ST.mode === 'con' ? '<button data-mx="flt" data-v="all" class="' + (ST.flt === 'all' ? 'on' : '') + '"><i style="background:transparent"></i><span>الكل</span><b>' + tot + '</b></button>' : '') +
+    keys.map(function (x) { var n = ST.cnt[x[0]] || 0; if (!n && (ST.mode === 'period' || ST.mode === 'eff')) return '';
+      var extra = ''; if (ST.mode === 'eff') { var gs = Object.keys(P.eff).filter(function (g) { return effKey(P.eff[g].eff) === x[0]; }); if (gs.length) extra = '<small class="muted" style="grid-column:2/4;font-size:11.5px">' + gs.map(function (g) { return esc(g) + ' ' + P.eff[g].eff + '٪'; }).join(' · ') + '</small>'; }
+      return '<button data-mx="flt" data-v="' + esc(x[0]) + '" class="' + (ST.flt === x[0] ? 'on' : '') + '"><i class="' + (x[2] ? '' : 'none-sw') + '" style="' + (x[2] ? 'background:' + x[2] : '') + '"></i><span>' + esc(x[1]) + '</span><b>' + n + '</b>' + extra + '</button>'; }).join('') + '</div>';
+  if (ST.mode === 'status') h += '<p class="muted" style="font-size:12px;margin:8px 0 0">الإطار البنفسجي = الدار بيها مراجعة. اضغط أي بند حتى تبيّنه بس.</p>';
+  if (ST.mode === 'eff') h += '<p class="muted" style="font-size:12px;margin:8px 0 0">الكفاءة = 100 − (العابر موعدها وغير الجاهزة ÷ كل قيد التسليم)، لكل مقاول ضمن القطاع المعروض.</p>';
+  if (ST.mode !== 'con') h += conFilter();
+  h += '</div>';
+  // قائمة الدور للطبقات اللي إلها قائمة
+  if ((LD[ST.mode] || {}).list) {
+    var ks = ST.flt !== 'all' ? [ST.flt] : keys.map(function (x) { return x[0]; }).filter(function (k) { return k !== 'none'; });
+    var items = []; ks.forEach(function (k) { (ST.byKey[k] || []).forEach(function (hh) { if (ST.con === 'all' || effCon(hh).group === ST.con) items.push([k, hh]); }); });
+    if (items.length) h += '<div class="card"><b style="font-size:14px">الدور (' + items.length + ')</b><div class="mxlist" style="margin-top:8px">' + items.slice(0, 200).map(function (x) {
+      var hh = x[1], kk = mk(hh.id), u = ST.I.ws[kk], sub = sectorName(hh.s).replace('القطاع ', '') + ' · ' + effCon(hh).label;
+      if (ST.mode === 'today' && P.agenda[kk]) sub += ' · ' + (P.agenda[kk].last.action || '');
+      else if (u) sub += ' · 📤 ' + (u.deliveryDate || '-');
+      return '<button data-mx="go2" data-v="' + esc(kk) + '"><b class="ltr">' + esc(hh.id) + '</b><small>' + esc(sub) + '</small><i style="width:10px;height:10px;border-radius:3px;display:inline-block;background:' + (colorOfKey(x[0], P) || 'var(--mx-none)') + '"></i></button>'; }).join('') + (items.length > 200 ? '<p class="muted" style="font-size:12px">يطلع أول 200</p>' : '') + '</div></div>';
   }
   if (ST.edit) h += '<div class="card"><b>✏️ وضع تعديل التوزيع</b><p class="muted" style="font-size:12.5px;margin:6px 0 0">اضغط أي دار حتى تغيّر مقاول بلوكها أو تأشره تنفيذ مباشر. التعديل تجريبي ومنفصل.</p></div>';
   el.innerHTML = h;
@@ -227,18 +325,25 @@ function housePanel(h) {
   var mism = sheetCon && !((ec.direct && X.isDirectExec(sheetCon)) || (!ec.direct && !X.isDirectExec(sheetCon) && sameCon(ec.con, sheetCon)));
   var known = !!(u || r || d || I.nw[k] || X.getSheetDate(h.id));
   var sysNo = u ? u.unit : (r ? r.houseNo : (d ? d.houseNo : h.id));
-  var rounds = r ? X.rvRounds(r).length : 0;
+  var dd = u ? X.daysDiff(u.deliveryDate) : null, inc = u ? X.daysDiff(u.incomingDate) : null, dl = delDate(h, I);
+  var nh = (X.nhStatusMap() || {})[X.normH(sysNo)];
+  var rounds = r ? X.rvRounds(r).filter(function (x, i) { return i === 0 || x.reviewDate || x.completionDate; }) : [];
+  var ag = ST.P && ST.P.agenda && ST.P.agenda[k];
   return '<div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0;font-size:18px" class="ltr">' + esc(h.id) + '</h2><button class="iconbtn" data-mx="unsel" aria-label="إغلاق">' + X.ico('close') + '</button></div>' +
     '<span class="pill" style="background:' + (COLORS[st] || 'var(--mx-none)') + ';color:#06121f;margin-top:6px;display:inline-block">' + esc(ST_LBL[st]) + '</span>' +
     '<div class="kv2"><span>القطاع</span><b>' + esc(sectorName(h.s)) + '</b><span>البلوك</span><b class="ltr" style="text-align:right">' + esc(h.b) + '</b>' +
-    '<span>حسب الخريطة</span><b>' + esc(ec.label) + (ec.direct && ec.orig ? ' <small class="muted">(كان: ' + esc(ec.orig) + ')</small>' : '') + (ec.edited ? ' <small style="color:var(--gold)">· معدّل تجريبياً</small>' : '') + '</b>' +
+    '<span>الجهة المنفذة</span><b>' + esc(ec.label) + (ec.direct && ec.orig ? ' <small class="muted">(المقاول الأصلي: ' + esc(ec.orig) + ')</small>' : '') + (ec.edited ? ' <small style="color:var(--gold)">· معدّل تجريبياً</small>' : '') + '</b>' +
     (sheetCon ? '<span>حسب الشيت</span><b>' + esc(sheetCon) + '</b>' : '') +
-    (u ? '<span>تاريخ الوارد</span><b>' + esc(u.incomingDate || '-') + '</b><span>موعد التسليم</span><b>' + esc(u.deliveryDate || '-') + '</b>' : '') +
-    (d ? '<span>تاريخ الاستلام</span><b>' + esc(d.date || '-') + '</b>' : '') +
-    (r ? '<span>المراجعات</span><b>' + rounds + '</b>' : '') + '</div>' +
+    (u ? '<span>تاريخ الوارد</span><b>' + esc(u.incomingDate || '-') + (inc !== null ? ' <small class="muted">(' + (-inc) + ' يوم)</small>' : '') + '</b>' +
+      '<span>موعد التسليم</span><b>' + esc(u.deliveryDate || '-') + (dd !== null ? ' <small class="' + (dd <= 0 ? 'warnl' : 'muted') + '">(' + (dd > 0 ? 'باقي ' + dd + ' يوم' : dd === 0 ? 'اليوم' : 'متجاوز ' + (-dd) + ' يوم') + ')</small>' : '') + '</b>' +
+      '<span>الجاهزية</span><b>' + (X.isReady(u.unit) ? '✅ جاهزة' : '⛔ غير جاهزة') + '</b>' : '') +
+    (nh && nh.status === 'confirmed' && !nh.seed ? '<span>التبليغ</span><b>📨 تم تبليغ شعبة الإنهاءات</b>' : '') +
+    (dl ? '<span>تاريخ الاستلام</span><b>' + esc(dl.raw) + '</b>' : (d ? '<span>تاريخ الاستلام</span><b>' + esc(d.date || '-') + '</b>' : '')) + '</div>' +
+    (rounds.length ? '<div style="font-size:13px;margin:4px 0 8px"><b>🔍 المراجعات (' + rounds.length + ')' + (r.notesCompleted === true ? ' · ✅ أُكملت الملاحظات' : '') + '</b>' + rounds.map(function (x) { return '<div class="muted" style="font-size:12.5px">م' + x.n + ': حضور <span class="ltr">' + esc(x.reviewDate || '-') + '</span> ← إنهاء <span class="ltr">' + esc(x.completionDate || '-') + '</span></div>'; }).join('') + '</div>' : '') +
+    (ag ? '<div style="font-size:12.5px;margin-bottom:6px"><b>📅 آخر حركة:</b> ' + esc((ag.last.action || '') + ' · ' + (ag.last.date || '') + (ag.last.by ? ' · ' + ag.last.by : '')) + '</div>' : '') +
     (mism ? '<div class="warnl">⚠️ المقاول بالشيت يختلف عن الخريطة</div>' : '') +
     (u && u.sector && u.sector !== sectorName(h.s) ? '<div class="warnl">⚠️ القطاع بالشيت (' + esc(u.sector) + ') يختلف عن الخريطة</div>' : '') +
-    '<div class="row" style="margin-top:10px;gap:8px">' + (known ? '<button class="btn pri sm" data-mx="open" data-v="' + esc(sysNo) + '">📋 فتح تفاصيل الدار بالنظام</button>' : '<span class="muted" style="font-size:12.5px">الدار بعدها ما مسجّلة بأي شيت بالنظام.</span>') +
+    '<div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">' + (known ? '<button class="btn pri sm" data-mx="open" data-v="' + esc(sysNo) + '">📋 كل التفاصيل والإجراءات</button>' : '<span class="muted" style="font-size:12.5px">الدار بعدها ما مسجّلة بأي شيت بالنظام.</span>') +
     (ST.edit ? '<button class="btn sm" data-mx="eblock" data-v="' + esc(k) + '">✏️ مقاول البلوك</button>' : '') + '</div></div>';
 }
 
@@ -248,7 +353,7 @@ function applyVB() {
   var svg = document.getElementById('mxsvg'); if (!svg || !ST.full) return;
   var v = curVB(); svg.setAttribute('viewBox', v.map(function (n) { return n.toFixed(2); }).join(' '));
   var box = svg.getBoundingClientRect(), upp = Math.max(v[2] / (box.width || 1), v[3] / (box.height || 1));
-  svg.classList.toggle('zoomed', upp < 0.22);
+  svg.classList.toggle('zoomed', upp < 0.3);
 }
 function setVB(v) { ST.vb[String(ST.sec)] = v; applyVB(); }
 function zoomAt(f, cx, cy) {
@@ -262,7 +367,7 @@ function focusHouse(k) {
   if (ST.sec !== 'all' && +ST.sec !== h.s) { ST.sec = String(h.s); X.lsSet('mx_sec', ST.sec); ST.built = false; build(); }
   var w = 240, svg = document.getElementById('mxsvg'), box = svg.getBoundingClientRect(), hh = w * (box.height / (box.width || 1));
   setVB([h.x - w / 2, -h.y - hh / 2, w, hh]);
-  ST.sel = k; paint();
+  ST.sel = k; ST.flt = 'all'; ST.con = 'all'; paint();
   var r = svg.querySelector('rect[data-k="' + k.replace(/"/g, '') + '"]'); if (r) { r.classList.remove('pulse'); void r.getBoundingClientRect(); r.classList.add('pulse'); }
   return true;
 }
@@ -299,8 +404,11 @@ document.addEventListener('click', function (e) {
   var b = e.target.closest && e.target.closest('[data-mx]'); if (!b || !MD) return;
   var a = b.dataset.mx, v = b.dataset.v;
   if (a === 'sec') { ST.sec = v; X.lsSet('mx_sec', v); ST.built = false; ST.sel = null; build(); }
-  else if (a === 'mode') { ST.mode = v; ST.con = 'all'; X.lsSet('mx_mode', v); syncToolbar(); paint(); }
-  else if (a === 'flt') { ST.con = ST.con === v ? 'all' : v; paint(); }
+  else if (a === 'mode') { ST.mode = v; ST.flt = 'all'; X.lsSet('mx_mode', v); syncToolbar(); paint(); }
+  else if (a === 'flt') { ST.flt = ST.flt === v ? 'all' : v; paint(); }
+  else if (a === 'kpi') { var kv = v.split('|'); ST.mode = kv[0]; ST.flt = kv[1]; X.lsSet('mx_mode', ST.mode); syncToolbar(); paint(); }
+  else if (a === 'year') { ST.year = v; ST.flt = 'all'; paint(); }
+  else if (a === 'go2') focusHouse(v);
   else if (a === 'zin') zoomAt(1 / 1.4); else if (a === 'zout') zoomAt(1.4); else if (a === 'zfit') { delete ST.vb[String(ST.sec)]; applyVB(); }
   else if (a === 'unsel') { ST.sel = null; paint(); }
   else if (a === 'open') X.openHouse(v);
@@ -444,16 +552,17 @@ function exportCount() {
 
 /* ---------- الطباعة ---------- */
 function printMap() {
-  var I = index(), list = secList(), pr = document.getElementById('mxprint');
+  var I = ST.I || index(), P = ST.P || pre(I, secList()), pr = document.getElementById('mxprint');
   if (!pr) { pr = document.createElement('div'); pr.id = 'mxprint'; document.body.appendChild(pr); }
   var svg = svgHTML(true).replace('id="mxsvg"', '').replace('class="mxs"', '');
   var tmp = document.createElement('div'); tmp.innerHTML = svg;
-  var cnt = {}, ccnt = {};
-  tmp.querySelectorAll('rect.hs').forEach(function (r) { var h = MD.H[r.getAttribute('data-k')]; if (!h) return; var st = statusOf(h, I), g = effCon(h).group; cnt[st] = (cnt[st] || 0) + 1; ccnt[g] = (ccnt[g] || 0) + 1;
-    var f = ST.mode === 'con' ? colorForCon(g) : (COLORS[st] || '#ffffff'); r.setAttribute('fill', f); if (ST.mode === 'status' && st === 'none') r.setAttribute('class', 'hs none-p'); });
-  var lg = ST.mode === 'status' ? ST_ORD.map(function (k) { return '<span><i style="background:' + (COLORS[k] || '#fff') + '"></i>' + esc(ST_LBL[k]) + ': <b>' + (cnt[k] || 0) + '</b></span>'; }).join('')
-    : Object.keys(ccnt).sort(function (a, b) { return ccnt[b] - ccnt[a]; }).map(function (g) { return '<span><i style="background:' + colorForCon(g) + '"></i>' + esc(g) + ': <b>' + ccnt[g] + '</b></span>'; }).join('');
-  pr.innerHTML = '<h2>مجمع الأميرات السكني 2 — ' + esc(ST.sec === 'all' ? 'كل القطاعات' : sectorName(+ST.sec)) + ' — ' + (ST.mode === 'status' ? 'حالة الدور' : 'توزيع المقاولين') + ' — ' + X.todayStr() + '</h2>' + tmp.innerHTML + '<div class="pl">' + lg + '</div>';
+  var cnt = {}, cmap = {}; layerKeys(P).forEach(function (x) { cmap[x[0]] = x[2]; });
+  tmp.querySelectorAll('rect.hs').forEach(function (r) { var h = MD.H[r.getAttribute('data-k')]; if (!h) return; var key = keyOf(h, I, P); cnt[key] = (cnt[key] || 0) + 1;
+    var f = (ST.mode === 'con' ? colorForCon(key) : cmap[key]) || '#ffffff'; r.setAttribute('fill', f); if (f === '#ffffff') r.setAttribute('class', 'hs none-p'); });
+  var keys = ST.mode === 'con' ? Object.keys(cnt).sort(function (a, b) { return cnt[b] - cnt[a]; }).map(function (n) { return [n, n, colorForCon(n)]; }) : layerKeys(P);
+  var lg = keys.filter(function (x) { return cnt[x[0]]; }).map(function (x) { return '<span><i style="background:' + (x[2] || '#fff') + '"></i>' + esc(x[1]) + ': <b>' + cnt[x[0]] + '</b></span>'; }).join('');
+  var mt = (MODES.filter(function (m) { return m[0] === ST.mode; })[0] || ['', ''])[1];
+  pr.innerHTML = '<h2>مجمع الأميرات السكني 2 — ' + esc(ST.sec === 'all' ? 'كل القطاعات' : sectorName(+ST.sec)) + ' — ' + esc(mt) + (ST.mode === 'period' ? ' ' + ST.year : '') + ' — ' + X.todayStr() + '</h2>' + tmp.innerHTML + '<div class="pl">' + lg + '</div>';
   document.body.classList.add('mxprinting');
   setTimeout(function () { window.print(); setTimeout(function () { document.body.classList.remove('mxprinting'); }, 500); }, 80);
 }

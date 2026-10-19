@@ -24,7 +24,7 @@ var USERS = [
 var DEFAULT_CONTRACTORS = ['أحمد عواد', 'عادل عرار', 'محمد عرار', 'جاسم زراك', 'دياري كريم', 'علي الكوفي', 'علي هويدي', 'علي محمد حسين', 'طه عبد الله', 'اكام بهاء', 'ثامر عطار', 'سمير حنون', 'عمر بولات', 'اسعد هادي', 'اوات جمال', 'يوسف حسن'];
 var AR_MONTHS = ['', 'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 var AR_MONTHS_SHORT = ['', 'كانون٢', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران', 'تموز', 'آب', 'أيلول', 'تشرين١', 'تشرين٢', 'كانون١'];
-var VERSION = '2.0.0';
+var VERSION = '2.1.0';
 var ADMIN_UID = 'PsrknBOyOxUU3PM0xqXZvBhRaul1'; // حساب منتظر علي (مدير النظام)
 var BAKROOT = 'amirat2_logs/backups'; // داخل مسار مسموح بقواعد قاعدة البيانات الحالية
 var ACLROOT = 'amirat2_acl';
@@ -2105,7 +2105,7 @@ function showSplash() {
 var started = false;
 function start() {
   if (started) return; started = true;
-  S.view = 'hub'; S.hubAnim = false; // كل فتح للتطبيق يبدأ من الشبكة الرئيسية، بعد شاشة الافتتاح
+  S.view = window.A2_MODE === 'map' ? 'map' : 'hub'; S.hubAnim = false; // كل فتح للتطبيق يبدأ من الشبكة الرئيسية (أو الخريطة بنظام الخريطة)، بعد شاشة الافتتاح
   showSplash();
   obReplay();
   listen();
@@ -2136,7 +2136,7 @@ Object.assign(window.A2X, {
   pendingNew: pendingNew, dismissedMap: dismissedMap, unitCon: unitCon, recCon: recCon, conKey: conKey, arN: arN, conResolve: conResolve,
   conDisplay: conDisplay, isDirectExec: isDirectExec, openHouse: openHouse, openModal: openModal, closeModal: closeModal, toast: toast,
   esc: esc, ico: ico, W: W, lsGet: lsGet, lsSet: lsSet, scheduleRender: scheduleRender, renderAll: renderAll, todayStr: todayStr,
-  xlsxPro: xlsxPro, contractorsList: contractorsList, modal: function () { return MODAL; }
+  xlsxPro: xlsxPro, contractorsList: contractorsList, loadAgenda: loadAgenda, modal: function () { return MODAL; }
 });
 if (A2X.onReady) try { A2X.onReady(); } catch (e) {}
 // للاختبار
