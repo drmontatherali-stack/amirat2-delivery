@@ -159,7 +159,7 @@ dl.kv dd{margin:0;font-size:15px;font-weight:600;unicode-bidi:plaintext}
   box-shadow:0 0 0 1px rgba(79,216,232,.7),0 0 0 8px rgba(6,10,24,.9),0 0 0 9px rgba(142,124,255,.45),0 0 70px 6px rgba(79,216,232,.22)}
 .hub .core .seal{width:36%;aspect-ratio:1;border-radius:50%;background:#FBF8EF;overflow:hidden;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 1px rgba(226,196,122,.85),0 0 0 4px #0C1533,0 0 0 5px rgba(79,216,232,.5),0 0 30px -4px rgba(79,216,232,.6)}
 .hub .core .seal img{width:86%;height:86%;object-fit:contain}
-.hub .core b{font-family:'Reem Kufi','Readex Pro',sans-serif;font-weight:600;font-size:calc(25px*var(--k));line-height:1.15;color:#EAF4FF}
+.hub .core b{font-family:'IBM Plex Sans Arabic',sans-serif;font-weight:700;font-size:calc(25px*var(--k));line-height:1.15;color:#EAF4FF}
 .hub .core small{font-size:calc(13.5px*var(--k));color:var(--gold)}
 .hub .node{z-index:3;border:0;color:var(--ink);cursor:pointer;gap:calc(4px*var(--k));padding:0;background:radial-gradient(circle at 50% 25%,rgba(40,64,130,.95),rgba(10,18,44,.96) 72%);box-shadow:0 18px 36px -18px #000;transition:transform .25s ease}
 .hub .node .rg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);overflow:visible}
@@ -171,8 +171,8 @@ dl.kv dd{margin:0;font-size:15px;font-weight:600;unicode-bidi:plaintext}
 .hub .node.alert::after{border-color:rgba(255,90,114,.7);--br:1.7s}
 @keyframes breathe{0%,100%{opacity:.15;transform:scale(.97)}50%{opacity:.85;transform:scale(1.04)}}
 .hub .node svg.i{width:calc(26px*var(--k));height:calc(26px*var(--k));color:#7FEAF5;stroke-width:1.6}
-.hub .node .l{font-family:'Reem Kufi','Readex Pro',sans-serif;font-weight:600;font-size:calc(15px*var(--k));line-height:1.2;position:relative}
-.hub .node .c{font-size:calc(11.5px*var(--k));color:var(--muted);line-height:1.2;position:relative;font-variant-numeric:tabular-nums}
+.hub .node .l{font-family:'IBM Plex Sans Arabic',sans-serif;font-weight:700;font-size:calc(16px*var(--k));line-height:1.25;position:relative;color:#F2F7FF;text-shadow:0 1px 2px rgba(0,0,0,.55);letter-spacing:0}
+.hub .node .c{font-family:'IBM Plex Sans Arabic',sans-serif;font-weight:600;font-size:calc(12.5px*var(--k));color:#C5D3EE;line-height:1.2;position:relative;font-variant-numeric:tabular-nums}
 .hub .node:hover,.hub .node:focus-visible{outline:none;transform:translate(-50%,-50%) scale(1.06)}
 .hub .node:focus-visible::after{border-color:#BFF6FF;opacity:1;animation:none}
 .hub .node .bdg{position:absolute;top:1%;inset-inline-end:1%;background:linear-gradient(135deg,#FF5A72,#E33A63);color:#fff;font-size:calc(12px*var(--k));font-weight:700;min-width:calc(25px*var(--k));height:calc(25px*var(--k));border-radius:99px;display:flex;align-items:center;justify-content:center;padding:0 6px;box-shadow:0 0 0 2px var(--bg),0 0 16px -2px #FF5A72;z-index:2}
@@ -388,6 +388,7 @@ details.sec>.in{padding:0 14px 14px}
 .effb.ex,.eff.ex b{color:#38E2A0}.effb.ex{background:rgba(56,226,160,.16);border-color:rgba(56,226,160,.6);box-shadow:0 0 18px -6px #38E2A0}
 .cwk{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
 .cwk .ov b,.crow .cv.ov,.cs .cv.ov,.cwnums .o b{color:var(--gold,#E2C47A)}
+.crow .cv.ov small{display:block;font-size:11px;font-weight:600;opacity:.85}
 button.crow.co{background:color-mix(in srgb,var(--brand2,#8E7CFF) 8%,transparent)}button.crow.co .cn b{color:var(--brand2,#8E7CFF)}
 .cwk .k{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:12px;border:1px solid var(--line);background:var(--soft2);color:var(--muted);font-size:11.5px;line-height:1.25;text-align:center;cursor:pointer;font-family:inherit}
 .cwk .k b{font-family:'Readex Pro';font-size:18px;color:var(--ink)}
@@ -644,7 +645,7 @@ button.crow.open{background:color-mix(in srgb,var(--brand) 9%,transparent);borde
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="config.js?v=1.9.0"></script>
-<script src="app.js?v=1.9.0"></script>
+<script src="config.js?v=1.9.1"></script>
+<script src="app.js?v=1.9.1"></script>
 </body>
 </html>
