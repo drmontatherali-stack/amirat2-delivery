@@ -5,7 +5,7 @@
 (function () {
 'use strict';
 var X = window.A2X; if (!X || !X.VIEWS) return;
-var V = '2.2.0';
+var V = '2.4.0';
 var S = X.S, esc = X.esc;
 var MD = null, MDerr = '', loading = false;
 var ST = { sec: X.lsGet('mx_sec', 'all'), mode: X.lsGet('mx_mode', 'status'), con: 'all', flt: 'all', year: String(new Date().getFullYear()), q: '', sel: null, edit: false, vb: {}, zoomed: false };
@@ -662,5 +662,6 @@ function printMap() {
 
 // لو النظام رسم قبل تحميل هذا الملف
 try { X.scheduleRender(); } catch (e) {}
-window.__MX = { ST: ST, md: function () { return MD; }, checks: function () { return checks(); }, counts: function (l) { return counts(l || [1, 2, 3, 4, 5, 6]); }, focus: focusHouse };
+window.__MX = { ST: ST, md: function () { return MD; }, checks: function () { return checks(); }, counts: function (l) { return counts(l || [1, 2, 3, 4, 5, 6]); }, focus: focusHouse,
+  load: load, index: index, delDate: delDate, statusOf: statusOf, effCon: effCon, mk: mk, pre: pre, sectorName: sectorName, housePanel: function (h) { ST.I = index(); return housePanel(h); } };
 })();
