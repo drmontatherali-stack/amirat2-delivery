@@ -24,7 +24,7 @@ var USERS = [
 var DEFAULT_CONTRACTORS = ['أحمد عواد', 'عادل عرار', 'محمد عرار', 'جاسم زراك', 'دياري كريم', 'علي الكوفي', 'علي هويدي', 'علي محمد حسين', 'طه عبد الله', 'اكام بهاء', 'ثامر عطار', 'سمير حنون', 'عمر بولات', 'اسعد هادي', 'اوات جمال', 'يوسف حسن'];
 var AR_MONTHS = ['', 'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 var AR_MONTHS_SHORT = ['', 'كانون٢', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران', 'تموز', 'آب', 'أيلول', 'تشرين١', 'تشرين٢', 'كانون١'];
-var VERSION = '1.8.3';
+var VERSION = '1.9.0';
 var ADMIN_UID = 'PsrknBOyOxUU3PM0xqXZvBhRaul1'; // حساب منتظر علي (مدير النظام)
 var BAKROOT = 'amirat2_logs/backups'; // داخل مسار مسموح بقواعد قاعدة البيانات الحالية
 var ACLROOT = 'amirat2_acl';
@@ -1267,7 +1267,7 @@ function conResolve(name) {
   return (c.length === 1 ? c[0] : n).replace(/ /g, '');
 }
 function effRate(p) {
-  if (p == null) return { t: 'ماكو دور قيد التسليم', c: 'ok2' };
+  if (p == null) return { t: 'ماكو دار عابر موعدها', c: 'gd' };
   if (p < 50) return { t: 'دون المستوى', c: 'bad' };
   if (p < 60) return { t: 'مقبول', c: 'ok1' };
   if (p < 70) return { t: 'متوسط', c: 'ok2' };
@@ -1276,21 +1276,26 @@ function effRate(p) {
   return { t: 'ممتاز', c: 'ex' };
 }
 // الدور الحالية (قيد التسليم) والمسلّمة المعروف مقاولها، مجمّعة حسب المقاول
+var CO_NAME = 'الشركة — تنفيذ مباشر';
+function isDirectExec(t) { return String(t || '').indexOf('مباشر') >= 0; }
 function conIndex() {
-  var ws = {}, del = {}, nh = nhStatusMap();
+  var ws = {}, del = {}, nh = nhStatusMap(), CK = conKey(CO_NAME);
   var memo = {}; function R(n) { return memo[n] != null ? memo[n] : (memo[n] = conResolve(n)); }
-  wsUnits().forEach(function (u) { var k = R(u.contractor || u.executionType); if (!k) return; (ws[k] = ws[k] || []).push(u); });
+  // الدور اللي جهتها المنفذة "تنفيذ مباشر" تنحسب على الشركة مو على المقاول حتى لو اسمه مكتوب
+  wsUnits().forEach(function (u) { var k = isDirectExec(u.executionType) ? CK : R(u.contractor || u.executionType); if (!k) return; (ws[k] = ws[k] || []).push(u); });
   S.del.forEach(function (x) {
-    var e = nh[normH(x.houseNo)], c = e && e.unit && (e.unit.contractor || e.unit.executionType);
-    if (!c) { var r = reviewOf(x.houseNo); c = r && (r.contractorName || r.executionType); }
-    var k = c ? R(c) : ''; if (!k) return; (del[k] = del[k] || []).push(x);
+    var e = nh[normH(x.houseNo)], eu = e && e.unit, c = '', dir = false;
+    if (eu) { dir = isDirectExec(eu.executionType); c = eu.contractor || eu.executionType; }
+    if (!c && !dir) { var r = reviewOf(x.houseNo); if (r) { dir = isDirectExec(r.executionType); c = r.contractorName || r.executionType; } }
+    var k = dir ? CK : (c ? R(c) : ''); if (!k) return; (del[k] = del[k] || []).push(x);
   });
   return { ws: ws, del: del };
 }
 function conStats(units) {
-  var o = { all: units, ready: [], notready: [] };
-  units.forEach(function (u) { (isReady(u.unit) ? o.ready : o.notready).push(u); });
-  o.eff = units.length ? Math.round(o.ready.length * 100 / units.length) : null; // نسبة الجاهز من دور قيد التسليم
+  // الكفاءة تنحسب على الدور العابر موعدها بس (اليوم موعدها = متجاوزة)؛ اللي بعدها ضمن المدة ما تدخل بالنسبة
+  var o = { all: units, due: [], notdue: [], ready: [], notready: [] };
+  units.forEach(function (u) { var d = daysDiff(u.deliveryDate); if (d === null || d > 0) { o.notdue.push(u); return; } o.due.push(u); (isReady(u.unit) ? o.ready : o.notready).push(u); });
+  o.eff = o.due.length ? Math.round(o.ready.length * 100 / o.due.length) : null;
   return o;
 }
 VIEWS.weekly = function () {
@@ -1308,55 +1313,58 @@ VIEWS.weekly = function () {
     T.t += t; T.d += d; T.p += p; T.r += rm;
   });
   var list = ord.map(function (k) { var g = by[k]; g.k = conKey(k); g.units = IX.ws[g.k] || []; g.st = conStats(g.units); return g; });
-  var all = conStats(wsUnits()), allR = effRate(all.eff);
+  var CK = conKey(CO_NAME), co = null;
+  if ((IX.ws[CK] || []).length || (IX.del[CK] || []).length) { var cu = IX.ws[CK] || [], cs2 = {}; cu.forEach(function (u) { cs2[u.sector || '-'] = 1; }); co = { n: CO_NAME, k: CK, co: true, t: 0, d: (IX.del[CK] || []).length, p: cu.length, r: 0, secs: Object.keys(cs2), units: cu, st: conStats(cu) }; }
+  var cUnits = []; list.forEach(function (g) { cUnits = cUnits.concat(g.units); });
+  var all = conStats(cUnits), allR = effRate(all.eff);
   var sort = S.cwSort || 'eff';
-  function effv(g) { return g.st.eff == null ? 101 : g.st.eff; }
+  function effv(g) { return g.st.eff == null ? -1 : g.st.eff; }
   list.sort(function (a, b) { return sort === 'eff' ? effv(b) - effv(a) : (sort === 'pct' ? (b.t ? b.d / b.t : 0) - (a.t ? a.d / a.t : 0) : (sort === 'rem' ? b.r - a.r : (sort === 'prog' ? b.p - a.p : b.t - a.t))); });
   function pc(x, t) { return t ? Math.round(x * 100 / t) : 0; }
   function bar(o, big) { var t = o.t || 1; return '<div class="cwbar' + (big ? ' big' : '') + '" role="img" aria-label="مسلّمة ' + o.d + '، قيد التسليم ' + o.p + '، متبقية ' + o.r + '"><i class="d" style="--w:' + (o.d * 100 / t).toFixed(2) + '%"></i><i class="p" style="--w:' + (o.p * 100 / t).toFixed(2) + '%"></i><i class="r" style="--w:' + (o.r * 100 / t).toFixed(2) + '%"></i></div>'; }
   function ring(p) { var r = 30, c = 2 * Math.PI * r; return '<span class="rw"><svg class="cwring" viewBox="0 0 72 72" aria-hidden="true"><circle cx="36" cy="36" r="' + r + '" class="tk"/><circle cx="36" cy="36" r="' + r + '" class="ar" style="stroke-dasharray:' + c.toFixed(1) + ';--off:' + (c * (1 - p / 100)).toFixed(1) + ';--full:' + c.toFixed(1) + '"/></svg><b class="cwpct">' + p + '<small>٪</small></b></span>'; }
   function nb(cls, n, lbl, con, t) { return '<button class="' + cls + '" data-act="cwList" data-c="' + esc(con) + '" data-t="' + t + '"' + (n ? '' : ' disabled') + '><b>' + n + '</b>' + lbl + '</button>'; }
   var effC = { bad: '#FF5A72', ok1: '#FF9F5A', ok2: '#F2C14E', gd: '#4FD8E8', vg: '#5BE3A8', ex: '#38E2A0' };
-  function av(n, e, c) { var r = 19, L = 2 * Math.PI * r; return '<span class="cav"><svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="' + r + '" class="tk"/><circle cx="22" cy="22" r="' + r + '" class="ar" style="stroke:' + c + ';stroke-dasharray:' + L.toFixed(1) + ';--full:' + L.toFixed(1) + ';--off:' + (L * (1 - (e || 0) / 100)).toFixed(1) + '"/></svg><b>' + esc(String(n).trim().charAt(0)) + '</b></span>'; }
+  function av(n, e, c) { var r = 19, L = 2 * Math.PI * r; return '<span class="cav"><svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="' + r + '" class="tk"/><circle cx="22" cy="22" r="' + r + '" class="ar" style="stroke:' + c + ';stroke-dasharray:' + L.toFixed(1) + ';--full:' + L.toFixed(1) + ';--off:' + (L * (1 - (e || 0) / 100)).toFixed(1) + '"/></svg><b>' + esc(Array.from(String(n).trim())[0] || '') + '</b></span>'; }
   function split(rd, nr) { var t = rd + nr || 1; return '<span class="csp"><i class="g" style="--w:' + (rd * 100 / t).toFixed(1) + '%"></i><i class="r" style="--w:' + (nr * 100 / t).toFixed(1) + '%"></i></span>'; }
   // ---- الملخص: حلقة الكفاءة العامة + الأرقام
   var Lg = 2 * Math.PI * 46, cA = effC[allR.c];
   h += '<div class="card cwtop2"><span class="bigring"><svg viewBox="0 0 110 110" aria-hidden="true"><circle cx="55" cy="55" r="46" class="tk"/><circle cx="55" cy="55" r="46" class="ar" style="stroke:' + cA + ';stroke-dasharray:' + Lg.toFixed(1) + ';--full:' + Lg.toFixed(1) + ';--off:' + (Lg * (1 - (all.eff || 0) / 100)).toFixed(1) + '"/></svg><b style="color:' + cA + '">' + (all.eff == null ? '—' : all.eff + '٪') + '</b><small>' + allR.t + '</small></span>' +
-    '<div class="tops"><h2 style="margin:0">الكفاءة العامة <small>جاهزة ' + all.ready.length + ' من ' + all.all.length + ' دار قيد التسليم</small></h2>' +
-    '<div class="cwnums"><span><b>' + list.length + '</b>مقاول</span><span class="p"><b>' + all.all.length + '</b>قيد التسليم</span><span class="d"><b>' + all.ready.length + '</b>جاهزة</span><span class="r"><b>' + all.notready.length + '</b>غير جاهزة</span><span class="d"><b>' + T.d + '</b>مسلّمة · إنجاز ' + pc(T.d, T.t) + '٪</span></div>' + split(all.ready.length, all.notready.length) + '</div></div>';
+    '<div class="tops"><h2 style="margin:0">الكفاءة العامة للمقاولين <small>جاهزة ' + all.ready.length + ' من ' + all.due.length + ' دار عابر موعدها</small></h2>' +
+    '<div class="cwnums"><span><b>' + list.length + '</b>مقاول</span><span class="p"><b>' + all.all.length + '</b>قيد التسليم</span><span class="o"><b>' + all.due.length + '</b>عابر موعدها</span><span class="d"><b>' + all.ready.length + '</b>جاهزة</span><span class="r"><b>' + all.notready.length + '</b>غير جاهزة</span><span class="d"><b>' + T.d + '</b>مسلّمة · إنجاز ' + pc(T.d, T.t) + '٪</span></div>' + split(all.ready.length, all.notready.length) + '</div></div>';
   // ---- منصة: الأعلى، الأقل، الأكثر قيد التسليم
-  var withU = list.filter(function (g) { return g.st.all.length; });
+  var withU = list.filter(function (g) { return g.st.due.length; });
   if (withU.length) {
     var byE = withU.slice().sort(function (a, b) { return b.st.eff - a.st.eff || b.st.all.length - a.st.all.length; }), best = byE[0], worst = byE[byE.length - 1];
     var most = withU.slice().sort(function (a, b) { return b.st.all.length - a.st.all.length; })[0];
     function pod(lbl, ic, g, val, cl) { var R3 = effRate(g.st.eff); return '<button class="pod ' + cl + '" data-act="cwSel" data-c="' + esc(g.n) + '"><span class="pi">' + ic + '</span><span class="pl">' + lbl + '</span><b>' + esc(g.n) + '</b><span class="pv" style="color:' + effC[R3.c] + '">' + val + '</span></button>'; }
-    h += '<div class="pods">' + pod('الأعلى كفاءة', '🏆', best, best.st.eff + '٪ · ' + effRate(best.st.eff).t, 'up') + pod('يحتاج متابعة', '⚠️', worst, worst.st.eff + '٪ · ' + effRate(worst.st.eff).t, 'dn') + pod('الأكثر دور قيد التسليم', '🏗️', most, most.st.all.length + ' دار · جاهزة ' + most.st.ready.length, 'mx') + '</div>';
+    h += '<div class="pods">' + pod('الأعلى كفاءة', '🏆', best, best.st.eff + '٪ · ' + effRate(best.st.eff).t, 'up') + pod('يحتاج متابعة', '⚠️', worst, worst.st.eff + '٪ · ' + effRate(worst.st.eff).t, 'dn') + pod('الأكثر دور قيد التسليم', '🏗️', most, most.st.all.length + ' دار · عابر موعدها ' + most.st.due.length, 'mx') + '</div>';
   }
   // ---- الجدول
   function th(k, lbl) { return '<button class="cth' + (sort === k ? ' on' : '') + '" data-act="cwSort" data-k="' + k + '">' + lbl + (sort === k ? ' ▾' : '') + '</button>'; }
-  h += '<div class="card ctab"><div class="crow chead"><span></span><span>المقاول</span>' + th('prog', 'قيد التسليم') + '<span>جاهزة</span><span>غير جاهزة</span>' + th('eff', 'الكفاءة') + '</div>' +
-    list.map(function (g, i) {
+  h += '<div class="card ctab"><div class="crow chead"><span></span><span>المقاول</span>' + th('prog', 'قيد التسليم') + '<span>عابر موعدها</span><span>جاهزة</span><span>غير جاهزة</span>' + th('eff', 'الكفاءة') + '</div>' +
+    list.concat(co ? [co] : []).map(function (g, i) {
       var st = g.st, R2 = effRate(st.eff), c = effC[R2.c], open = S.cwSel === g.n;
-      var row = '<button class="crow' + (open ? ' open' : '') + '" data-act="cwSel" data-c="' + esc(g.n) + '" style="--i:' + i + '" aria-expanded="' + open + '">' + av(g.n, st.eff, c) +
-        '<span class="cn"><b>' + esc(g.n) + '</b><small>إنجاز ' + pc(g.d, g.t) + '٪ · ' + g.secs.length + (g.secs.length === 1 ? ' قطاع' : ' قطاعات') + '</small></span><span class="cv">' + st.all.length + '</span><span class="cv ok">' + st.ready.length + '</span><span class="cv no">' + st.notready.length + '</span>' +
+      var row = '<button class="crow' + (open ? ' open' : '') + (g.co ? ' co' : '') + '" data-act="cwSel" data-c="' + esc(g.n) + '" style="--i:' + i + '" aria-expanded="' + open + '">' + av(g.co ? '🏢' : g.n, st.eff, c) +
+        '<span class="cn"><b>' + esc(g.n) + '</b><small>' + (g.co ? 'ما تنحسب على المقاولين' : 'إنجاز ' + pc(g.d, g.t) + '٪') + ' · ' + g.secs.length + (g.secs.length === 1 ? ' قطاع' : ' قطاعات') + '</small></span><span class="cv">' + st.all.length + '</span><span class="cv ov">' + st.due.length + '</span><span class="cv ok">' + st.ready.length + '</span><span class="cv no">' + st.notready.length + '</span>' +
         '<span class="ce">' + split(st.ready.length, st.notready.length) + '<b style="color:' + c + '">' + (st.eff == null ? '—' : st.eff + '٪') + '</b><span class="chip2" style="--c:' + c + '">' + R2.t + '</span></span></button>';
       var more = '';
       if (open) {
-        var bs = {}, so = []; st.all.forEach(function (u) { var k = u.sector || 'غير محدد'; if (!bs[k]) { bs[k] = { r: 0, n: 0 }; so.push(k); } bs[k][isReady(u.unit) ? 'r' : 'n']++; });
+        var bs = {}, so = []; st.all.forEach(function (u) { var k = u.sector || 'غير محدد'; if (!bs[k]) { bs[k] = { a: 0, r: 0, n: 0 }; so.push(k); } bs[k].a++; }); st.due.forEach(function (u) { bs[u.sector || 'غير محدد'][isReady(u.unit) ? 'r' : 'n']++; });
         so.sort(function (a, b) { var ia = SECTOR_NAMES.indexOf(a), ib = SECTOR_NAMES.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });
         more = '<div class="cmore">' +
-          '<div class="cwk">' + nb('k od', st.all.length, 'قيد التسليم', g.n, 'p') + nb('k odr', st.ready.length, 'جاهزة', g.n, 'ready') + nb('k odn', st.notready.length, 'غير جاهزة', g.n, 'notready') + nb('k dl', g.d, 'مسلّمة', g.n, 'd') + '</div>' +
-          (so.length ? '<div class="csecs"><div class="cs h"><span>القطاع</span><span>قيد التسليم</span><span>جاهزة</span><span>غير جاهزة</span><span></span></div>' + so.map(function (k, j) { var x = bs[k], t2 = x.r + x.n; return '<div class="cs" style="--i:' + j + '"><span>' + esc(k) + '</span><span class="cv">' + t2 + '</span><span class="cv ok">' + x.r + '</span><span class="cv no">' + x.n + '</span>' + split(x.r, x.n) + '</div>'; }).join('') + '</div>' : '') +
-          '<div class="muted" style="font-size:12.5px">نسبة الإنجاز ' + pc(g.d, g.t) + '٪ (' + g.d + ' مسلّمة من ' + g.t + ') · اضغط أي رقم حتى تطلع دوره</div></div>';
+          '<div class="cwk">' + nb('k od', st.all.length, 'قيد التسليم', g.n, 'p') + nb('k ov', st.due.length, 'عابر موعدها', g.n, 'due') + nb('k odr', st.ready.length, 'جاهزة', g.n, 'ready') + nb('k odn', st.notready.length, 'غير جاهزة', g.n, 'notready') + nb('k dl', g.d, 'مسلّمة', g.n, 'd') + '</div>' +
+          (so.length ? '<div class="csecs"><div class="cs h"><span>القطاع</span><span>قيد التسليم</span><span>عابر موعدها</span><span>جاهزة</span><span>غير جاهزة</span><span></span></div>' + so.map(function (k, j) { var x = bs[k]; return '<div class="cs" style="--i:' + j + '"><span>' + esc(k) + '</span><span class="cv">' + x.a + '</span><span class="cv ov">' + (x.r + x.n) + '</span><span class="cv ok">' + x.r + '</span><span class="cv no">' + x.n + '</span>' + split(x.r, x.n) + '</div>'; }).join('') + '</div>' : '') +
+          '<div class="muted" style="font-size:12.5px">' + (st.notdue.length ? st.notdue.length + ' دار بعدها ضمن المدة وما داخلة بالنسبة · ' : '') + (g.co ? 'دور التنفيذ المباشر (الجهة المنفذة بالموقف الأسبوعي "تنفيذ مباشر") ما تنحسب على أي مقاول' : 'نسبة الإنجاز ' + pc(g.d, g.t) + '٪ (' + g.d + ' مسلّمة من ' + g.t + ')') + ' · اضغط أي رقم حتى تطلع دوره</div></div>';
       }
       return row + more;
     }).join('') + '</div>';
-  h += '<p class="muted" style="margin:0;font-size:12.5px;text-align:center">الكفاءة = الجاهزة ÷ قيد التسليم. دون 50٪ دون المستوى · 50–60 مقبول · 60–70 متوسط · 70–80 جيد · 80–90 جيد جداً · 90 فما فوق ممتاز.</p>';
+  h += '<p class="muted" style="margin:0;font-size:12.5px;text-align:center">الكفاءة = الجاهزة ÷ الدور العابر موعدها (اللي بعدها ضمن المدة ما تدخل). دور التنفيذ المباشر محسوبة على الشركة مو على المقاول. دون 50٪ دون المستوى · 50–60 مقبول · 60–70 متوسط · 70–80 جيد · 80–90 جيد جداً · 90 فما فوق ممتاز.</p>';
   return h;
 };
 function cwList(con, t) {
   var IX = S.cwIX || conIndex(), k = conKey(con), units = IX.ws[k] || [], st = conStats(units), title, items;
-  var T = { d: 'المسلّمة', p: 'قيد التسليم', ready: 'قيد التسليم الجاهزة', notready: 'قيد التسليم غير الجاهزة' };
+  var T = { d: 'المسلّمة', p: 'قيد التسليم', due: 'قيد التسليم العابر موعدها', ready: 'العابر موعدها — الجاهزة', notready: 'العابر موعدها — غير الجاهزة' };
   title = T[t] + ' — ' + con;
   if (t === 'd') {
     var dl = (IX.del[k] || []).slice().sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); });

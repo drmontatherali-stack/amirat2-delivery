@@ -386,7 +386,9 @@ details.sec>.in{padding:0 14px 14px}
 .effb.gd,.eff.gd b{color:#4FD8E8}.effb.gd{background:rgba(79,216,232,.12);border-color:rgba(79,216,232,.45)}
 .effb.vg,.eff.vg b{color:#5BE3A8}.effb.vg{background:rgba(56,226,160,.12);border-color:rgba(56,226,160,.45)}
 .effb.ex,.eff.ex b{color:#38E2A0}.effb.ex{background:rgba(56,226,160,.16);border-color:rgba(56,226,160,.6);box-shadow:0 0 18px -6px #38E2A0}
-.cwk{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.cwk{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.cwk .ov b,.crow .cv.ov,.cs .cv.ov,.cwnums .o b{color:var(--gold,#E2C47A)}
+button.crow.co{background:color-mix(in srgb,var(--brand2,#8E7CFF) 8%,transparent)}button.crow.co .cn b{color:var(--brand2,#8E7CFF)}
 .cwk .k{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:12px;border:1px solid var(--line);background:var(--soft2);color:var(--muted);font-size:11.5px;line-height:1.25;text-align:center;cursor:pointer;font-family:inherit}
 .cwk .k b{font-family:'Readex Pro';font-size:18px;color:var(--ink)}
 .cwk .k:hover:not(:disabled){border-color:color-mix(in srgb,var(--brand) 55%,transparent)}
@@ -491,7 +493,7 @@ details.sec>.in{padding:0 14px 14px}
 .pod .pi{grid-row:1/4;font-size:26px;width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:var(--soft2);border:1px solid var(--line)}
 .pod .pl{font-size:12px;color:var(--muted)}.pod b{font-family:'Reem Kufi','Readex Pro',sans-serif;font-size:17px;font-weight:600}.pod .pv{font-size:13px;font-weight:700}
 .ctab{padding:8px}
-.crow{display:grid;grid-template-columns:46px minmax(130px,1.4fr) 84px 70px 80px minmax(200px,1.7fr);align-items:center;gap:10px;width:100%;padding:11px 12px;border:0;border-radius:12px;background:transparent;color:var(--ink);text-align:right;font-family:inherit;font-size:15px}
+.crow{display:grid;grid-template-columns:46px minmax(130px,1.4fr) 84px 84px 70px 80px minmax(200px,1.7fr);align-items:center;gap:10px;width:100%;padding:11px 12px;border:0;border-radius:12px;background:transparent;color:var(--ink);text-align:right;font-family:inherit;font-size:15px}
 button.crow{cursor:pointer;animation:gItem .4s cubic-bezier(.2,.8,.2,1) backwards;animation-delay:calc(var(--i)*30ms);transition:background .2s}
 button.crow+button.crow,.cmore+button.crow{border-top:1px solid var(--line);border-radius:0}
 button.crow:hover{background:var(--soft)}
@@ -511,10 +513,10 @@ button.crow.open{background:color-mix(in srgb,var(--brand) 9%,transparent);borde
 .cmore{display:flex;flex-direction:column;gap:12px;padding:12px 14px 16px;background:color-mix(in srgb,var(--brand) 9%,transparent);border-radius:0 0 12px 12px;animation:cOpen .35s cubic-bezier(.2,.8,.2,1)}
 @keyframes cOpen{from{opacity:0;transform:translateY(-6px)}}
 .csecs{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}
-.cs{display:grid;grid-template-columns:minmax(110px,1.2fr) 80px 70px 80px minmax(120px,1.5fr);align-items:center;gap:10px;padding:8px 12px;font-size:13.5px;animation:gItem .35s ease backwards;animation-delay:calc(var(--i)*40ms)}
+.cs{display:grid;grid-template-columns:minmax(110px,1.2fr) 80px 84px 70px 80px minmax(120px,1.5fr);align-items:center;gap:10px;padding:8px 12px;font-size:13.5px;animation:gItem .35s ease backwards;animation-delay:calc(var(--i)*40ms)}
 .cs+.cs{border-top:1px solid var(--line)}.cs.h{font-size:12px;color:var(--muted);background:var(--soft2);animation:none}
 .cs .cv{font-size:15px}
-@media (max-width:760px){.pods{grid-template-columns:1fr}.crow{grid-template-columns:44px 1fr 50px 50px 50px;font-size:14px}.crow .ce{grid-column:1/-1}.chead>span:first-child{display:none}.chead{grid-template-columns:1fr 50px 50px 50px}.chead .cth:last-child{display:none}.cs{grid-template-columns:1fr 50px 50px 50px}.cs .csp{grid-column:1/-1}}
+@media (max-width:760px){.pods{grid-template-columns:1fr}.crow{grid-template-columns:40px 1fr 42px 42px 42px 42px;gap:6px;font-size:14px}.crow .ce{grid-column:1/-1}.chead>span:first-child{display:none}.chead{grid-template-columns:1fr 42px 42px 42px 42px;font-size:11px}.chead .cth:last-child{display:none}.cs{grid-template-columns:1fr 42px 42px 42px 42px;gap:6px}.cs .csp{grid-column:1/-1}.cwk{grid-template-columns:repeat(5,minmax(0,1fr))}}
 @media (prefers-reduced-motion:reduce){button.crow,.csp i,.cmore,.pod,.cs,.cav .ar,.bigring .ar{animation:none}}
 @media print{#rail,#topbar,.noprint{display:none!important}#main{margin:0}}
 /* ================= هوية "المستقبل": كحلي فضائي + سماوي هولوغرامي + لمسة ذهب الشعار ================= */
@@ -642,7 +644,7 @@ button.crow.open{background:color-mix(in srgb,var(--brand) 9%,transparent);borde
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="config.js?v=1.8.3"></script>
-<script src="app.js?v=1.8.3"></script>
+<script src="config.js?v=1.9.0"></script>
+<script src="app.js?v=1.9.0"></script>
 </body>
 </html>
