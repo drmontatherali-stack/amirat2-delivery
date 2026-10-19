@@ -5,7 +5,7 @@
 (function () {
 'use strict';
 var X = window.A2X; if (!X || !X.VIEWS) return;
-var V = '2.0.2';
+var V = '2.0.3';
 var S = X.S, esc = X.esc;
 var MD = null, MDerr = '', loading = false;
 var ST = { sec: X.lsGet('mx_sec', 'all'), mode: X.lsGet('mx_mode', 'status'), con: 'all', q: '', sel: null, edit: false, vb: {}, zoomed: false };
@@ -31,6 +31,7 @@ function mk(h) { return String(h == null ? '' : h).toUpperCase().replace(/\s+/g,
 function arTok(n) { return X.arN(n).split(' ').filter(Boolean); }
 function sameCon(a, b) { // "اوات" = "اوات جمال" ، "علي الكوفي" = "علي محمد الكوفي"
   var A = arTok(a), B = arTok(b); if (!A.length || !B.length) return false;
+  if (A.join('') === B.join('')) return true; // "عبدالله" = "عبد الله"
   var s = A.length <= B.length ? A : B, l = A.length <= B.length ? B : A;
   return s.every(function (w) { return l.indexOf(w) >= 0; });
 }
@@ -375,7 +376,7 @@ function checks() {
   var draw = [];
   [1, 2, 3, 4, 5, 6].forEach(function (s) {
     var c = {}; (MD.byS[s] || []).forEach(function (h) { var n = h.con0 || ''; c[n] = (c[n] || 0) + 1; });
-    MD.legend.filter(function (l) { return l.sector === s; }).forEach(function (l) { var got = c[l.name] || 0; if (got !== l.count) draw.push(sectorName(s) + ': ' + l.name + ' — مفتاح الألوان ' + l.count + ' دار، والمعدود بالخريطة ' + got); });
+    // الألوان معتمدة (قرار المستخدم) — ما نقارن ويه أرقام مفتاح الألوان المكتوبة بالرسم
     if (s > 2 && c['']) draw.push(sectorName(s) + ': ' + c[''] + ' دار بدون لون مقاول بالرسم (بلوكات: ' + uniq((MD.byS[s] || []).filter(function (h) { return !h.con0; }).map(function (h) { return h.b; })).join('، ') + ')');
   });
   MD.blocks.forEach(function (b) { if (b[0].indexOf('؟') === 0) draw.push(sectorName(b[1]) + ': بلوك مكتوب بالرسم بصيغة غير طبيعية (' + b[0].replace('؟', '') + ') ورقمه يتكرر ويه بلوك ثاني — يحتاج تأكيد'); });
