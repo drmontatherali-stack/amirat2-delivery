@@ -5,7 +5,7 @@
 (function () {
 'use strict';
 var X = window.A2X; if (!X || !X.VIEWS) return;
-var V = '2.1.0';
+var V = '2.2.0';
 var S = X.S, esc = X.esc;
 var MD = null, MDerr = '', loading = false;
 var ST = { sec: X.lsGet('mx_sec', 'all'), mode: X.lsGet('mx_mode', 'status'), con: 'all', flt: 'all', year: String(new Date().getFullYear()), q: '', sel: null, edit: false, vb: {}, zoomed: false };
@@ -23,7 +23,8 @@ X.ICONS.map = 'M9 4 3 6v14l6-2 6 2 6-2V4l-6 2zM9 4v14M15 6v14';
 X.HUB_LBL.map = 'الخريطة';
 if (MAPAPP) {
   X.TITLES.map = 'خريطة مجمع الأميرات 2 · تجريبي';
-  X.NAV.splice(0, X.NAV.length, ['map', 'الخريطة'], ['settings', 'الإعدادات']);
+  // كل شاشات مكتب التسليم متوفرة داخل نظام الخريطة، والخريطة هي الرئيسية
+  X.NAV.unshift(['map', 'الخريطة']);
   var og = X.ACT.go; X.ACT.go = function (d, el, ev) { if (d && d.v === 'hub') d = { v: 'map' }; return og(d, el, ev); };
 } else {
   if (X.HUB.indexOf('map') < 0) X.HUB.push('map');
@@ -32,6 +33,24 @@ if (MAPAPP) {
   X.hubStats = function () { return { map: { c: 'تجريبي', p: null } }; };
 }
 X.VIEWS.map = function () { return '<div id="mxroot" class="mx"></div>'; };
+// أي تعديل على البيانات من نظام الخريطة يسأل «هل أنت متأكد؟» قبل الحفظ
+var CONFIRM = { setReady: 'تغيير جاهزية الدار', toggleReady: 'تغيير جاهزية الدار', saveRec: 'حفظ بيانات المراجعة', saveNewRound: 'إضافة جولة مراجعة', delRound: 'حذف جولة مراجعة', delChoice: 'حذف سجل المراجعة',
+  toggleNotes: 'تغيير حالة إكمال الملاحظات', reopenNew: 'إرجاع الدار لقائمة الدور الجديدة', nhSave: 'حفظ تبليغ الدار الجديدة', waSend: 'إرسال/تسجيل رسالة الواتساب', waMark: 'تأشير الرسالة كمرسلة', waDrop: 'إلغاء الرسالة',
+  snooze: 'تأجيل التنبيه', saveUrl: 'حفظ روابط الشيتات', importOld: 'نسخ البيانات من النظام القديم', bkRestore: 'استرجاع نسخة احتياطية', setPw: 'تغيير الرمز', revokeAcc: 'إلغاء صلاحية' };
+function askSure(what, onYes) {
+  var old = document.getElementById('mxsure'); if (old) old.remove();
+  var d = document.createElement('div'); d.id = 'mxsure'; d.setAttribute('role', 'alertdialog'); d.setAttribute('aria-modal', 'true');
+  d.innerHTML = '<div class="box"><div class="ic">⚠️</div><h3>هل أنت متأكد؟</h3><p>' + esc(what) + '</p><div class="row" style="gap:8px;justify-content:center"><button class="btn pri" id="mxsureY">نعم، احفظ</button><button class="btn" id="mxsureN">لا، رجوع</button></div></div>';
+  document.body.appendChild(d);
+  d.querySelector('#mxsureY').onclick = function (e) { e.stopPropagation(); d.remove(); onYes(); };
+  d.querySelector('#mxsureN').onclick = function (e) { e.stopPropagation(); d.remove(); };
+  d.onclick = function (e) { if (e.target === d) d.remove(); e.stopPropagation(); };
+  setTimeout(function () { var y = document.getElementById('mxsureY'); if (y) y.focus(); }, 30);
+}
+if (MAPAPP) Object.keys(CONFIRM).forEach(function (n) {
+  var f = X.ACT[n]; if (typeof f !== 'function') return;
+  X.ACT[n] = function (d, el, ev) { var a = arguments, self = this; askSure(CONFIRM[n] + (d && (d.h || d.k) ? ' — ' + (d.h || '') : ''), function () { f.apply(self, a); }); };
+});
 X.afterRender = function (view) { if (view === 'map') build(); };
 
 /* ---------- أدوات ---------- */
@@ -91,28 +110,55 @@ function css() {
   st.textContent = [
     '.mx{display:flex;flex-direction:column;gap:12px}',
     '.mx .trial{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--gold,#E2C47A);border:1px dashed color-mix(in srgb,var(--gold,#E2C47A) 60%,transparent);border-radius:12px;padding:8px 12px;background:color-mix(in srgb,var(--gold,#E2C47A) 8%,transparent)}',
-    '.mx .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}',
+    '.mx .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center}',
+    '.mx .secs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;max-width:100%}',
+    '.mx .sc{display:flex;flex-direction:column;align-items:stretch;gap:3px;min-width:74px;padding:7px 10px;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;cursor:pointer;transition:transform .2s,border-color .2s,background .2s}',
+    '.mx .sc:hover{transform:translateY(-2px)}',
+    '.mx .sc b{font-size:13.5px;white-space:nowrap}.mx .sc small{font-size:10.5px;color:var(--muted);white-space:nowrap}',
+    '.mx .sc.on{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 16%,var(--card));box-shadow:0 6px 22px -10px var(--brand)}',
+    '.mx .pb{display:block;height:4px;border-radius:4px;background:var(--soft2);overflow:hidden}.mx .pb i{display:block;height:100%;width:0;background:linear-gradient(90deg,#2ecc71,#4FD8E8);border-radius:4px;transition:width .9s cubic-bezier(.2,.8,.2,1)}',
+    '.mx .srch{flex:1 1 200px;display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:14px;padding:0 12px;background:var(--card);min-width:160px}',
+    '.mx .srch input{flex:1;border:0;background:transparent;color:var(--ink);font:inherit;font-size:14px;padding:11px 0;outline:none;direction:ltr;text-align:right}',
+    '.mx .srch:focus-within{border-color:var(--brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 25%,transparent)}',
+    '.mx .tools{display:flex;gap:6px}',
+    '.mx .tb{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:58px;padding:6px 8px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:17px;cursor:pointer;text-decoration:none;transition:transform .2s,background .2s}',
+    '.mx .tb span{font-size:10.5px;color:var(--muted)}.mx .tb:hover{transform:translateY(-2px);background:var(--soft)}.mx .tb.on{border-color:var(--gold,#E2C47A);background:color-mix(in srgb,var(--gold,#E2C47A) 14%,var(--card))}',
+    '.mx .mxlayers{position:absolute;top:10px;inset-inline:10px;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;z-index:3;padding:4px;border-radius:16px;background:color-mix(in srgb,var(--card-solid,#0b1430) 72%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--line);width:max-content;max-width:calc(100% - 20px)}',
+    '.mx .mxlayers button{display:flex;align-items:center;gap:5px;white-space:nowrap;border:0;border-radius:12px;padding:7px 11px;background:transparent;color:var(--muted);font:inherit;font-size:12.5px;cursor:pointer;transition:background .25s,color .25s}',
+    '.mx .mxlayers button.on{background:var(--brand);color:#06121f;font-weight:700;box-shadow:0 4px 14px -6px var(--brand)}',
+    '.mx .mxtip{position:absolute;z-index:4;pointer-events:none;min-width:150px;max-width:220px;padding:8px 10px;border-radius:12px;background:color-mix(in srgb,var(--card-solid,#0b1430) 92%,transparent);border:1px solid var(--line);box-shadow:0 10px 30px -10px #000;display:flex;flex-direction:column;gap:2px;font-size:12.5px;color:var(--ink)}',
+    '.mx .mxtip span{display:flex;align-items:center;gap:6px}.mx .mxtip i{width:10px;height:10px;border-radius:3px;display:inline-block}.mx .mxtip small{color:var(--muted);font-size:11px}',
+    '.mx svg.mxs.wave .hs{animation:mxw .55s cubic-bezier(.2,.8,.2,1) both;animation-delay:var(--d,0ms)}',
+    '@keyframes mxw{from{opacity:0}to{opacity:1}}',
+    '.mx svg.mxs .hs:hover{stroke:#fff;stroke-width:1.6}',
+    '.mx svg.mxs .snb{cursor:pointer}.mx svg.mxs .snb rect{fill:color-mix(in srgb,var(--brand) 22%,var(--card-solid,#0b1430));stroke:var(--brand);stroke-width:1;vector-effect:non-scaling-stroke}',
+    '#mxsure{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:rgba(3,6,18,.55);backdrop-filter:blur(3px);animation:mxf .18s ease}',
+    '#mxsure .box{width:min(92vw,380px);padding:22px;border-radius:20px;background:var(--card-solid,#101a3a);border:1px solid var(--line);box-shadow:0 30px 80px -20px #000;text-align:center;animation:mxpop .25s cubic-bezier(.2,.9,.3,1.2)}',
+    '#mxsure .ic{font-size:34px}#mxsure h3{margin:6px 0 4px;font-size:19px}#mxsure p{margin:0 0 16px;color:var(--muted);font-size:14px}',
+    '@keyframes mxf{from{opacity:0}}@keyframes mxpop{from{transform:scale(.85);opacity:0}}',
+    '@media (prefers-reduced-motion:reduce){.mx svg.mxs.wave .hs,#mxsure,#mxsure .box{animation:none}}',
     '.mx .bar .grow{flex:1 1 180px;min-width:150px}',
     '.mx .seg{display:inline-flex;border:1px solid var(--line);border-radius:12px;overflow-x:auto;max-width:100%;scrollbar-width:none}',
     '.mx .seg button{white-space:nowrap}',
     '.mx .seg button{border:0;background:transparent;color:var(--muted);padding:8px 12px;font:inherit;font-size:13px;cursor:pointer}',
     '.mx .seg button.on{background:var(--brand);color:#06121f;font-weight:700}',
     '.mx .main{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px;align-items:start}',
-    '.mx .mapbox{position:relative;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--card-solid,var(--card));height:calc(100vh - 330px);min-height:420px;touch-action:none}',
-    '.mx svg.mxs{width:100%;height:100%;display:block;user-select:none;-webkit-user-select:none;cursor:grab}',
+    '.mx .mapbox{position:relative;border:1px solid var(--line);border-radius:20px;overflow:hidden;background:radial-gradient(1200px 600px at 50% 0%,color-mix(in srgb,var(--brand) 7%,transparent),transparent 60%),var(--card-solid,var(--card));height:calc(100vh - 300px);min-height:440px;touch-action:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.02),0 20px 50px -30px #000}',
+    '.mx .mapbox::before{content:"";position:absolute;inset:0;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:44px 44px;opacity:.18;pointer-events:none}',
+    '.mx svg.mxs{width:100%;height:calc(100% - 58px);margin-top:58px;display:block;user-select:none;-webkit-user-select:none;cursor:grab}',
     '.mx svg.mxs .geo{fill:none;stroke:var(--muted);stroke-width:.7;opacity:.55;vector-effect:non-scaling-stroke}',
-    '.mx svg.mxs .hs{stroke:rgba(0,0,0,.45);stroke-width:.5;vector-effect:non-scaling-stroke;transition:opacity .25s}',
+    '.mx svg.mxs .hs{stroke:rgba(0,0,0,.38);stroke-width:.5;vector-effect:non-scaling-stroke;transition:opacity .35s,fill .45s ease}',
     '.mx svg.mxs .hs.dim{opacity:.12}',
     '.mx svg.mxs .hs.rvm{stroke:#a77bff;stroke-width:2}',
-    '.mx svg.mxs .hs.sel{stroke:#fff;stroke-width:3;filter:drop-shadow(0 0 4px #fff)}',
+    '.mx svg.mxs .hs.sel{stroke:#fff;stroke-width:3;filter:url(#mxglow)}',
     '.mx svg.mxs .hs.pulse{animation:mxp 1s ease-in-out 4}',
     '@keyframes mxp{50%{opacity:.2}}',
     '.mx svg.mxs .bl{font:700 7px "IBM Plex Sans Arabic",sans-serif;fill:var(--ink);paint-order:stroke;stroke:var(--card-solid,#0b1430);stroke-width:2px;pointer-events:none;text-anchor:middle}',
     '.mx svg.mxs .hn{font:600 4px "IBM Plex Sans Arabic",sans-serif;fill:#0b1430;pointer-events:none;text-anchor:middle;dominant-baseline:central;display:none}',
     '.mx svg.mxs.zoomed .hn{display:block}',
-    '.mx svg.mxs .sn{font:700 26px "IBM Plex Sans Arabic",sans-serif;fill:var(--brand);text-anchor:middle;pointer-events:none;opacity:.9}',
+    '.mx svg.mxs .sn{font:700 20px "IBM Plex Sans Arabic",sans-serif;fill:var(--ink);text-anchor:middle;pointer-events:none}',
     '.mx .zbtn{position:absolute;inset-inline-start:10px;bottom:10px;display:flex;flex-direction:column;gap:6px}',
-    '.mx .zbtn button{width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:var(--card-solid,var(--card));color:var(--ink);font-size:20px;cursor:pointer}',
+    '.mx .zbtn{z-index:3}.mx .zbtn button{width:42px;height:42px;border-radius:14px;border:1px solid var(--line);background:color-mix(in srgb,var(--card-solid,#0b1430) 80%,transparent);backdrop-filter:blur(8px);color:var(--ink);font-size:20px;cursor:pointer;transition:transform .15s}.mx .zbtn button:active{transform:scale(.92)}',
     '.mx .side{display:flex;flex-direction:column;gap:10px}',
     '.mx .side .card{padding:14px}',
     '.mx .lg{display:flex;flex-direction:column;gap:4px}',
@@ -125,13 +171,18 @@ function css() {
     '.mx .warnl{color:#ff9a5b;font-size:12.5px}',
     '.mx .none-sw{background:var(--mx-none)}',
     ':root{--mx-none:#d9dee8}:root[data-mode="night"]{--mx-none:#2b3756}',
-    '@media (max-width:900px){.mx .main{grid-template-columns:1fr}.mx .mapbox{height:62vh}}',
+    '@media (max-width:900px){.mx .main{grid-template-columns:1fr}.mx .mapbox{height:64vh}.mx .tb span{display:none}.mx .tb{min-width:44px}}',
+    '.mx .side .card{animation:mxin .3s ease both}@keyframes mxin{from{opacity:0;transform:translateY(6px)}}',
     '.mxt{width:100%;border-collapse:collapse;font-size:13px}.mxt th,.mxt td{border:1px solid var(--line);padding:6px 8px;text-align:center}.mxt th{background:var(--soft2);color:var(--muted);font-weight:600}.mxt td:first-child,.mxt th:first-child{text-align:right}.mxt tr.tot td{font-weight:700;background:var(--soft)}.mxt .bad{color:#ff6b7d;font-weight:700}',
     '.mxlist{display:flex;flex-direction:column;gap:4px;max-height:46vh;overflow:auto}.mxlist button{display:flex;justify-content:space-between;gap:10px;border:1px solid var(--line);background:var(--soft2);color:var(--ink);border-radius:10px;padding:8px 10px;font:inherit;font-size:13px;cursor:pointer;text-align:right}.mxlist button small{color:var(--muted)}',
     '.mxsec{margin:14px 0 6px;font-size:15px}',
-    '.mx .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}',
-    '.mx .kpi{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--muted);font:inherit;font-size:12px;cursor:pointer;text-align:right}',
-    '.mx .kpi b{font-family:"Readex Pro";font-size:22px;color:var(--ink);font-variant-numeric:tabular-nums}',
+    '.mx .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:8px}',
+    '.mx .kpi{position:relative;display:grid;grid-template-columns:auto 1fr;grid-template-areas:"i n" "l l" "b b";align-items:center;gap:2px 8px;padding:10px 12px 9px;border-radius:16px;border:1px solid var(--line);background:linear-gradient(160deg,color-mix(in srgb,var(--card) 92%,#fff 8%),var(--card));color:var(--muted);font:inherit;font-size:12px;cursor:pointer;text-align:right;transition:transform .2s,box-shadow .2s,border-color .2s;overflow:hidden}',
+    '.mx .kpi:hover{transform:translateY(-2px);box-shadow:0 10px 26px -14px #000}.mx .kpi.on{border-color:var(--brand);box-shadow:0 0 0 2px color-mix(in srgb,var(--brand) 35%,transparent)}',
+    '.mx .kpi .ki{grid-area:i;font-size:18px}.mx .kpi .kl{grid-area:l}',
+    '.mx .kpi b{grid-area:n;font-family:"Readex Pro";font-size:22px;color:var(--ink);font-variant-numeric:tabular-nums;text-align:left}',
+    '.mx .kpi .kb{grid-area:b;display:block;height:3px;border-radius:3px;background:var(--soft2);overflow:hidden;margin-top:4px}.mx .kpi .kb i{display:block;height:100%;width:0;border-radius:3px;background:var(--muted);transition:width .9s cubic-bezier(.2,.8,.2,1)}',
+    '.mx .kpi.g .kb i{background:#2ecc71}.mx .kpi.b .kb i{background:#3fa9f5}.mx .kpi.r .kb i{background:#ff4d5e}.mx .kpi.p .kb i{background:#a77bff}.mx .kpi.t .kb i,.mx .kpi.t b{background:none;color:#22d3c5}.mx .kpi.t .kb i{background:#22d3c5}',
     '.mx .kpi.g b{color:#2ecc71}.mx .kpi.b b{color:#3fa9f5}.mx .kpi.r b{color:#ff4d5e}.mx .kpi.p b{color:#a77bff}',
     '.mx .mxlist button{align-items:center}',
     '#mxprint{display:none}',
@@ -147,28 +198,31 @@ function build() {
     if (!MDerr) load(); return;
   }
   if (!root.querySelector('.mapbox') || ST.built !== true) {
-    root.innerHTML = trialBar() + toolbar() + '<div class="main"><div class="mapbox" id="mxbox">' + svgHTML(false) + '<div class="zbtn"><button data-mx="zin" aria-label="تكبير">+</button><button data-mx="zout" aria-label="تصغير">−</button><button data-mx="zfit" aria-label="ملء الشاشة">⤢</button></div></div><div class="side" id="mxside"></div></div>';
+    root.innerHTML = trialBar() + toolbar() + '<div class="main"><div class="mapbox" id="mxbox">' + svgHTML(false) +
+      '<div class="mxlayers" role="group" aria-label="الطبقة">' + MODES.map(function (m) { return '<button data-mx="mode" data-v="' + m[0] + '" class="' + (ST.mode === m[0] ? 'on' : '') + '"><span>' + m[2] + '</span>' + m[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="mxtip" id="mxtip" hidden></div>' +
+      '<div class="zbtn"><button data-mx="zin" aria-label="تكبير">+</button><button data-mx="zout" aria-label="تصغير">−</button><button data-mx="zfit" aria-label="عرض القطاع كامل">⤢</button></div></div><div class="side" id="mxside"></div></div>';
     ST.built = true; wire(); applyVB();
   } else syncToolbar();
   paint();
 }
 function trialBar() { return '<div class="trial">🧪 ' + (MAPAPP ? 'نظام الخريطة التجريبي — نفس بيانات مكتب التسليم. أي إجراء على دار (جاهز، مراجعة…) ينحفظ بالنظام نفسه؛ وتعديل توزيع المقاولين ينحفظ بشكل منفصل لحين الاعتماد.' : 'قسم تجريبي — يقرا بيانات النظام بس، وتعديل توزيع المقاولين هنا ينحفظ بشكل منفصل وما يأثر على أي حساب لحين الاعتماد.') + '</div>'; }
-var MODES = [['status', 'الحالة'], ['con', 'المقاولين'], ['eff', 'الكفاءة'], ['alert', 'التنبيهات'], ['rev', 'المراجعات'], ['period', 'التسليم بالأشهر'], ['wait', 'مدة الانتظار'], ['today', 'حركات اليوم']];
+var MODES = [['status', 'الحالة', '🏠'], ['con', 'المقاولين', '👷'], ['eff', 'الكفاءة', '📈'], ['alert', 'التنبيهات', '🔔'], ['rev', 'المراجعات', '🔍'], ['period', 'التسليم بالأشهر', '📅'], ['wait', 'مدة الانتظار', '⏳'], ['today', 'حركات اليوم', '🕘']];
+var MODE_VIEW = { status: 'ws', con: 'weekly', eff: 'weekly', alert: 'today', rev: 'rvsum', period: 'annual', wait: 'ws', today: 'agenda' };
 function toolbar() {
   var secs = [['all', 'الكل']].concat([1, 2, 3, 4, 5, 6].map(function (s) { return [String(s), sectorName(s).replace('القطاع ', '')]; }));
   return '<div class="kpis" id="mxkpi"></div>' +
-    '<div class="bar" id="mxbar"><div class="seg" role="group" aria-label="القطاع">' + secs.map(function (s) { return '<button data-mx="sec" data-v="' + s[0] + '" class="' + (String(ST.sec) === s[0] ? 'on' : '') + '">' + esc(s[1]) + '</button>'; }).join('') + '</div>' +
-    '<input class="inp grow" id="mxq" type="search" placeholder="🔍 رقم الدار مثل B40.2" value="' + esc(ST.q) + '" enterkeyhint="search">' +
-    '<button class="btn sm" data-mx="check">🔎 فحص التطابق</button><button class="btn sm" data-mx="count">📊 الحصر</button><button class="btn sm" data-mx="print">🖨️ طباعة</button>' +
-    '<button class="btn sm" data-mx="edit" id="mxedit">' + (ST.edit ? '✅ إنهاء التعديل' : '✏️ تعديل التوزيع') + '</button>' +
-    (MAPAPP ? '' : '<a class="btn sm" href="map.html" title="نفس البيانات، والخريطة هي الواجهة">🗺️ فتح كنظام مستقل</a>') + '</div>' +
-    '<div class="bar"><span class="muted" style="font-size:12.5px">الطبقة:</span><div class="seg" role="group" aria-label="الطبقة" id="mxmodes">' + MODES.map(function (m) { return '<button data-mx="mode" data-v="' + m[0] + '" class="' + (ST.mode === m[0] ? 'on' : '') + '">' + m[1] + '</button>'; }).join('') + '</div></div>';
+    '<div class="bar" id="mxbar"><div class="secs" role="group" aria-label="القطاع">' + secs.map(function (s) { return '<button data-mx="sec" data-v="' + s[0] + '" class="sc' + (String(ST.sec) === s[0] ? ' on' : '') + '"><b>' + esc(s[1]) + '</b><i class="pb"><i></i></i><small></small></button>'; }).join('') + '</div>' +
+    '<label class="srch"><span>🔍</span><input id="mxq" type="search" placeholder="رقم الدار مثل B40.2" value="' + esc(ST.q) + '" enterkeyhint="search"></label>' +
+    '<div class="tools"><button class="tb" data-mx="check" title="فحص التطابق">🔎<span>الفحص</span></button><button class="tb" data-mx="count" title="الحصر">📊<span>الحصر</span></button><button class="tb" data-mx="print" title="طباعة">🖨️<span>طباعة</span></button>' +
+    '<button class="tb" data-mx="edit" id="mxedit" title="تعديل التوزيع">✏️<span>' + (ST.edit ? 'إنهاء التعديل' : 'التوزيع') + '</span></button>' +
+    (MAPAPP ? '' : '<a class="tb" href="map.html" title="نظام الخريطة المستقل">🗺️<span>نظام الخريطة</span></a>') + '</div></div>';
 }
 function syncToolbar() {
   var root = document.getElementById('mxroot'); if (!root) return;
   root.querySelectorAll('[data-mx="sec"]').forEach(function (b) { b.classList.toggle('on', b.dataset.v === String(ST.sec)); });
   root.querySelectorAll('[data-mx="mode"]').forEach(function (b) { b.classList.toggle('on', b.dataset.v === ST.mode); });
-  var e = document.getElementById('mxedit'); if (e) e.textContent = ST.edit ? '✅ إنهاء التعديل' : '✏️ تعديل التوزيع';
+  var e = document.getElementById('mxedit'); if (e) { e.classList.toggle('on', ST.edit); e.querySelector('span').textContent = ST.edit ? 'إنهاء التعديل' : 'التوزيع'; }
 }
 function secList() { return ST.sec === 'all' ? [1, 2, 3, 4, 5, 6] : [+ST.sec]; }
 function extOf(list) {
@@ -180,16 +234,16 @@ function svgHTML(forPrint) {
   var list = secList(), e = extOf(list), g = '', hs = '', hn = '', bl = '', sn = '';
   list.forEach(function (s) {
     g += '<path class="geo" d="' + MD.sectors[s].geo.join(' ') + '"/>';
-    var x = MD.sectors[s].ext; if (list.length > 1) sn += '<text class="sn" x="' + ((x[0] + x[2]) / 2).toFixed(1) + '" y="' + (-x[3] - 6).toFixed(1) + '">' + esc(sectorName(s)) + '</text>';
+    var x = MD.sectors[s].ext; if (list.length > 1) sn += '<g class="snb" data-mx="sec" data-v="' + s + '"><rect x="' + ((x[0] + x[2]) / 2 - 90).toFixed(1) + '" y="' + (-x[3] - 38).toFixed(1) + '" width="180" height="34" rx="17"/><text class="sn" x="' + ((x[0] + x[2]) / 2).toFixed(1) + '" y="' + (-x[3] - 11).toFixed(1) + '">' + esc(sectorName(s)) + '</text></g>';
     (MD.byS[s] || []).forEach(function (h) {
-      hs += '<rect class="hs" data-k="' + esc(mk(h.id)) + '" x="' + (h.x - h.w / 2 + 0.6).toFixed(1) + '" y="' + (-h.y - h.h / 2 + 0.6).toFixed(1) + '" width="' + Math.max(1, h.w - 1.2).toFixed(1) + '" height="' + Math.max(1, h.h - 1.2).toFixed(1) + '"/>';
+      hs += '<rect class="hs" data-k="' + esc(mk(h.id)) + '" rx="1.4" x="' + (h.x - h.w / 2 + 0.7).toFixed(1) + '" y="' + (-h.y - h.h / 2 + 0.7).toFixed(1) + '" width="' + Math.max(1, h.w - 1.4).toFixed(1) + '" height="' + Math.max(1, h.h - 1.4).toFixed(1) + '"' + (forPrint ? '' : ' style="--d:' + Math.round((h.x - e[0]) / (e[2] - e[0] || 1) * 520 + ((-h.y - (-e[3])) / (e[3] - e[1] || 1)) * 160) + 'ms"') + '/>';
       if (!forPrint) hn += '<text class="hn" x="' + h.x.toFixed(1) + '" y="' + (-h.y).toFixed(1) + '">' + esc(h.id.split('.')[1]) + '</text>';
     });
   });
   MD.blocks.forEach(function (b) { if (list.indexOf(b[1]) >= 0) bl += '<text class="bl" x="' + b[2] + '" y="' + (-b[3] + 2.5).toFixed(1) + '">' + esc(b[0].replace(/^(\D+)/, '$1.')) + '</text>'; });
-  var vb = [e[0], -e[3] - (list.length > 1 ? 40 : 0), e[2] - e[0], e[3] - e[1] + (list.length > 1 ? 40 : 0)];
+  var pad = list.length > 1 ? 52 : 14, vb = [e[0] - 14, -e[3] - pad, e[2] - e[0] + 28, e[3] - e[1] + pad + 14];
   if (!forPrint) ST.full = vb;
-  return '<svg class="mxs" id="mxsvg" xmlns="http://www.w3.org/2000/svg" viewBox="' + vb.join(' ') + '" preserveAspectRatio="xMidYMid meet">' + g + '<g id="mxh">' + hs + '</g>' + hn + bl + sn + '</svg>';
+  return '<svg class="mxs" id="mxsvg" xmlns="http://www.w3.org/2000/svg" viewBox="' + vb.join(' ') + '" preserveAspectRatio="xMidYMid meet"><defs><filter id="mxglow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>' + g + '<g id="mxh">' + hs + '</g>' + hn + bl + sn + '</svg>';
 }
 
 /* ---------- الطبقات: كل قسم من النظام على الخريطة ---------- */
@@ -243,6 +297,12 @@ function layerKeys(P) {
   if (ST.mode === 'period') { var a = []; for (var m = 1; m <= 12; m++) a.push(['m' + m, MON[m] + ' ' + ST.year, monCol(m)]); a.push(['other', 'مسلّمة بسنة ثانية', '#8a94ab']); a.push(['none', 'مو مسلّمة', null]); return a; }
   return LD[ST.mode] ? LD[ST.mode].k : [];
 }
+function labelOfKey(key) {
+  if (ST.mode === 'con') return key;
+  var ks = layerKeys(ST.P || {}); for (var i = 0; i < ks.length; i++) if (ks[i][0] === key) return ks[i][1];
+  return '';
+}
+function wave() { var svg = document.getElementById('mxsvg'); if (!svg) return; svg.classList.remove('wave'); void svg.getBoundingClientRect(); svg.classList.add('wave'); clearTimeout(ST.wt); ST.wt = setTimeout(function () { svg.classList.remove('wave'); }, 1400); }
 function colorOfKey(key, P) {
   if (ST.mode === 'con') return colorForCon(key);
   var ks = layerKeys(P); for (var i = 0; i < ks.length; i++) if (ks[i][0] === key) return ks[i][2];
@@ -260,7 +320,7 @@ function paint() {
     cnt[key] = (cnt[key] || 0) + 1; ccnt[ec.group] = (ccnt[ec.group] || 0) + 1; (byKey[key] = byKey[key] || []).push(h);
   });
   ST.cnt = cnt; ST.ccnt = ccnt; ST.byKey = byKey;
-  var cmap = {}; layerKeys(P).forEach(function (x) { cmap[x[0]] = x[2]; });
+  var cmap = {}; layerKeys(P).forEach(function (x) { cmap[x[0]] = x[2]; }); ST.keys = keys; ST.cmap = cmap;
   svg.querySelectorAll('rect.hs').forEach(function (r) {
     var k = r.getAttribute('data-k'), h = MD.H[k]; if (!h) return; var key = keys[k], ec = effCon(h);
     r.style.fill = (ST.mode === 'con' ? colorForCon(key) : cmap[key]) || 'var(--mx-none)';
@@ -273,13 +333,24 @@ function paint() {
 }
 function kpis(I, list) {
   var el = document.getElementById('mxkpi'); if (!el) return;
-  var c = { all: 0, ws: 0, ready: 0, late: 0, del: 0, rev: 0, al: 0, none: 0 };
+  var c = { all: 0, ws: 0, ready: 0, late: 0, del: 0, rev: 0, nw: 0, none: 0 };
   list.forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { var st = statusOf(h, I), k = mk(h.id), u = I.ws[k]; c.all++;
-    if (st === 'del') c.del++; else if (u) { c.ws++; if (st === 'ready') c.ready++; if (st === 'late') c.late++; } else if (st === 'none') c.none++;
+    if (st === 'del') c.del++; else if (u) { c.ws++; if (st === 'ready') c.ready++; if (st === 'late') c.late++; } else if (st === 'nw') c.nw++; else if (st === 'none') c.none++;
     if (I.rv[k] && st !== 'del') c.rev++; }); });
-  function k(lbl, n, mode, flt, cls) { return '<button class="kpi ' + (cls || '') + '" data-mx="kpi" data-v="' + mode + '|' + flt + '"><b>' + n + '</b><span>' + lbl + '</span></button>'; }
-  el.innerHTML = k('دار بالخريطة', c.all, 'status', 'all') + k('مسلّمة', c.del, 'status', 'del', 'g') + k('قيد التسليم', c.ws, 'status', 'all', 'b') + k('جاهزة', c.ready, 'status', 'ready', 'b') +
-    k('عابر وغير جاهزة', c.late, 'status', 'late', 'r') + k('بالمراجعة', c.rev, 'rev', 'all', 'p') + k('ما وصلت', c.none, 'status', 'none');
+  var defs = [['all', 'دار بالخريطة', '🗺️', 'status', 'all', '', c.all], ['del', 'مسلّمة', '✅', 'status', 'del', 'g', c.all], ['ws', 'قيد التسليم', '🏗️', 'status', 'all', 'b', c.all], ['ready', 'جاهزة', '🔑', 'status', 'ready', 'b', c.ws],
+    ['late', 'عابر وغير جاهزة', '⏰', 'status', 'late', 'r', c.ws], ['rev', 'بالمراجعة', '🔍', 'rev', 'all', 'p', c.all], ['nw', 'بانتظار التبليغ', '📨', 'status', 'nw', 't', c.all], ['none', 'ما وصلت', '⌛', 'status', 'none', '', c.all]];
+  if (!el.firstChild) el.innerHTML = defs.filter(function (d) { return d[0] !== 'nw' || c.nw; }).map(function (d) { return '<button class="kpi ' + d[5] + '" data-mx="kpi" data-v="' + d[3] + '|' + d[4] + '" data-k="' + d[0] + '"><span class="ki">' + d[2] + '</span><b data-n="0">0</b><span class="kl">' + d[1] + '</span><i class="kb"><i></i></i></button>'; }).join('');
+  el.querySelectorAll('.kpi').forEach(function (b) { var d = defs.filter(function (x) { return x[0] === b.dataset.k; })[0]; if (!d) return; var n = c[d[0]], base = d[6] || 1;
+    countTo(b.querySelector('b'), n); b.querySelector('.kb i').style.width = (d[0] === 'all' ? 100 : Math.round(n * 100 / base)) + '%';
+    b.classList.toggle('on', ST.mode === d[3] && ST.flt === d[4] && d[0] !== 'all' && d[0] !== 'ws'); });
+  // تقدّم كل قطاع (نسبة المسلّم) على أزرار القطاعات
+  document.querySelectorAll('#mxbar .sc').forEach(function (b) { var v = b.dataset.v, L = v === 'all' ? [1, 2, 3, 4, 5, 6] : [+v], t = 0, dl = 0;
+    L.forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { t++; if (statusOf(h, I) === 'del') dl++; }); });
+    var p = t ? Math.round(dl * 100 / t) : 0; b.querySelector('.pb i').style.width = p + '%'; b.querySelector('small').textContent = 'مسلّم ' + p + '٪'; });
+}
+function countTo(el, n) { // عدّاد متحرك
+  var from = +el.getAttribute('data-n') || 0; el.setAttribute('data-n', n); if (from === n) { el.textContent = n; return; }
+  var t0 = performance.now(), d = 700; (function step(now) { var p = Math.min(1, (now - t0) / d), e = 1 - Math.pow(1 - p, 3); el.textContent = Math.round(from + (n - from) * e); if (p < 1) requestAnimationFrame(step); })(t0);
 }
 function side() {
   var el = document.getElementById('mxside'); if (!el) return;
@@ -301,6 +372,7 @@ function side() {
   if (ST.mode === 'status') h += '<p class="muted" style="font-size:12px;margin:8px 0 0">الإطار البنفسجي = الدار بيها مراجعة. اضغط أي بند حتى تبيّنه بس.</p>';
   if (ST.mode === 'eff') h += '<p class="muted" style="font-size:12px;margin:8px 0 0">الكفاءة = 100 − (العابر موعدها وغير الجاهزة ÷ كل قيد التسليم)، لكل مقاول ضمن القطاع المعروض.</p>';
   if (ST.mode !== 'con') h += conFilter();
+  if (MODE_VIEW[ST.mode]) h += '<button class="btn sm" style="margin-top:10px;width:100%" data-mx="view" data-v="' + MODE_VIEW[ST.mode] + '">📋 فتح الشاشة الكاملة (' + esc({ ws: 'قيد التسليم', weekly: 'كفاءة المقاولين', today: 'التنبيهات', rvsum: 'ملخص المراجعات', annual: 'الجرد السنوي', agenda: 'جدول الأعمال' }[MODE_VIEW[ST.mode]]) + ')</button>';
   h += '</div>';
   // قائمة الدور للطبقات اللي إلها قائمة
   if ((LD[ST.mode] || {}).list) {
@@ -356,17 +428,24 @@ function applyVB() {
   svg.classList.toggle('zoomed', upp < 0.3);
 }
 function setVB(v) { ST.vb[String(ST.sec)] = v; applyVB(); }
+function animVB(t, ms) { // حركة ناعمة للتكبير والتنقل
+  var a = curVB(), t0 = performance.now(), d = ms || 420; cancelAnimationFrame(ST.raf);
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { setVB(t); return; }
+  (function step(now) { var p = Math.min(1, (now - t0) / d), e = 1 - Math.pow(1 - p, 3);
+    setVB([0, 1, 2, 3].map(function (i) { return a[i] + (t[i] - a[i]) * e; })); if (p < 1) ST.raf = requestAnimationFrame(step); })(t0);
+}
 function zoomAt(f, cx, cy) {
   var v = curVB(), nw = Math.min(ST.full[2] * 1.2, Math.max(25, v[2] * f)), k = nw / v[2], nh = v[3] * k;
   if (cx == null) { cx = v[0] + v[2] / 2; cy = v[1] + v[3] / 2; }
-  setVB([cx - (cx - v[0]) * k, cy - (cy - v[1]) * k, nw, nh]);
+  var t = [cx - (cx - v[0]) * k, cy - (cy - v[1]) * k, nw, nh];
+  if (ST.wheeling) setVB(t); else animVB(t, 300);
 }
 function toSVG(svg, px, py) { var pt = svg.createSVGPoint(); pt.x = px; pt.y = py; var m = svg.getScreenCTM(); if (!m) return { x: 0, y: 0 }; var p = pt.matrixTransform(m.inverse()); return { x: p.x, y: p.y }; }
 function focusHouse(k) {
   var h = MD.H[k]; if (!h) return false;
   if (ST.sec !== 'all' && +ST.sec !== h.s) { ST.sec = String(h.s); X.lsSet('mx_sec', ST.sec); ST.built = false; build(); }
   var w = 240, svg = document.getElementById('mxsvg'), box = svg.getBoundingClientRect(), hh = w * (box.height / (box.width || 1));
-  setVB([h.x - w / 2, -h.y - hh / 2, w, hh]);
+  animVB([h.x - w / 2, -h.y - hh / 2, w, hh], 650);
   ST.sel = k; ST.flt = 'all'; ST.con = 'all'; paint();
   var r = svg.querySelector('rect[data-k="' + k.replace(/"/g, '') + '"]'); if (r) { r.classList.remove('pulse'); void r.getBoundingClientRect(); r.classList.add('pulse'); }
   return true;
@@ -389,10 +468,20 @@ function wire() {
   });
   function up(e) {
     var t = start && start.t; delete P[e.pointerId]; if (Object.keys(P).length < 2) pinch = null;
-    if (Object.keys(P).length === 0) { if (moved < 6 && t && t.getAttribute && t.getAttribute('data-k')) tapHouse(t.getAttribute('data-k')); start = null; }
+    if (Object.keys(P).length === 0) { if (moved < 6 && t && t.closest) { var sb = t.closest('.snb'); if (sb) { ST.sec = sb.getAttribute('data-v'); X.lsSet('mx_sec', ST.sec); ST.built = false; build(); wave(); start = null; return; } }
+      if (moved < 6 && t && t.getAttribute && t.getAttribute('data-k')) tapHouse(t.getAttribute('data-k')); start = null; }
   }
   svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', function (e) { delete P[e.pointerId]; pinch = null; start = null; });
-  svg.addEventListener('wheel', function (e) { e.preventDefault(); var p = toSVG(svg, e.clientX, e.clientY); zoomAt(e.deltaY > 0 ? 1.18 : 1 / 1.18, p.x, p.y); }, { passive: false });
+  svg.addEventListener('wheel', function (e) { e.preventDefault(); var p = toSVG(svg, e.clientX, e.clientY); ST.wheeling = true; zoomAt(e.deltaY > 0 ? 1.18 : 1 / 1.18, p.x, p.y); ST.wheeling = false; }, { passive: false });
+  // بطاقة صغيرة فوق الدار عند المرور عليها
+  var tip = document.getElementById('mxtip');
+  svg.addEventListener('pointermove', function (e) {
+    if (e.pointerType !== 'mouse' || !tip) return; var k = e.target.getAttribute && e.target.getAttribute('data-k'); if (!k || !MD.H[k]) { tip.hidden = true; return; }
+    var h = MD.H[k], key = ST.keys && ST.keys[k], bx = box.getBoundingClientRect();
+    tip.innerHTML = '<b class="ltr">' + esc(h.id) + '</b><span><i style="background:' + ((ST.mode === 'con' ? colorForCon(key) : (ST.cmap || {})[key]) || 'var(--mx-none)') + '"></i>' + esc(labelOfKey(key)) + '</span><small>' + esc(sectorName(h.s) + ' · ' + effCon(h).label) + '</small>';
+    tip.hidden = false; tip.style.left = Math.min(bx.width - 200, e.clientX - bx.left + 14) + 'px'; tip.style.top = Math.max(8, e.clientY - bx.top - 70) + 'px';
+  });
+  svg.addEventListener('pointerleave', function () { if (tip) tip.hidden = true; });
 }
 function tapHouse(k) {
   if (ST.edit) { ST.sel = k; paint(); editBlock(k); return; }
@@ -403,13 +492,14 @@ function tapHouse(k) {
 document.addEventListener('click', function (e) {
   var b = e.target.closest && e.target.closest('[data-mx]'); if (!b || !MD) return;
   var a = b.dataset.mx, v = b.dataset.v;
-  if (a === 'sec') { ST.sec = v; X.lsSet('mx_sec', v); ST.built = false; ST.sel = null; build(); }
-  else if (a === 'mode') { ST.mode = v; ST.flt = 'all'; X.lsSet('mx_mode', v); syncToolbar(); paint(); }
+  if (a === 'sec') { ST.sec = v; X.lsSet('mx_sec', v); ST.built = false; ST.sel = null; build(); wave(); }
+  else if (a === 'mode') { ST.mode = v; ST.flt = 'all'; X.lsSet('mx_mode', v); syncToolbar(); paint(); wave(); }
+  else if (a === 'view') X.ACT.go({ v: v });
   else if (a === 'flt') { ST.flt = ST.flt === v ? 'all' : v; paint(); }
-  else if (a === 'kpi') { var kv = v.split('|'); ST.mode = kv[0]; ST.flt = kv[1]; X.lsSet('mx_mode', ST.mode); syncToolbar(); paint(); }
+  else if (a === 'kpi') { var kv = v.split('|'); ST.mode = kv[0]; ST.flt = kv[1]; X.lsSet('mx_mode', ST.mode); syncToolbar(); paint(); wave(); }
   else if (a === 'year') { ST.year = v; ST.flt = 'all'; paint(); }
   else if (a === 'go2') focusHouse(v);
-  else if (a === 'zin') zoomAt(1 / 1.4); else if (a === 'zout') zoomAt(1.4); else if (a === 'zfit') { delete ST.vb[String(ST.sec)]; applyVB(); }
+  else if (a === 'zin') zoomAt(1 / 1.4); else if (a === 'zout') zoomAt(1.4); else if (a === 'zfit') animVB(ST.full.slice(), 450);
   else if (a === 'unsel') { ST.sel = null; paint(); }
   else if (a === 'open') X.openHouse(v);
   else if (a === 'edit') { ST.edit = !ST.edit; syncToolbar(); paint(); }
@@ -453,11 +543,14 @@ function editBlock(k) {
     '<label class="row" style="gap:8px;margin-top:10px"><input type="checkbox" id="mxbdir"' + (ec.direct ? ' checked' : '') + '> تنفيذ مباشر (الشركة تنفذه)</label></div>' +
     '<footer><button class="btn pri" data-mx="saveb">💾 حفظ (تجريبي)</button>' + (trialBlocks()[bKey(h.s, h.b)] ? '<button class="btn" data-mx="resetb">↩️ إرجاع لأصل الخريطة</button>' : '') + '<button class="btn" data-act="closeModal">إلغاء</button></footer>');
 }
-function saveBlock(reset) {
+function saveBlock(reset, sure) {
   var e = ST.eb; if (!e) return;
+  if (!sure) { var con = (document.getElementById('mxbcon') || {}).value || 'غير محدد', dir = !!(document.getElementById('mxbdir') || {}).checked;
+    ST.ebv = { con: (document.getElementById('mxbcon') || {}).value || '', dir: dir };
+    askSure(reset ? 'إرجاع البلوك ' + e.b + ' لأصل الخريطة' : 'تغيير مقاول البلوك ' + e.b + ' إلى: ' + (dir ? 'تنفيذ مباشر' : con), function () { saveBlock(reset, true); }); return; }
   var path = X.ROOT + '/mapTrial/blocks/' + bKey(e.s, e.b);
   if (reset) X.W('remove', path, null);
-  else X.W('set', path, { con: (document.getElementById('mxbcon') || {}).value || '', direct: !!(document.getElementById('mxbdir') || {}).checked, by: (S.user && S.user.name) || '', at: Date.now() });
+  else X.W('set', path, { con: ST.ebv.con, direct: ST.ebv.dir, by: (S.user && S.user.name) || '', at: Date.now() });
   X.closeModal(); X.toast(reset ? '↩️ رجع البلوك لأصل الخريطة' : '✅ انحفظ التوزيع (تجريبي)'); paint();
 }
 
