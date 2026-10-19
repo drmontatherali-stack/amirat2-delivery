@@ -358,7 +358,7 @@ function checks() {
   function chk(no, src, sec) {
     var k = mk(no); if (!k || seen[k + src]) return; seen[k + src] = 1;
     if (MD.H[k]) return;
-    if (/VIP/i.test(sec || '') || /^VIP/i.test(k)) { vip++; return; }
+    if (/VIP/i.test(sec || '') || /VIP/i.test(k)) { vip++; return; }
     notOnMap.push({ h: no, src: src, sec: sec || '' });
   }
   S.wsAll.forEach(function (u) { chk(u.unit, 'الموقف الأسبوعي', u.sector); });
