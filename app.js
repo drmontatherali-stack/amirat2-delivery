@@ -24,7 +24,7 @@ var USERS = [
 var DEFAULT_CONTRACTORS = ['أحمد عواد', 'عادل عرار', 'محمد عرار', 'جاسم زراك', 'دياري كريم', 'علي الكوفي', 'علي هويدي', 'علي محمد حسين', 'طه عبد الله', 'اكام بهاء', 'ثامر عطار', 'سمير حنون', 'عمر بولات', 'اسعد هادي', 'اوات جمال', 'يوسف حسن'];
 var AR_MONTHS = ['', 'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 var AR_MONTHS_SHORT = ['', 'كانون٢', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران', 'تموز', 'آب', 'أيلول', 'تشرين١', 'تشرين٢', 'كانون١'];
-var VERSION = '1.9.2';
+var VERSION = '1.9.3';
 var ADMIN_UID = 'PsrknBOyOxUU3PM0xqXZvBhRaul1'; // حساب منتظر علي (مدير النظام)
 var BAKROOT = 'amirat2_logs/backups'; // داخل مسار مسموح بقواعد قاعدة البيانات الحالية
 var ACLROOT = 'amirat2_acl';
@@ -1298,6 +1298,14 @@ function conIndex() {
   });
   return { ws: ws, del: del };
 }
+// مقاولين مشالين من كفاءة المقاولين (طلب المستخدم)
+var CW_HIDE = ['احمد عواد', 'عادل محمد عرار', 'يوسف حسن', 'دياري كريم', 'جاسم زراك'];
+function cwHidden(name) {
+  var t = arN(name).split(' ').filter(Boolean); if (!t.length) return false;
+  return CW_HIDE.some(function (h) { var ht = arN(h).split(' '); if (conKey(h) === conKey(name)) return true;
+    // "عادل عرار" ضمن "عادل محمد عرار": الاسم الأول نفسه وكل كلماته موجودة
+    return t.length >= 2 && t[0] === ht[0] && t.every(function (w) { return ht.indexOf(w) >= 0; }); });
+}
 function conStats(units) {
   // النسبة = (قيد التسليم العابر موعدها وغير جاهزة) ÷ كل دور قيد التسليم · الكفاءة = 100 − هذي النسبة (اليوم موعدها = عابر)
   // o.due = العابر موعدها وغير الجاهزة (المتأخرة) · o.notdue = الباقي
@@ -1316,6 +1324,7 @@ VIEWS.weekly = function () {
   var by = {}, ord = [], T = { t: 0, d: 0, p: 0, r: 0 };
   S.cw.forEach(function (r) {
     var k = r.contractor || 'غير محدد';
+    if (cwHidden(k)) return;
     if (!by[k]) { by[k] = { n: k, t: 0, d: 0, p: 0, r: 0, secs: [] }; ord.push(k); }
     var t = N(r.total), d = N(r.delivered), p = N(r.inProgress), rm = N(r.remaining), g = by[k];
     g.t += t; g.d += d; g.p += p; g.r += rm; g.secs.push({ s: r.sector || '-', t: t, d: d, p: p, r: rm });
