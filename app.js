@@ -24,7 +24,7 @@ var USERS = [
 var DEFAULT_CONTRACTORS = ['أحمد عواد', 'عادل عرار', 'محمد عرار', 'جاسم زراك', 'دياري كريم', 'علي الكوفي', 'علي هويدي', 'علي محمد حسين', 'طه عبد الله', 'اكام بهاء', 'ثامر عطار', 'سمير حنون', 'عمر بولات', 'اسعد هادي', 'اوات جمال', 'يوسف حسن'];
 var AR_MONTHS = ['', 'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 var AR_MONTHS_SHORT = ['', 'كانون٢', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران', 'تموز', 'آب', 'أيلول', 'تشرين١', 'تشرين٢', 'كانون١'];
-var VERSION = '2.1.0';
+var VERSION = '2.2.0';
 var ADMIN_UID = 'PsrknBOyOxUU3PM0xqXZvBhRaul1'; // حساب منتظر علي (مدير النظام)
 var BAKROOT = 'amirat2_logs/backups'; // داخل مسار مسموح بقواعد قاعدة البيانات الحالية
 var ACLROOT = 'amirat2_acl';
@@ -141,15 +141,20 @@ var fb = null, auth = null, R = null, LR = null;
 
 /* ================= البيانات المشتقة ================= */
 function D() { return S.db || {}; }
-function readyMap() { var m = {}, r = D().readyMap || {}; Object.keys(r).forEach(function (k) { m[dec(k)] = r[k]; }); return m; }
+// ذاكرة مؤقتة للحسابات المشتقة: تنحسب مرة وحدة لكل تغيير بالبيانات بدل آلاف المرات بكل رسم (سبب البطء)
+var MEMO = {}, MEMO_T = 0;
+function bump() { MEMO = {}; MEMO_T = Date.now(); }
+function memo(k, f) { if (Date.now() - MEMO_T > 60000) bump(); var v = MEMO[k]; if (v === undefined) v = MEMO[k] = f(); return v; }
+function readyMap() { return memo('ready', function () { var m = {}, r = D().readyMap || {}; Object.keys(r).forEach(function (k) { m[dec(k)] = r[k]; }); return m; }); }
 function isReady(unit) { return !!readyMap()[normH(unit)]; }
-function oldRecs() { return toArr(D().oldRecords).map(function (r) { return r; }); }
-function reviewOf(unit) { var k = normH(unit); return oldRecs().find(function (r) { return normH(r.houseNo) === k; }) || null; }
+function oldRecs() { return memo('old', function () { return toArr(D().oldRecords); }).slice(); }
+function reviewOf(unit) { var m = memo('oldIdx', function () { var o = {}; oldRecs().forEach(function (r) { var k = normH(r.houseNo); if (!o[k]) o[k] = r; }); return o; }); return m[normH(unit)] || null; }
 function isDeliveredRec(r) { return !!(r && (r.alreadyDelivered || r.status === 'مستلم')); }
-function dismissedMap() { var m = {}, x = D().dismissed || {}; Object.keys(x).forEach(function (k) { if (x[k]) m[dec(k)] = true; }); return m; }
+function dismissedMap() { return memo('dis', function () { var m = {}, x = D().dismissed || {}; Object.keys(x).forEach(function (k) { if (x[k]) m[dec(k)] = true; }); return m; }); }
 function getSheetDate(h) { return S.delMap[normS(h)] || null; }
 // حالة الدور الجديدة الموحّدة — نفس nhStatusMap بالنظام الحالي (القديم للتوافق ثم units يتقدّم)
-function nhStatusMap() {
+function nhStatusMap() { return memo('nh', nhStatusMap0); }
+function nhStatusMap0() {
   var nh = D().newHouseState || {}, m = {};
   function dm(o) { var r = {}; Object.keys(o || {}).forEach(function (k) { r[dec(k)] = o[k]; }); return r; }
   var known = dm(nh.known), alerts = dm(nh.alerts), dismissed = dm(nh.dismissed), units = dm(nh.units);
@@ -159,7 +164,8 @@ function nhStatusMap() {
   Object.keys(units).forEach(function (k) { if (units[k]) m[k] = units[k]; });
   return m;
 }
-function pendingNew() {
+function pendingNew() { return memo('pend', pendingNew0).slice(); }
+function pendingNew0() {
   var m = nhStatusMap(), inSheet = {}, out = [];
   S.wsAll.forEach(function (u) { inSheet[normH(u.unit)] = u; });
   Object.keys(m).forEach(function (k) {
@@ -173,7 +179,8 @@ function pendingNew() {
   });
   return out;
 }
-function wsUnits() { // المعروض بالنظام = كل صفوف الشيت ناقص الدور التي تنتظر الموافقة وناقص المحذوفة
+function wsUnits() { return memo('ws', wsUnits0).slice(); }
+function wsUnits0() { // المعروض بالنظام = كل صفوف الشيت ناقص الدور التي تنتظر الموافقة وناقص المحذوفة
   var pend = {}, dis = dismissedMap();
   pendingNew().forEach(function (u) { pend[normH(u.unit)] = true; });
   return S.wsAll.filter(function (u) { var k = normH(u.unit); return !pend[k] && !dis[k]; });
@@ -185,7 +192,7 @@ function normU(u) { if (u && isDirectExec(u.executionType) && u.contractor !== D
 function unitCon(u) { return !u ? '' : (isDirectExec(u.executionType) ? DIRECT_LBL : (u.contractor || u.executionType || '')); }
 function recCon(rec) { if (!rec) return ''; var u = wsByKey(rec.houseNo); if (u) return unitCon(u); return isDirectExec(rec.executionType) ? DIRECT_LBL : (rec.contractorName || rec.executionType || ''); }
 S.wsAll.forEach(function (u) { normU(u); }); // الكاش القديم
-function wsByKey(unit) { var k = normH(unit); return wsUnits().find(function (u) { return normH(u.unit) === k; }) || null; }
+function wsByKey(unit) { var m = memo('wsIdx', function () { var o = {}; wsUnits().forEach(function (u) { var k = normH(u.unit); if (!o[k]) o[k] = u; }); return o; }); return m[normH(unit)] || null; }
 function notifiedBadge(unit) {
   var e = nhStatusMap()[normH(unit)];
   if (!e || e.status !== 'confirmed' || e.seed || !e.confirmedAt) return '';
@@ -261,7 +268,7 @@ function crossovers() { // دور وقّعت محضر استلام وما زال
   oldRecs().forEach(function (r) { if (isDeliveredRec(r)) return; var k = normH(r.houseNo); if (seen[k] || dis[k] || S.snoozed[k]) return; var d = getSheetDate(r.houseNo); if (d) { seen[k] = 1; out.push({ houseNo: r.houseNo, date: d }); } });
   return out;
 }
-function alertBadgeCount() { var a = computeAlerts(); return a.wsOverdue10.length + a.rvOverdue.length; }
+function alertBadgeCount() { var a = memo('alerts', computeAlerts); return a.wsOverdue10.length + a.rvOverdue.length; }
 function noticeCount() { return noticeCountAll(); }
 
 /* ================= البحث الشامل ================= */
@@ -323,13 +330,16 @@ function initFirebase() {
   window.addEventListener('online', function () { toast('🟢 رجع الاتصال — جاري المزامنة', 'info'); syncAll(false); });
   return true;
 }
+// حفظ نسخة القاعدة بالجهاز بعد ما يهدأ الشغل (تحويلها لنص يأخذ وقت لو تكرر بكل تعديل)
+var cacheT = null; function cacheDB() { clearTimeout(cacheT); cacheT = setTimeout(function () { lsSet('a2_dbcache', S.db); }, 1200); }
+window.addEventListener('pagehide', function () { if (cacheT) { clearTimeout(cacheT); lsSet('a2_dbcache', S.db); } });
 var listening = false;
 function listen() {
   if (listening) return; listening = true;
   R.on('value', function (snap) {
-    S.db = snap.val() || {};
+    S.db = snap.val() || {}; bump();
     S.remoteReady = true;
-    lsSet('a2_dbcache', S.db);
+    cacheDB();
     setTimeout(autoBackup, 3000);
     detectNew();
     scheduleRender();
@@ -352,7 +362,7 @@ var OB = lsGet('a2_outbox', []);
 function obSave() { lsSet('a2_outbox', OB); }
 function localApply(op, path, val) {
   var ps = String(path).split('/').filter(Boolean); if (ps[0] !== ROOT) return;
-  ps = ps.slice(1);
+  ps = ps.slice(1); bump();
   if (op === 'update') { Object.keys(val || {}).forEach(function (k) { localApply('set', path + '/' + k, val[k]); }); return; }
   var v = op === 'remove' ? null : (val == null ? null : clean(val));
   if (!ps.length) { S.db = v || {}; return; }
@@ -363,7 +373,7 @@ function localApply(op, path, val) {
 function W(op, path, val, onDone) {
   var it = { i: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), op: op, p: path, v: val === undefined ? null : clean(val), t: Date.now() };
   OB.push(it); obSave();
-  localApply(op, path, it.v); lsSet('a2_dbcache', S.db);
+  localApply(op, path, it.v); cacheDB();
   obSend(it, onDone);
   renderTopSafe();
   return it.i;
@@ -415,7 +425,7 @@ function syncWeekly(manual) {
   return waitRemote(6000).then(function () { return fetchSheet(settingsUrl('weekly')); }).then(function (rows) {
     var parsed = parseWeeklySheet(rows);
     if (!parsed.length) throw new Error('ما لكيت أي صفوف دور قيد التسليم — تأكد من رابط نشر تبويب "الموقف الاسبوعي"');
-    S.wsAll = parsed; S.wsLast = new Date().toLocaleString('ar-IQ'); S.wsErr = '';
+    S.wsAll = parsed; bump(); S.wsLast = new Date().toLocaleString('ar-IQ'); S.wsErr = '';
     lsSet('a2_ws', parsed); lsSet('a2_wsLast', S.wsLast);
     detectNew();
     if (manual) toast('✅ تم تحديث قيد التسليم: ' + parsed.length + ' دار');
@@ -462,7 +472,7 @@ function syncDelivered(manual) {
       var better = !map[key] || (!isIso(map[key]) && isIso(iso)) || (isIso(iso) && isIso(map[key]) && iso > map[key]);
       if (better) map[key] = iso;
     }
-    S.del = all; S.delMap = map; S.delLast = new Date().toLocaleString('ar-IQ'); S.delErr = '';
+    S.del = all; S.delMap = map; bump(); S.delLast = new Date().toLocaleString('ar-IQ'); S.delErr = '';
     lsSet('a2_del', all); lsSet('a2_delMap', map); lsSet('a2_delLast', S.delLast);
     if (manual) toast('✅ تم تحديث الدور المسلّمة: ' + all.length + ' صف');
   }).catch(function (e) { S.delErr = e.message; if (manual) toast('⚠️ تعذّر تحديث شيت المسلّمة: ' + e.message, false); })
@@ -1493,7 +1503,7 @@ VIEWS.rvsum = function () {
     '<div class="card"><b>' + (rows.length ? Math.round(nD / rows.length) : 0) + '</b><span>معدل أيام المراجعة للدار</span></div>' +
     '<div class="card"><b>' + nD + '</b><span>إجمالي أيام المراجعات</span></div></div>';
   if (!rows.length) return h + '<div class="card empty">لا نتائج مطابقة.</div>';
-  var shown = rows.slice(0, S.rsShow || 200);
+  var shown = rows.slice(0, S.rsShow || 60);
   h += '<div class="card" style="padding:0;overflow:hidden"><div class="scroll rstbl" style="max-height:calc(100vh - 300px)"><table class="tbl"><thead><tr><th>ت</th><th>المقاول</th><th>رقم البلوك والدار</th><th>تاريخ التسليم</th><th>عدد المراجعات</th><th>تواريخ المراجعات</th><th>إجمالي أيام المراجعات</th><th>موقف الدار</th></tr></thead><tbody>' +
     shown.map(function (r, i) {
       return '<tr style="--i:' + Math.min(i, 18) + '"><td class="muted">' + (i + 1) + '</td><td><b>' + esc(r.con) + '</b>' + (r.sec ? '<div class="muted" style="font-size:12px">' + esc(r.sec) + '</div>' : '') + '</td>' +
@@ -1793,7 +1803,7 @@ var ACT = {
   panelMore: function () { S.panelShow += 150; scheduleRender(); },
   panelXl: function () { var p = S.panel; if (!p || !p.rows.length) { toast('القائمة فارغة', false); return; } xlsx([p.head].concat(p.rows), 'قائمة', p.title.replace(/[^؀-ۿa-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') + '_' + todayStr() + '.xlsx'); },
   exportReviews: exportReviews, exportAnnual: exportAnnual, exportRvSum: exportRvSum,
-  rsF: function (d) { S.rsF = d.v; S.rsShow = 200; renderAll(); }, rsSort: function (d) { S.rsSort = d.v; renderAll(); }, rsMore: function () { S.rsShow = (S.rsShow || 200) + 200; renderAll(); },
+  rsF: function (d) { S.rsF = d.v; S.rsShow = 60; renderAll(); }, rsSort: function (d) { S.rsSort = d.v; renderAll(); }, rsMore: function () { S.rsShow = (S.rsShow || 60) + 100; renderAll(); },
   wsMode: function (d) { S.wsF.mode = d.v; if (d.v === 'towers') S.wsF.sort = 'default'; else if (S.wsF.sort === 'default') S.wsF.sort = 'contractor'; scheduleRender(); },
   wsFilter: function (d) { S.wsF = { sector: 'all', contractor: 'all', sort: 'default', q: '', mode: 'towers', label: d.con }; S.openSectors = {}; wsUnits().forEach(function (x) { if (execLabel(x.executionType, x.contractor) === d.con) S.openSectors[x.sector || 'غير محدد'] = true; }); S.view = 'ws'; scheduleRender(); },
   clearLabel: function () { S.wsF.label = ''; scheduleRender(); },
@@ -1833,7 +1843,7 @@ var INP = {
   wsSort: function (el) { S.wsF.sort = el.value; S.wsF.mode = el.value === 'default' ? 'towers' : 'table'; scheduleRender(); },
   rvq: function (el) { S.rvQ = el.value; scheduleRender(); },
   rvSort: function (el) { S.rvSort = el.value; scheduleRender(); },
-  rsq: function (el) { S.rsQ = el.value; S.rsShow = 200; clearTimeout(INP._t); INP._t = setTimeout(scheduleRender, 200); },
+  rsq: function (el) { S.rsQ = el.value; S.rsShow = 60; clearTimeout(INP._t); INP._t = setTimeout(scheduleRender, 200); },
   delq: function (el) { S.delQ = el.value; S.delShow = 150; clearTimeout(INP._t); INP._t = setTimeout(scheduleRender, 200); },
   roundEdit: function (el) { if (MODAL.form) MODAL.form.rounds[+el.dataset.i][el.dataset.f] = el.value; },
   execChange: function (el) { var w = document.getElementById('f-con-wrap'); if (w) w.classList.toggle('hidden', el.value !== 'مقاولين'); },

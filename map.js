@@ -1,14 +1,14 @@
-/* الخريطة الحيّة — قسم تجريبي منفصل عن عمل مكتب التسليم
-   تقرا نفس بيانات النظام (قيد التسليم، المسلّمة، المراجعات) وتلوّن كل دار على خريطة القطاعات.
-   تعديلات توزيع المقاولين على الخريطة تنحفظ بمسار منفصل (amirat2/mapTrial) وما تأثر على أي حساب بالنظام لحين الاعتماد.
+/* الخريطة الحيّة — قسم من نظام مكتب التسليم
+   انعكاس حي للنظام: تقرا نفس البيانات (قيد التسليم، المسلّمة، المراجعات) وتلوّن كل دار على مخطط المجمع.
+   للعرض فقط — الإجراء الوحيد من الخريطة هو إضافة مراجعة، وكل التعديلات من خانة البحث.
    Design by: Montather Ali */
 (function () {
 'use strict';
 var X = window.A2X; if (!X || !X.VIEWS) return;
-var V = '2.5.2';
+var V = '2.6.0';
 var S = X.S, esc = X.esc;
 var MD = null, MDerr = '', loading = false;
-var ST = { side: false, sec: X.lsGet('mx_sec', 'all'), mode: X.lsGet('mx_mode', 'status'), con: 'all', flt: 'all', year: String(new Date().getFullYear()), q: '', sel: null, edit: false, vb: {}, zoomed: false };
+var ST = { lgc: +X.lsGet('mx_lgc', innerWidth < 640 ? 1 : 0) === 1, side: false, sec: X.lsGet('mx_sec', 'all'), mode: X.lsGet('mx_mode', 'status'), con: 'all', flt: 'all', year: String(new Date().getFullYear()), q: '', sel: null, edit: false, vb: {}, zoomed: false };
 var COLORS = { del: '#2ecc71', ready: '#3fa9f5', not: '#f5a623', late: '#ff4d5e', rev: '#a77bff', nw: '#22d3c5', none: null };
 var ST_LBL = { del: 'مسلّمة', ready: 'قيد التسليم · جاهزة', not: 'قيد التسليم · غير جاهزة', late: 'عابر موعدها وغير جاهزة', rev: 'قيد المراجعة', nw: 'جديدة بانتظار التبليغ', none: 'بعدها ما وصلت' };
 var ST_ORD = ['del', 'ready', 'not', 'late', 'rev', 'nw', 'none'];
@@ -22,15 +22,15 @@ var MAPAPP = window.A2_MODE === 'map';
 X.ICONS.map = 'M9 4 3 6v14l6-2 6 2 6-2V4l-6 2zM9 4v14M15 6v14';
 X.HUB_LBL.map = 'الخريطة';
 if (MAPAPP) {
-  X.TITLES.map = 'خريطة مجمع الأميرات 2 · تجريبي';
+  X.TITLES.map = 'خريطة مجمع الأميرات 2';
   // كل شاشات مكتب التسليم متوفرة داخل نظام الخريطة، والخريطة هي الرئيسية
   X.NAV.unshift(['map', 'الخريطة']);
   var og = X.ACT.go; X.ACT.go = function (d, el, ev) { if (d && d.v === 'hub') d = { v: 'map' }; return og(d, el, ev); };
 } else {
   if (X.HUB.indexOf('map') < 0) X.HUB.push('map');
-  X.TITLES.map = 'الخريطة الحيّة · تجريبي';
-  if (!X.NAV.some(function (n) { return n[0] === 'map'; })) X.NAV.splice(X.NAV.length - 1, 0, ['map', 'الخريطة · تجريبي']);
-  X.hubStats = function () { return { map: { c: 'تجريبي', p: null } }; };
+  X.TITLES.map = 'الخريطة الحيّة';
+  if (!X.NAV.some(function (n) { return n[0] === 'map'; })) X.NAV.splice(X.NAV.length - 1, 0, ['map', 'الخريطة']);
+  X.hubStats = function () { return { map: { c: 'كل الدور على المخطط', p: null } }; };
 }
 X.VIEWS.map = function () { return '<div id="mxroot" class="mx"></div>'; };
 // أي تعديل على البيانات من نظام الخريطة يسأل «هل أنت متأكد؟» قبل الحفظ
@@ -64,8 +64,14 @@ function sameCon(a, b) { // "اوات" = "اوات جمال" ، "علي الكو
 }
 function allSecs() { return MD ? Object.keys(MD.sectors).map(Number).sort(function (a, b) { return a - b; }) : [1, 2, 3, 4, 5, 6]; }
 function sectorName(s) { return MD && MD.sectors[s] ? MD.sectors[s].name : 'القطاع ' + s; }
-function trialBlocks() { var t = (X.D().mapTrial || {}).blocks || {}; return t; }
 function bKey(s, b) { return 's' + s + '_' + b; }
+// جهات تُعتبر تنفيذ مباشر حتى لو الشيت كاتب اسمها كمقاول (طلب المستخدم: دياري كريم) + اللي المخطط يعتبرها مباشر
+var DIRECT_NAMES = ['دياري كريم'];
+function directNames() { if (ST.dn) return ST.dn; var a = DIRECT_NAMES.slice(); if (MD && MD.directRules) Object.keys(MD.directRules).forEach(function (s) { var r = MD.directRules[s]; if (Array.isArray(r)) a = a.concat(r); }); return ST.dn = a; }
+function isDirectCon(n) { return !!n && (X.isDirectExec(n) || directNames().some(function (d) { return sameCon(d, n); })); }
+function canonCon(n) { // نفس المقاول بكتابة الشيت أو المخطط ينجمع تحت اسم واحد
+  if (!n || !MD) return n; ST.cc = ST.cc || {}; if (ST.cc[n]) return ST.cc[n];
+  var m = MD.cons.filter(function (c) { return c && sameCon(c, n); }); return ST.cc[n] = m.length === 1 ? m[0] : n; }
 function blockOf(id) { return id.split('.')[0]; }
 
 /* ---------- تحميل بيانات الخريطة ---------- */
@@ -90,10 +96,13 @@ function index() {
   X.oldRecs().forEach(function (r) { rv[mk(r.houseNo)] = r; });
   return { ws: ws, del: del, rv: rv, nw: nw };
 }
-function effCon(h) { // مقاول الدار حسب الخريطة + تعديل التوزيع التجريبي
-  var o = trialBlocks()[bKey(h.s, h.b)];
-  var con = o ? (o.con || '') : h.con0, dir = o ? !!o.direct : h.dir0;
-  return { con: con, direct: dir, label: dir ? DIRECT : (con || 'غير محدد'), group: dir ? CO_LBL : (con || 'غير محدد'), edited: !!o, orig: h.con0, origDir: h.dir0 };
+function sheetConOf(h, I) { var k = mk(h.id), u = I.ws[k], r = I.rv[k]; return u ? X.unitCon(u) : (r ? X.recCon(r) : ''); }
+function effCon(h) { // الجهة المنفذة حسب النظام (الشيت)، وإذا الدار مو بالشيت حسب المخطط
+  var I = ST.I || index(), sc = sheetConOf(h, I), con, dir, src;
+  if (sc) { dir = isDirectCon(sc); con = dir ? '' : canonCon(sc); src = 'sheet'; }
+  else { dir = h.dir0 || isDirectCon(h.con0); con = dir ? '' : h.con0; src = 'draw'; }
+  var drawLbl = (h.dir0 || isDirectCon(h.con0)) ? DIRECT : (h.con0 || 'غير محدد');
+  return { con: con, direct: dir, label: dir ? DIRECT : (con || 'غير محدد'), group: dir ? CO_LBL : (con || 'غير محدد'), src: src, orig: h.con0, draw: drawLbl, sheet: sc };
 }
 function statusOf(h, I) {
   var k = mk(h.id), u = I.ws[k], r = I.rv[k], d = I.del[k];
@@ -110,11 +119,10 @@ function css() {
   var st = document.createElement('style'); st.id = 'mxcss';
   st.textContent = [
     '.mx{display:flex;flex-direction:column;gap:12px}',
-    '.mx .trial{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--gold,#E2C47A);border:1px dashed color-mix(in srgb,var(--gold,#E2C47A) 60%,transparent);border-radius:12px;padding:8px 12px;background:color-mix(in srgb,var(--gold,#E2C47A) 8%,transparent)}',
     '.mx .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center}',
     '.mx .secs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;max-width:100%}',
     '.mx .sc{display:flex;flex-direction:column;align-items:stretch;gap:3px;min-width:74px;padding:7px 10px;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;cursor:pointer;transition:transform .2s,border-color .2s,background .2s}',
-    '.mx .sc:hover{transform:translateY(-2px)}',
+    '.mx .sc{flex:none}.mx .sc:hover{transform:translateY(-2px)}',
     '.mx .sc b{font-size:13.5px;white-space:nowrap}.mx .sc small{font-size:10.5px;color:var(--muted);white-space:nowrap}',
     '.mx .sc.on{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 16%,var(--card));box-shadow:0 6px 22px -10px var(--brand)}',
     '.mx .pb{display:block;height:4px;border-radius:4px;background:var(--soft2);overflow:hidden}.mx .pb i{display:block;height:100%;width:0;background:linear-gradient(90deg,#2ecc71,#4FD8E8);border-radius:4px;transition:width .9s cubic-bezier(.2,.8,.2,1)}',
@@ -124,12 +132,13 @@ function css() {
     '.mx .tools{display:flex;gap:6px}',
     '.mx .tb{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:58px;padding:6px 8px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:17px;cursor:pointer;text-decoration:none;transition:transform .2s,background .2s}',
     '.mx .tb span{font-size:10.5px;color:var(--muted)}.mx .tb:hover{transform:translateY(-2px);background:var(--soft)}.mx .tb.on{border-color:var(--gold,#E2C47A);background:color-mix(in srgb,var(--gold,#E2C47A) 14%,var(--card))}',
-    '.mx .mxlayers{position:absolute;top:8px;inset-inline-end:8px;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;z-index:3;padding:4px;border-radius:16px;background:color-mix(in srgb,var(--card-solid,#0b1430) 72%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--line);width:max-content;max-width:calc(100% - 20px)}',
+    '.mx .mxlayers{position:absolute;top:8px;inset-inline-end:8px;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;z-index:3;padding:4px;border-radius:16px;background:color-mix(in srgb,var(--card-solid,#0b1430) 94%,transparent);border:1px solid var(--line);width:max-content;max-width:calc(100% - 20px)}',
     '.mx .mxlayers button{display:flex;align-items:center;gap:3px;white-space:nowrap;border:0;border-radius:9px;padding:4px 7px;background:transparent;color:var(--muted);font:inherit;font-size:11px;cursor:pointer;transition:background .25s,color .25s}',
     '.mx .mxlayers button em{font-style:normal}.mx .mxlayers button span{font-size:12px}.mx .mxlayers{gap:2px;padding:3px}',
     '.mx .mxlayers button.on{background:var(--brand);color:#06121f;font-weight:700;box-shadow:0 4px 14px -6px var(--brand)}',
     '.mx .mxtip{position:absolute;z-index:4;pointer-events:none;min-width:150px;max-width:220px;padding:8px 10px;border-radius:12px;background:color-mix(in srgb,var(--card-solid,#0b1430) 92%,transparent);border:1px solid var(--line);box-shadow:0 10px 30px -10px #000;display:flex;flex-direction:column;gap:2px;font-size:12.5px;color:var(--ink)}',
     '.mx .mxtip span{display:flex;align-items:center;gap:6px}.mx .mxtip i{width:10px;height:10px;border-radius:3px;display:inline-block}.mx .mxtip small{color:var(--muted);font-size:11px}',
+    '.mx svg.mxs{transform-origin:0 0;will-change:transform}',
     '.mx svg.mxs .hs{transform-box:fill-box;transform-origin:center}',
     '.mx svg.mxs.wave:not(.big) .hs{animation:mxw .7s cubic-bezier(.2,.9,.3,1.25) both;animation-delay:var(--d,0ms)}',
     '.mx svg.mxs.big.wave #mxh{animation:mxf2 .6s ease both}@keyframes mxf2{from{opacity:0}}',
@@ -137,13 +146,8 @@ function css() {
     '.mx svg.mxs .ctx{fill:none;stroke:var(--muted);stroke-width:.45;opacity:.32}',
     '.mx svg.mxs .fac{font:600 6.5px "IBM Plex Sans Arabic",sans-serif;fill:var(--muted);opacity:.85;text-anchor:middle;pointer-events:none;paint-order:stroke;stroke:var(--card-solid,#0b1430);stroke-width:1.6px}',
     '.mx svg.mxs .hs.vip{stroke:#E2C47A;stroke-width:1.4}',
-    '.mx svg.mxs .hs.brth{animation:mxbr 2.6s ease-in-out infinite}',
-    '@keyframes mxbr{0%,100%{opacity:1}50%{opacity:.45}}',
-    '.mx svg.mxs .sweep{transform-box:fill-box;pointer-events:none;mix-blend-mode:screen;animation:mxsw 9s linear infinite}',
-    '@keyframes mxsw{0%{transform:translateX(0)}60%,100%{transform:translateX(430%)}}',
-    '.mx svg.mxs .snb{transition:opacity .25s}.mx svg.mxs.zoomed .snb{opacity:.35}',
-    '@media (prefers-reduced-motion:reduce){.mx svg.mxs .hs.brth,.mx svg.mxs .sweep{animation:none}}',
-    '.mx svg.mxs .hs:hover{stroke:#fff;stroke-width:1.6}','.mx svg.mxs:not(.big) .hs:hover{transform:scale(1.18);transition:transform .18s}',
+    '.mx svg.mxs.zoomed .snb{opacity:.35}',
+    '.mx svg.mxs .hs:hover{stroke:#fff;stroke-width:1.6}',
     '.mx svg.mxs .snb{cursor:pointer}.mx svg.mxs .snb rect{fill:color-mix(in srgb,var(--brand) 30%,var(--card-solid,#0b1430));fill-opacity:.92;stroke:var(--brand);stroke-width:1;vector-effect:non-scaling-stroke}',
     '#mxsure{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:rgba(3,6,18,.55);backdrop-filter:blur(3px);animation:mxf .18s ease}',
     '#mxsure .box{width:min(92vw,380px);padding:22px;border-radius:20px;background:var(--card-solid,#101a3a);border:1px solid var(--line);box-shadow:0 30px 80px -20px #000;text-align:center;animation:mxpop .25s cubic-bezier(.2,.9,.3,1.2)}',
@@ -157,32 +161,40 @@ function css() {
     '.mx .seg button.on{background:var(--brand);color:#06121f;font-weight:700}',
     '.mx .main{position:relative}',
     '.mx .side{position:absolute;z-index:5;top:54px;inset-inline-start:10px;width:min(300px,calc(100% - 20px));max-height:calc(100% - 64px);overflow:auto;scrollbar-width:thin;transition:transform .3s cubic-bezier(.2,.8,.2,1),opacity .3s}',
-    '.mx .side .card{background:color-mix(in srgb,var(--card-solid,#0b1430) 90%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 18px 40px -18px #000}',
+    '.mx .side .card{background:var(--card-solid,var(--card));box-shadow:0 18px 40px -18px #000}',
     '.mx.sidehid .side{transform:translateX(-12px);opacity:0;pointer-events:none}[dir=rtl] .mx.sidehid .side{transform:translateX(12px)}',
-    '.mx .sidetg{position:absolute;z-index:6;top:8px;inset-inline-start:8px;border:1px solid var(--line);border-radius:12px;padding:7px 11px;background:color-mix(in srgb,var(--card-solid,#0b1430) 85%,transparent);backdrop-filter:blur(8px);color:var(--ink);font:inherit;font-size:12.5px;cursor:pointer}',
-    '.mx.compact .trial{display:none}.mx.compact{gap:8px}',
+    '.mx .sidetg{position:absolute;z-index:6;top:8px;inset-inline-start:8px;border:1px solid var(--line);border-radius:12px;padding:7px 11px;background:color-mix(in srgb,var(--card-solid,#0b1430) 94%,transparent);color:var(--ink);font:inherit;font-size:12.5px;cursor:pointer}',
+    '.mx.compact{gap:8px}',
     '.mx.compact .kpis{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}.mx.compact .kpis::-webkit-scrollbar{display:none}',
     '.mx.compact .kpi{flex:none;min-width:104px;padding:6px 10px;grid-template-areas:"i n" "l l";gap:0 8px}.mx.compact .kpi .kb{display:none}.mx.compact .kpi b{font-size:17px}.mx.compact .kpi .ki{font-size:14px}.mx.compact .kpi .kl{font-size:11px;white-space:nowrap}',
     '.mx.compact .sc{flex-direction:row;align-items:center;gap:5px;padding:5px 9px;min-width:0;border-radius:11px}.mx.compact .sc b{font-size:12.5px}.mx.compact .sc small{font-size:10px}.mx.compact .sc .pb{display:none}.mx.compact .tb{min-width:40px}.mx.compact .tb span{display:none}.mx.compact .bar{gap:6px}.mx.compact .srch input{padding:8px 0}.mx.compact .tb{padding:4px 6px}',
     'body.mxon #topbar .credit{display:none}body.mxon #topbar h1 small{display:none}body.mxon #topbar{padding-block:6px}',
-    '@media (max-width:640px){.mx .mxlayers{inset-inline:8px;max-width:none;width:auto}.mx .sidetg{top:auto;bottom:10px;inset-inline-start:auto;inset-inline-end:10px}.mx .side{top:52px}.mx .bar .srch{flex-basis:100%}body.mxon #topbar .chip.net{display:none}}',
+    '@media (max-width:640px){.mx .mxlayers{inset-inline:8px;max-width:none;width:auto}.mx .sidetg{top:50px}.mx .side{top:92px;max-height:calc(100% - 100px)}.mx .bar .srch{flex-basis:100%}body.mxon #topbar .chip.net{display:none}}',
+    /* دليل الألوان على الخريطة نفسها */
+    '.mx .mxlg{position:absolute;z-index:4;bottom:10px;inset-inline-end:10px;width:min(290px,calc(100% - 76px));max-height:min(52%,420px);display:flex;flex-direction:column;border:1px solid var(--line);border-radius:14px;background:var(--card-solid,var(--card));box-shadow:0 14px 34px -16px #000;overflow:hidden}',
+    '.mx .mxlg>.hd{display:flex;align-items:center;gap:6px;border:0;background:transparent;color:var(--ink);font:inherit;font-size:12.5px;font-weight:700;padding:8px 10px;cursor:pointer;text-align:right}.mx .mxlg>.hd small{color:var(--muted);font-weight:400;flex:1}.mx .mxlg>.hd i{font-style:normal;transition:transform .25s}',
+    '.mx .mxlg .bdy{overflow:auto;padding:0 6px 8px;scrollbar-width:thin}.mx .mxlg.cl .bdy{display:none}.mx .mxlg.cl>.hd i{transform:rotate(180deg)}.mx .mxlg.cl{width:auto}',
+    '.mx .mxlg .lg button{font-size:12.5px;padding:4px 6px;grid-template-columns:14px 1fr auto}',
+    '.mx .mxlg .fr{display:grid;grid-template-columns:14px 1fr;gap:8px;align-items:center;font-size:12px;color:var(--ink);padding:3px 6px}.mx .mxlg .fr i{width:12px;height:12px;border-radius:3px;display:inline-block;box-sizing:border-box}',
+    '.mx .mxlg h4{margin:8px 6px 4px;font-size:11.5px;color:var(--muted);font-weight:600}',
+    '.mx .mxlg p{margin:6px 6px 0;font-size:11.5px;color:var(--muted);line-height:1.6}',
+    '@media (max-width:640px){.mx .mxlg{inset-inline-end:8px;bottom:8px;width:calc(100% - 70px)}}',
     '.mx .mapbox{position:relative;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:radial-gradient(1200px 600px at 50% 0%,color-mix(in srgb,var(--brand) 7%,transparent),transparent 60%),var(--card-solid,var(--card));height:calc(100vh - 300px);min-height:440px;touch-action:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.02),0 20px 50px -30px #000}',
-    '.mx .mapbox::before{content:"";position:absolute;inset:0;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:44px 44px;opacity:.18;pointer-events:none}',
     '.mx svg.mxs{width:100%;height:100%;margin-top:0;display:block;user-select:none;-webkit-user-select:none;cursor:grab}',
     '.mx svg.mxs .geo{fill:none;stroke:var(--muted);stroke-width:.4;opacity:.55}',
-    '.mx svg.mxs .hs{stroke:rgba(0,0,0,.38);stroke-width:.3;transition:opacity .35s,fill .45s ease}',
+    '.mx svg.mxs .hs{stroke:rgba(0,0,0,.38);stroke-width:.3}.mx svg.mxs:not(.big) .hs{transition:opacity .35s,fill .45s ease}',
     '.mx svg.mxs .hs.dim{opacity:.12}',
-    '.mx svg.mxs .hs.rvm{stroke:#a77bff;stroke-width:2}',
-    '.mx svg.mxs .hs.sel{stroke:#fff;stroke-width:3;filter:url(#mxglow)}',
+    '.mx svg.mxs .hs.rvm{stroke:#a77bff;stroke-width:1.6}',
+    '.mx svg.mxs .hs.sel{stroke:#fff;stroke-width:2.4;paint-order:stroke}',
     '.mx svg.mxs .hs.pulse{animation:mxp 1s ease-in-out 4}',
     '@keyframes mxp{50%{opacity:.2}}',
     '.mx svg.mxs .blg rect{fill:var(--brand);fill-opacity:.92;stroke:#0b1430;stroke-width:.6;pointer-events:none}',
     '.mx svg.mxs .bl{font:800 7.2px "Readex Pro","IBM Plex Sans Arabic",sans-serif;fill:#06121f;pointer-events:none;text-anchor:middle;dominant-baseline:central;letter-spacing:.2px}',
-    '.mx svg.mxs.big.mv .blg,.mx svg.mxs.big.mv .fac,.mx svg.mxs.big.mv .snb,.mx svg.mxs.big.mv .hn{display:none}',
-    '.mx svg.mxs .hn{font-family:"Readex Pro","IBM Plex Sans Arabic",sans-serif;font-weight:700;fill:#1b2440;fill-opacity:.85;pointer-events:none;text-anchor:middle;dominant-baseline:central}',
+    '.mx svg.mxs:not(.nums) .hn{display:none}',
+    '.mx svg.mxs .hn{text-rendering:optimizeSpeed;font-family:"Readex Pro","IBM Plex Sans Arabic",sans-serif;font-weight:700;fill:#1b2440;fill-opacity:.85;pointer-events:none;text-anchor:middle;dominant-baseline:central}',
     '.mx svg.mxs .sn{font:800 19px "IBM Plex Sans Arabic",sans-serif;fill:var(--ink);text-anchor:middle;pointer-events:none}',
     '.mx .zbtn{position:absolute;inset-inline-start:10px;bottom:10px;display:flex;flex-direction:column;gap:6px}',
-    '.mx .zbtn{z-index:3}.mx .zbtn button{width:42px;height:42px;border-radius:14px;border:1px solid var(--line);background:color-mix(in srgb,var(--card-solid,#0b1430) 80%,transparent);backdrop-filter:blur(8px);color:var(--ink);font-size:20px;cursor:pointer;transition:transform .15s}.mx .zbtn button:active{transform:scale(.92)}',
+    '.mx .zbtn{z-index:3}.mx .zbtn button{width:42px;height:42px;border-radius:14px;border:1px solid var(--line);background:color-mix(in srgb,var(--card-solid,#0b1430) 94%,transparent);color:var(--ink);font-size:20px;cursor:pointer;transition:transform .15s}.mx .zbtn button:active{transform:scale(.92)}',
     '.mx .side{display:flex;flex-direction:column;gap:10px}',
     '.mx .side .card{padding:14px}',
     '.mx .lg{display:flex;flex-direction:column;gap:4px}',
@@ -218,21 +230,21 @@ function build() {
   css();
   var root = document.getElementById('mxroot'); if (!root) return;
   if (!MD) {
-    root.innerHTML = trialBar() + '<div class="card empty">' + (MDerr ? '⚠️ تعذّر تحميل الخريطة: ' + esc(MDerr) : '⏳ جاري تحميل خريطة القطاعات…') + '</div>';
+    root.innerHTML = '<div class="card empty">' + (MDerr ? '⚠️ تعذّر تحميل الخريطة: ' + esc(MDerr) : '⏳ جاري تحميل خريطة القطاعات…') + '</div>';
     if (!MDerr) load(); return;
   }
   if (!root.querySelector('.mapbox') || ST.built !== true) {
-    root.innerHTML = trialBar() + toolbar() + '<div class="main"><div class="mapbox" id="mxbox">' + svgHTML(false) +
+    root.innerHTML = toolbar() + '<div class="main"><div class="mapbox" id="mxbox">' + svgHTML(false) +
       '<div class="mxlayers" role="group" aria-label="الطبقة">' + MODES.map(function (m) { return '<button data-mx="mode" data-v="' + m[0] + '" class="' + (ST.mode === m[0] ? 'on' : '') + '"><span>' + m[2] + '</span><em>' + m[1] + '</em></button>'; }).join('') + '</div>' +
-      '<div class="mxtip" id="mxtip" hidden></div><button class="sidetg" data-mx="side">☰ التفاصيل</button>' +
+      '<div class="mxtip" id="mxtip" hidden></div><button class="sidetg" data-mx="side">☰ التفاصيل</button><div class="mxlg' + (ST.lgc ? ' cl' : '') + '" id="mxlg"></div>' +
       '<div class="zbtn"><button data-mx="zin" aria-label="تكبير">+</button><button data-mx="zout" aria-label="تصغير">−</button><button data-mx="zfit" aria-label="عرض القطاع كامل">⤢</button></div></div><div class="side" id="mxside"></div></div>';
-    ST.built = true; root.classList.add('compact'); root.classList.toggle('sidehid', !ST.side); fitMap(); wire(); applyVB();
+    ST.built = true; ST.base = null; ST.rects = null; root.classList.add('compact'); root.classList.toggle('sidehid', !ST.side); wire();
+    paint(); fitMap(); applyVB(); return;
   } else syncToolbar();
   paint();
 }
 function fitMap() { var b = document.getElementById('mxbox'); if (!b) return; var t = b.getBoundingClientRect().top + (window.scrollY || 0); var h = Math.max(380, Math.round((window.visualViewport ? visualViewport.height : innerHeight) - t - 12)); b.style.height = h + 'px'; }
 window.addEventListener('resize', function () { if (document.getElementById('mxbox')) { fitMap(); applyVB(); } });
-function trialBar() { return '<div class="trial">🧪 ' + (MAPAPP ? 'نظام الخريطة التجريبي — نفس بيانات مكتب التسليم. أي إجراء على دار (جاهز، مراجعة…) ينحفظ بالنظام نفسه؛ وتعديل توزيع المقاولين ينحفظ بشكل منفصل لحين الاعتماد.' : 'قسم تجريبي — يقرا بيانات النظام بس، وتعديل توزيع المقاولين هنا ينحفظ بشكل منفصل وما يأثر على أي حساب لحين الاعتماد.') + '</div>'; }
 var MODES = [['status', 'الحالة', '🏠'], ['alert', 'التنبيهات', '🔔'], ['rev', 'المراجعات', '🔍'], ['wait', 'الانتظار', '⏳'], ['con', 'المقاولين', '👷'], ['eff', 'الكفاءة', '📈'], ['period', 'بالأشهر', '📅'], ['today', 'اليوم', '🕘']];
 var MODE_VIEW = { status: 'ws', con: 'weekly', eff: 'weekly', alert: 'today', rev: 'rvsum', period: 'annual', wait: 'ws', today: 'agenda' };
 function toolbar() {
@@ -240,15 +252,13 @@ function toolbar() {
   return '<div class="kpis" id="mxkpi"></div>' +
     '<div class="bar" id="mxbar"><div class="secs" role="group" aria-label="القطاع">' + secs.map(function (s) { return '<button data-mx="sec" data-v="' + s[0] + '" class="sc' + (String(ST.sec) === s[0] ? ' on' : '') + '"><b>' + esc(s[1]) + '</b><i class="pb"><i></i></i><small></small></button>'; }).join('') + '</div>' +
     '<label class="srch"><span>🔍</span><input id="mxq" type="search" placeholder="رقم الدار مثل B40.2" value="' + esc(ST.q) + '" enterkeyhint="search"></label>' +
-    '<div class="tools"><button class="tb" data-mx="check" title="فحص التطابق">🔎<span>الفحص</span></button><button class="tb" data-mx="count" title="الحصر">📊<span>الحصر</span></button><button class="tb" data-mx="print" title="طباعة">🖨️<span>طباعة</span></button>' +
-    '<button class="tb" data-mx="edit" id="mxedit" title="تعديل التوزيع">✏️<span>' + (ST.edit ? 'إنهاء التعديل' : 'التوزيع') + '</span></button>' +
+    '<div class="tools"><button class="tb" data-mx="check" title="الفرق بين الشيت والمخطط">🔎<span>الفرق</span></button><button class="tb" data-mx="count" title="الحصر">📊<span>الحصر</span></button><button class="tb" data-mx="print" title="طباعة">🖨️<span>طباعة</span></button>' +
     (MAPAPP ? '' : '<a class="tb" href="map.html" title="نظام الخريطة المستقل">🗺️<span>نظام الخريطة</span></a>') + '</div></div>';
 }
 function syncToolbar() {
   var root = document.getElementById('mxroot'); if (!root) return;
   root.querySelectorAll('[data-mx="sec"]').forEach(function (b) { b.classList.toggle('on', b.dataset.v === String(ST.sec)); });
   root.querySelectorAll('[data-mx="mode"]').forEach(function (b) { b.classList.toggle('on', b.dataset.v === ST.mode); });
-  var e = document.getElementById('mxedit'); if (e) { e.classList.toggle('on', ST.edit); e.querySelector('span').textContent = ST.edit ? 'إنهاء التعديل' : 'التوزيع'; }
 }
 function secList() { return ST.sec === 'all' || !MD || !MD.sectors[ST.sec] ? allSecs() : [+ST.sec]; }
 function extOf(list) {
@@ -268,7 +278,7 @@ function svgHTML(forPrint) {
       sn += '<g class="snb" data-mx="sec" data-v="' + s + '"><rect x="' + (ax - w / 2).toFixed(1) + '" y="' + (-ay - 17).toFixed(1) + '" width="' + w + '" height="34" rx="17"/><text class="sn" x="' + ax.toFixed(1) + '" y="' + (-ay + 6.5).toFixed(1) + '">' + esc(sectorName(s)) + '</text></g>'; }
     L.forEach(function (h) {
       var dly = Math.round(Math.hypot(h.x - cx, h.y - cy) / R * 900);
-      hs += '<rect class="hs' + (h.s === 7 ? ' vip' : '') + '" data-k="' + esc(mk(h.id)) + '" rx="0.6" x="' + (h.x - h.w / 2 + 0.35).toFixed(1) + '" y="' + (-h.y - h.h / 2 + 0.35).toFixed(1) + '" width="' + Math.max(1, h.w - 0.7).toFixed(1) + '" height="' + Math.max(1, h.h - 0.7).toFixed(1) + '"' + (forPrint ? '' : ' style="--d:' + dly + 'ms"') + '/>';
+      hs += '<rect class="hs' + (h.s === 7 ? ' vip' : '') + '" data-k="' + esc(mk(h.id)) + '" rx="0.6" x="' + (h.x - h.w / 2 + 0.35).toFixed(1) + '" y="' + (-h.y - h.h / 2 + 0.35).toFixed(1) + '" width="' + Math.max(1, h.w - 0.7).toFixed(1) + '" height="' + Math.max(1, h.h - 0.7).toFixed(1) + '"' + (forPrint || all ? '' : ' style="--d:' + dly + 'ms"') + '/>';
       if (!forPrint) hn += '<text class="hn" font-size="' + Math.max(3, Math.min(h.w, h.h) * 0.46).toFixed(1) + '" x="' + h.x.toFixed(1) + '" y="' + (-h.y + 0.3).toFixed(1) + '">' + esc(h.id.split('.')[1]) + '</text>';
     });
   });
@@ -276,6 +286,7 @@ function svgHTML(forPrint) {
   MD.blocks.forEach(function (b) { if (list.indexOf(b[1]) < 0) return; var o = bb[b[0]], t = esc(b[0].replace(/^(\D+)/, '$1.')); if (!o) return; var vert = (o[3] - o[1]) > (o[2] - o[0]) * 1.6, x = vert ? (o[0] + o[2]) / 2 : (o[0] + o[2]) / 2, y = vert ? o[1] - 4.2 : o[1] - 4.2, w = t.length * 5.6 + 8;
     bl += '<g class="blg"><rect x="' + (x - w / 2).toFixed(1) + '" y="' + (-y - 4.6).toFixed(1) + '" width="' + w.toFixed(1) + '" height="9.2" rx="4.6"/><text class="bl" x="' + x.toFixed(1) + '" y="' + (-y + 0.2).toFixed(1) + '">' + t + '</text></g>'; });
   if (!forPrint && MD.fac) MD.fac.forEach(function (f) { if (f[1] < e[0] - 40 || f[1] > e[2] + 40 || f[2] < e[1] - 40 || f[2] > e[3] + 40) return; fc += '<text class="fac" x="' + f[1] + '" y="' + (-f[2]) + '">' + esc(f[0]) + '</text>'; });
+  if (!forPrint) { var cs = []; list.forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { cs.push(Math.min(h.w, h.h)); }); }); cs.sort(function (a, b) { return a - b; }); ST.cell = cs[Math.floor(cs.length / 2)] || 6; }
   var pad = all ? 16 : 10, vb = [e[0] - pad, -e[3] - pad, e[2] - e[0] + pad * 2, e[3] - e[1] + pad * 2];
   if (!forPrint) ST.full = vb;
   var sweep = '';
@@ -338,7 +349,7 @@ function labelOfKey(key) {
   var ks = layerKeys(ST.P || {}); for (var i = 0; i < ks.length; i++) if (ks[i][0] === key) return ks[i][1];
   return '';
 }
-function wave() { var svg = document.getElementById('mxsvg'); if (!svg) return; svg.classList.remove('wave'); void svg.getBoundingClientRect(); svg.classList.add('wave'); clearTimeout(ST.wt); ST.wt = setTimeout(function () { svg.classList.remove('wave'); }, 1400); }
+function wave() { var svg = document.getElementById('mxsvg'); if (!svg) return; svg.classList.remove('wave'); requestAnimationFrame(function () { svg.classList.add('wave'); }); clearTimeout(ST.wt); ST.wt = setTimeout(function () { svg.classList.remove('wave'); }, 1400); }
 function colorOfKey(key, P) {
   if (ST.mode === 'con') return colorForCon(key);
   var ks = layerKeys(P); for (var i = 0; i < ks.length; i++) if (ks[i][0] === key) return ks[i][2];
@@ -346,33 +357,31 @@ function colorOfKey(key, P) {
 }
 function paint() {
   var svg = document.getElementById('mxsvg'); if (!svg) return;
-  var I = index(), list = secList(), cnt = {}, ccnt = {}, byKey = {};
-  ST.I = I; var P = ST.P = pre(I, list);
-  list.forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { colorForCon(effCon(h).group); }); });
-  var keys = {};
-  svg.querySelectorAll('rect.hs').forEach(function (r) {
-    var h = MD.H[r.getAttribute('data-k')]; if (!h) return;
-    var key = keyOf(h, I, P), ec = effCon(h); keys[r.getAttribute('data-k')] = key;
-    cnt[key] = (cnt[key] || 0) + 1; ccnt[ec.group] = (ccnt[ec.group] || 0) + 1; (byKey[key] = byKey[key] || []).push(h);
-  });
-  ST.cnt = cnt; ST.ccnt = ccnt; ST.byKey = byKey;
+  var I = index(); ST.I = I; ST.cc = null; var list = secList(), cnt = {}, ccnt = {}, byKey = {}, stc = {};
+  var P = ST.P = pre(I, list);
+  if (!ST.rects) { ST.rects = []; svg.querySelectorAll('rect.hs').forEach(function (r) { var k = r.getAttribute('data-k'); if (MD.H[k]) ST.rects.push([r, MD.H[k], '', '']); }); }
+  // حالة كل دار تنحسب مرة وحدة (كل القطاعات) وتنستخدم للأرقام وأزرار القطاعات
+  allSecs().forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { stc[mk(h.id)] = statusOf(h, I); }); });
+  ST.stc = stc;
+  var keys = {}, ecs = {};
+  ST.rects.forEach(function (x) { var h = x[1], k = mk(h.id), ec = ecs[k] = effCon(h), key = keyOf(h, I, P); keys[k] = key; colorForCon(ec.group);
+    cnt[key] = (cnt[key] || 0) + 1; ccnt[ec.group] = (ccnt[ec.group] || 0) + 1; (byKey[key] = byKey[key] || []).push(h); });
+  ST.cnt = cnt; ST.ccnt = ccnt; ST.byKey = byKey; ST.ecs = ecs;
   var cmap = {}; layerKeys(P).forEach(function (x) { cmap[x[0]] = x[2]; }); ST.keys = keys; ST.cmap = cmap;
-  svg.querySelectorAll('rect.hs').forEach(function (r) {
-    var k = r.getAttribute('data-k'), h = MD.H[k]; if (!h) return; var key = keys[k], ec = effCon(h);
-    r.style.fill = (ST.mode === 'con' ? colorForCon(key) : cmap[key]) || 'var(--mx-none)';
+  ST.rects.forEach(function (x) {
+    var r = x[0], h = x[1], k = mk(h.id), key = keys[k], ec = ecs[k];
+    var fill = (ST.mode === 'con' ? colorForCon(key) : cmap[key]) || 'var(--mx-none)';
+    if (x[2] !== fill) { r.style.fill = fill; x[2] = fill; }
     var dim = (ST.flt !== 'all' && key !== ST.flt) || (ST.con !== 'all' && ec.group !== ST.con);
-    r.classList.toggle('dim', !!dim);
-    r.classList.toggle('rvm', ST.mode === 'status' && !!I.rv[k] && key !== 'del' && key !== 'rev');
-    r.classList.toggle('sel', ST.sel === k);
-    r.classList.toggle('brth', !dim && (key === 'late' || key === 'ov10' || key === 'rlate' || key === 'rvov'));
+    var cls = 'hs' + (h.s === 7 ? ' vip' : '') + (dim ? ' dim' : '') + (ST.mode === 'status' && I.rv[k] && key !== 'del' && key !== 'rev' ? ' rvm' : '') + (ST.sel === k ? ' sel' : '');
+    if (x[3] !== cls) { r.setAttribute('class', cls); x[3] = cls; }
   });
-  kpis(I, list); side();
-  var mb = document.getElementById('mxbox'); if (mb) { var h0 = mb.offsetHeight; fitMap(); if (Math.abs(mb.offsetHeight - h0) > 2) applyVB(); }
+  kpis(I, list); side(); legend();
 }
 function kpis(I, list) {
   var el = document.getElementById('mxkpi'); if (!el) return;
   var c = { all: 0, ws: 0, ready: 0, late: 0, del: 0, rev: 0, nw: 0, none: 0 };
-  list.forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { var st = statusOf(h, I), k = mk(h.id), u = I.ws[k]; c.all++;
+  list.forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { var k = mk(h.id), st = ST.stc[k], u = I.ws[k]; c.all++;
     if (st === 'del') c.del++; else if (u) { c.ws++; if (st === 'ready') c.ready++; if (st === 'late') c.late++; } else if (st === 'nw') c.nw++; else if (st === 'none') c.none++;
     if (I.rv[k] && st !== 'del') c.rev++; }); });
   var defs = [['all', 'دار بالخريطة', '🗺️', 'status', 'all', '', c.all], ['del', 'مسلّمة', '✅', 'status', 'del', 'g', c.all], ['ws', 'قيد التسليم', '🏗️', 'status', 'all', 'b', c.all], ['ready', 'جاهزة', '🔑', 'status', 'ready', 'b', c.ws],
@@ -383,7 +392,7 @@ function kpis(I, list) {
     b.classList.toggle('on', ST.mode === d[3] && ST.flt === d[4] && d[0] !== 'all' && d[0] !== 'ws'); });
   // تقدّم كل قطاع (نسبة المسلّم) على أزرار القطاعات
   document.querySelectorAll('#mxbar .sc').forEach(function (b) { var v = b.dataset.v, L = v === 'all' ? allSecs() : [+v], t = 0, dl = 0;
-    L.forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { t++; if (statusOf(h, I) === 'del') dl++; }); });
+    L.forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { t++; if (ST.stc[mk(h.id)] === 'del') dl++; }); });
     var p = t ? Math.round(dl * 100 / t) : 0; b.querySelector('.pb i').style.width = p + '%'; b.querySelector('small').textContent = 'مسلّم ' + p + '٪'; });
 }
 function countTo(el, n) { // عدّاد متحرك
@@ -403,11 +412,11 @@ function side() {
   }
   if (ST.mode === 'today' && !Array.isArray(S.agenda)) h += '<p class="muted" style="font-size:12.5px">' + (S.agenda === 'err' ? '⚠️ تعذّر تحميل جدول الأعمال' : '⏳ جاري تحميل جدول الأعمال…') + '</p>';
   var keys = layerKeys(P);
-  h += '<div class="lg">' + (ST.mode === 'con' ? '<button data-mx="flt" data-v="all" class="' + (ST.flt === 'all' ? 'on' : '') + '"><i style="background:transparent"></i><span>الكل</span><b>' + tot + '</b></button>' : '') +
+  if (false) h += '<div class="lg">' + (ST.mode === 'con' ? '<button data-mx="flt" data-v="all" class="' + (ST.flt === 'all' ? 'on' : '') + '"><i style="background:transparent"></i><span>الكل</span><b>' + tot + '</b></button>' : '') +
     keys.map(function (x) { var n = ST.cnt[x[0]] || 0; if (!n && (ST.mode === 'period' || ST.mode === 'eff')) return '';
       var extra = ''; if (ST.mode === 'eff') { var gs = Object.keys(P.eff).filter(function (g) { return effKey(P.eff[g].eff) === x[0]; }); if (gs.length) extra = '<small class="muted" style="grid-column:2/4;font-size:11.5px">' + gs.map(function (g) { return esc(g) + ' ' + P.eff[g].eff + '٪'; }).join(' · ') + '</small>'; }
       return '<button data-mx="flt" data-v="' + esc(x[0]) + '" class="' + (ST.flt === x[0] ? 'on' : '') + '"><i class="' + (x[2] ? '' : 'none-sw') + '" style="' + (x[2] ? 'background:' + x[2] : '') + '"></i><span>' + esc(x[1]) + '</span><b>' + n + '</b>' + extra + '</button>'; }).join('') + '</div>';
-  if (ST.mode === 'status') h += '<p class="muted" style="font-size:12px;margin:8px 0 0">الإطار البنفسجي = الدار بيها مراجعة. اضغط أي بند حتى تبيّنه بس.</p>';
+  h += '<p class="muted" style="font-size:12.5px;margin:0">' + esc(LAYER_HELP[ST.mode] || '') + '</p>';
   if (ST.mode === 'eff') h += '<p class="muted" style="font-size:12px;margin:8px 0 0">الكفاءة = 100 − (العابر موعدها وغير الجاهزة ÷ كل قيد التسليم)، لكل مقاول ضمن القطاع المعروض.</p>';
   if (ST.mode !== 'con') h += conFilter();
   if (MODE_VIEW[ST.mode]) h += '<button class="btn sm" style="margin-top:10px;width:100%" data-mx="view" data-v="' + MODE_VIEW[ST.mode] + '">📋 فتح الشاشة الكاملة (' + esc({ ws: 'قيد التسليم', weekly: 'كفاءة المقاولين', today: 'التنبيهات', rvsum: 'ملخص المراجعات', annual: 'الجرد السنوي', agenda: 'جدول الأعمال' }[MODE_VIEW[ST.mode]]) + ')</button>';
@@ -422,8 +431,35 @@ function side() {
       else if (u) sub += ' · 📤 ' + (u.deliveryDate || '-');
       return '<button data-mx="go2" data-v="' + esc(kk) + '"><b class="ltr">' + esc(hh.id) + '</b><small>' + esc(sub) + '</small><i style="width:10px;height:10px;border-radius:3px;display:inline-block;background:' + (colorOfKey(x[0], P) || 'var(--mx-none)') + '"></i></button>'; }).join('') + (items.length > 200 ? '<p class="muted" style="font-size:12px">يطلع أول 200</p>' : '') + '</div></div>';
   }
-  if (ST.edit) h += '<div class="card"><b>✏️ وضع تعديل التوزيع</b><p class="muted" style="font-size:12.5px;margin:6px 0 0">اضغط أي دار حتى تغيّر مقاول بلوكها أو تأشره تنفيذ مباشر. التعديل تجريبي ومنفصل.</p></div>';
   el.innerHTML = h;
+}
+var LAYER_HELP = {
+  status: 'لون كل دار = حالتها بالنظام الآن (من شيت قيد التسليم والمسلّمة والمراجعات).',
+  alert: 'نفس تنبيهات النظام: الدور العابرة موعدها أو القريبة، والمراجعات المتأخرة.',
+  rev: 'الدور اللي راجع عليها المستفيد، حسب عدد المراجعات وموقف الملاحظات.',
+  wait: 'كم يوم صارلها الدار قيد التسليم من تاريخ الوارد.',
+  con: 'الجهة المنفذة حسب الشيت. الدار اللي مو بالشيت تاخذ مقاولها من المخطط.',
+  eff: 'كفاءة كل مقاول = 100 − نسبة دوره العابرة موعدها وغير الجاهزة.',
+  period: 'الدور المسلّمة ملوّنة حسب شهر الاستلام.',
+  today: 'الدور اللي صارت عليها حركة بجدول الأعمال.'
+};
+function legend() { // دليل الألوان والإطارات — دايماً ظاهر على الخريطة
+  var el = document.getElementById('mxlg'); if (!el) return;
+  var keys = layerKeys(ST.P || {}), tot = 0, list = secList(); Object.keys(ST.cnt).forEach(function (k) { tot += ST.cnt[k]; });
+  var title = ST.mode === 'con' ? 'توزيع المقاولين' : ST.mode === 'eff' ? 'كفاءة المقاولين' : ST.mode === 'period' ? 'التسليم بالأشهر ' + ST.year : (LD[ST.mode] || {}).t;
+  var rows = keys.map(function (x) { var n = ST.cnt[x[0]] || 0; if (!n) return '';
+    return '<button data-mx="flt" data-v="' + esc(x[0]) + '" class="' + (ST.flt === x[0] ? 'on' : '') + '"><i class="' + (x[2] ? '' : 'none-sw') + '" style="' + (x[2] ? 'background:' + x[2] : '') + '"></i><span>' + esc(x[1]) + '</span><b>' + n + '</b></button>'; }).join('');
+  var fr = '';
+  function f(style, t) { fr += '<div class="fr"><i style="' + style + '"></i><span>' + t + '</span></div>'; }
+  if (ST.mode === 'status' && ST.rects && ST.rects.some(function (x) { return x[3].indexOf('rvm') >= 0; })) f('border:2px solid #a77bff;background:transparent', 'إطار بنفسجي: الدار بيها مراجعة (وهي بعدها قيد التسليم أو ما وصلت)');
+  if (list.indexOf(7) >= 0) f('border:2px solid #E2C47A;background:transparent', 'إطار ذهبي: دور VIP');
+  if (ST.sel) f('border:2px solid #fff;background:transparent;box-shadow:0 0 0 1px #000', 'إطار أبيض عريض: الدار اللي اخترتها');
+  if (ST.flt !== 'all' || ST.con !== 'all') f('background:var(--mx-none);opacity:.25', 'باهتة: خارج الاختيار الحالي (اضغط البند مرة ثانية حتى ترجع الكل)');
+  f('background:var(--brand);border-radius:6px', 'شريط أزرق فوق الدور: رقم البلوك');
+  if (list.length > 1) f('background:color-mix(in srgb,var(--brand) 30%,#0b1430);border:1px solid var(--brand);border-radius:6px', 'اسم القطاع: اضغطه حتى تفتح القطاع');
+  f('border-top:1px solid var(--muted);background:transparent;border-radius:0;height:6px', 'خطوط رفيعة: حدود البلوكات والشوارع من المخطط');
+  el.innerHTML = '<button class="hd" data-mx="lgt">🎨 ' + esc(title || '') + ' <small>' + tot + ' دار</small><i>▾</i></button><div class="bdy"><div class="lg">' + rows + '</div><h4>الإطارات والإشارات</h4>' + fr +
+    (ST.mode === 'con' ? '<p>الألوان = الجهة المنفذة حسب الشيت؛ الدار اللي مو بالشيت حسب المخطط. «غير محدد» = ماكو مقاول لا بالشيت ولا بالمخطط.</p>' : '<p>اضغط أي لون حتى تبيّن دوره بس.</p>') + '</div>';
 }
 function conFilter() {
   var names = Object.keys(ST.ccnt).sort();
@@ -431,8 +467,7 @@ function conFilter() {
 }
 function housePanel(h) {
   var I = ST.I || index(), k = mk(h.id), u = I.ws[k], r = I.rv[k], d = I.del[k], st = statusOf(h, I), ec = effCon(h);
-  var sheetCon = u ? X.unitCon(u) : (r ? X.recCon(r) : '');
-  var mism = sheetCon && !((ec.direct && X.isDirectExec(sheetCon)) || (!ec.direct && !X.isDirectExec(sheetCon) && sameCon(ec.con, sheetCon)));
+  var mism = ec.src === 'sheet' && conDiffers(h, ec.sheet);
   var known = !!(u || r || d || I.nw[k] || X.getSheetDate(h.id));
   var sysNo = u ? u.unit : (r ? r.houseNo : (d ? d.houseNo : h.id));
   var dd = u ? X.daysDiff(u.deliveryDate) : null, inc = u ? X.daysDiff(u.incomingDate) : null, dl = delDate(h, I);
@@ -442,8 +477,8 @@ function housePanel(h) {
   return '<div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0;font-size:18px" class="ltr">' + esc(h.id) + '</h2><button class="iconbtn" data-mx="unsel" aria-label="إغلاق">' + X.ico('close') + '</button></div>' +
     '<span class="pill" style="background:' + (COLORS[st] || 'var(--mx-none)') + ';color:#06121f;margin-top:6px;display:inline-block">' + esc(ST_LBL[st]) + '</span>' +
     '<div class="kv2"><span>القطاع</span><b>' + esc(sectorName(h.s)) + '</b><span>البلوك</span><b class="ltr" style="text-align:right">' + esc(h.b) + '</b>' +
-    '<span>الجهة المنفذة</span><b>' + esc(ec.label) + (ec.direct && ec.orig ? ' <small class="muted">(المقاول الأصلي: ' + esc(ec.orig) + ')</small>' : '') + (ec.edited ? ' <small style="color:var(--gold)">· معدّل تجريبياً</small>' : '') + '</b>' +
-    (sheetCon ? '<span>حسب الشيت</span><b>' + esc(sheetCon) + '</b>' : '') +
+    '<span>الجهة المنفذة</span><b>' + esc(ec.label) + ' <small class="muted">(' + (ec.src === 'sheet' ? 'من الشيت' : 'من المخطط') + ')</small></b>' +
+    (ec.src === 'sheet' && ec.draw !== ec.label ? '<span>بالمخطط</span><b>' + esc(ec.draw) + '</b>' : '') +
     (u ? '<span>تاريخ الوارد</span><b>' + esc(u.incomingDate || '-') + (inc !== null ? ' <small class="muted">(' + (-inc) + ' يوم)</small>' : '') + '</b>' +
       '<span>موعد التسليم</span><b>' + esc(u.deliveryDate || '-') + (dd !== null ? ' <small class="' + (dd <= 0 ? 'warnl' : 'muted') + '">(' + (dd > 0 ? 'باقي ' + dd + ' يوم' : dd === 0 ? 'اليوم' : 'متجاوز ' + (-dd) + ' يوم') + ')</small>' : '') + '</b>' +
       '<span>الجاهزية</span><b>' + (X.isReady(u.unit) ? '✅ جاهزة' : '⛔ غير جاهزة') + '</b>' : '') +
@@ -451,26 +486,41 @@ function housePanel(h) {
     (dl ? '<span>تاريخ الاستلام</span><b>' + esc(dl.raw) + '</b>' : (d ? '<span>تاريخ الاستلام</span><b>' + esc(d.date || '-') + '</b>' : '')) + '</div>' +
     (rounds.length ? '<div style="font-size:13px;margin:4px 0 8px"><b>🔍 المراجعات (' + rounds.length + ')' + (r.notesCompleted === true ? ' · ✅ أُكملت الملاحظات' : '') + '</b>' + rounds.map(function (x) { return '<div class="muted" style="font-size:12.5px">م' + x.n + ': حضور <span class="ltr">' + esc(x.reviewDate || '-') + '</span> ← إنهاء <span class="ltr">' + esc(x.completionDate || '-') + '</span></div>'; }).join('') + '</div>' : '') +
     (ag ? '<div style="font-size:12.5px;margin-bottom:6px"><b>📅 آخر حركة:</b> ' + esc((ag.last.action || '') + ' · ' + (ag.last.date || '') + (ag.last.by ? ' · ' + ag.last.by : '')) + '</div>' : '') +
-    (mism ? '<div class="warnl">⚠️ المقاول بالشيت يختلف عن الخريطة</div>' : '') +
+    (mism ? '<div class="warnl">⚠️ المقاول بالشيت يختلف عن المخطط — المعتمد هو الشيت</div>' : '') +
     (u && u.sector && u.sector !== sectorName(h.s) ? '<div class="warnl">⚠️ القطاع بالشيت (' + esc(u.sector) + ') يختلف عن الخريطة</div>' : '') +
-    '<div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">' + (known ? '<button class="btn pri sm" data-mx="open" data-v="' + esc(sysNo) + '">📋 كل التفاصيل والإجراءات</button>' : '<span class="muted" style="font-size:12.5px">الدار بعدها ما مسجّلة بأي شيت بالنظام.</span>') +
-    (ST.edit ? '<button class="btn sm" data-mx="eblock" data-v="' + esc(k) + '">✏️ مقاول البلوك</button>' : '') + '</div></div>';
+    (known ? '' : '<p class="muted" style="font-size:12.5px;margin:4px 0 0">الدار بعدها ما مسجّلة بأي شيت بالنظام.</p>') +
+    '<div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">' +
+    (r ? '<button class="btn pri sm" data-act="newRound" data-id="' + esc(r.id) + '">➕ إضافة مراجعة</button>' : (known ? '<button class="btn pri sm" data-act="startReview" data-h="' + esc(sysNo) + '">➕ إضافة مراجعة</button>' : '')) +
+    (known ? '<button class="btn sm" data-mx="srch" data-v="' + esc(sysNo) + '">🔍 فتح بالبحث (للتعديل)</button>' : '') + '</div>' +
+    '<p class="muted" style="font-size:11.5px;margin:8px 0 0">الخريطة للعرض. أي تعديل على الدار من خانة البحث.</p></div>';
 }
 
 /* ---------- التكبير والسحب ---------- */
 function curVB() { var k = String(ST.sec); return ST.vb[k] || ST.full.slice(); }
+function boxSz() { var b = document.getElementById('mxbox'); return b ? { w: b.clientWidth || 1, h: b.clientHeight || 1 } : { w: 1, h: 1 }; }
+function fitK(v, z) { return Math.min(z.w / v[2], z.h / v[3]); }
+// السحب والتكبير يتحرك كصورة وحدة (سريع جداً)، وبعد ما توكف ينرسم المخطط من جديد بدقة كاملة
 function applyVB() {
   var svg = document.getElementById('mxsvg'); if (!svg || !ST.full) return;
-  var v = curVB(); svg.setAttribute('viewBox', v.map(function (n) { return n.toFixed(2); }).join(' '));
-  var box = svg.getBoundingClientRect(), upp = Math.max(v[2] / (box.width || 1), v[3] / (box.height || 1));
-  svg.classList.toggle('zoomed', upp < 0.3);
+  var v = curVB(), z = boxSz(); clearTimeout(ST.cT); ST.cT = null;
+  svg.style.transform = ''; svg.setAttribute('viewBox', v.map(function (n) { return n.toFixed(2); }).join(' ')); ST.base = v.slice();
+  var k = fitK(v, z); svg.classList.toggle('zoomed', 1 / k < 0.3);
+  // أرقام الدور تطلع كلما صار حجمها مقروء على الشاشة (بعرض المجمع كامل تكون أصغر من نقطة فتنخفي حتى ما تثقّل)
+  svg.classList.toggle('nums', k * (ST.cell || 6) * 0.46 >= 4.2);
 }
-function setVB(v) { ST.vb[String(ST.sec)] = v; var sv = document.getElementById('mxsvg'); if (sv && sv.classList.contains('big')) { sv.classList.add('mv'); clearTimeout(ST.mvT); ST.mvT = setTimeout(function () { sv.classList.remove('mv'); }, 160); } applyVB(); }
+function showVB(v) {
+  var svg = document.getElementById('mxsvg'); if (!svg) return; var b = ST.base; if (!b) { applyVB(); return; }
+  var z = boxSz(), k0 = fitK(b, z), k1 = fitK(v, z), sc = k1 / k0;
+  var ox0 = (z.w - b[2] * k0) / 2, oy0 = (z.h - b[3] * k0) / 2, ox1 = (z.w - v[2] * k1) / 2, oy1 = (z.h - v[3] * k1) / 2;
+  var tx = k1 * (b[0] - v[0]) + ox1 - sc * ox0, ty = k1 * (b[1] - v[1]) + oy1 - sc * oy0;
+  svg.style.transform = 'translate(' + tx.toFixed(1) + 'px,' + ty.toFixed(1) + 'px) scale(' + sc.toFixed(4) + ')';
+}
+function setVB(v, now) { ST.vb[String(ST.sec)] = v; if (now) { applyVB(); return; } showVB(v); clearTimeout(ST.cT); ST.cT = setTimeout(function () { if (!ST.held) applyVB(); else setVB(curVB()); }, 180); }
 function animVB(t, ms) { // حركة ناعمة للتكبير والتنقل
   var a = curVB(), t0 = performance.now(), d = ms || 420; cancelAnimationFrame(ST.raf);
-  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { setVB(t); return; }
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { setVB(t, true); return; }
   (function step(now) { var p = Math.min(1, (now - t0) / d), e = 1 - Math.pow(1 - p, 3);
-    setVB([0, 1, 2, 3].map(function (i) { return a[i] + (t[i] - a[i]) * e; })); if (p < 1) ST.raf = requestAnimationFrame(step); })(t0);
+    var v = [0, 1, 2, 3].map(function (i) { return a[i] + (t[i] - a[i]) * e; }); if (p < 1) { setVB(v); ST.raf = requestAnimationFrame(step); } else setVB(v, true); })(t0);
 }
 function zoomAt(f, cx, cy) {
   var v = curVB(), nw = Math.min(ST.full[2] * 1.2, Math.max(25, v[2] * f)), k = nw / v[2], nh = v[3] * k;
@@ -478,20 +528,21 @@ function zoomAt(f, cx, cy) {
   var t = [cx - (cx - v[0]) * k, cy - (cy - v[1]) * k, nw, nh];
   if (ST.wheeling) setVB(t); else animVB(t, 300);
 }
-function toSVG(svg, px, py) { var pt = svg.createSVGPoint(); pt.x = px; pt.y = py; var m = svg.getScreenCTM(); if (!m) return { x: 0, y: 0 }; var p = pt.matrixTransform(m.inverse()); return { x: p.x, y: p.y }; }
+function toSVG(svg, px, py) { var b = document.getElementById('mxbox'), r = b.getBoundingClientRect(), v = curVB(), z = boxSz(), k = fitK(v, z);
+  return { x: v[0] + (px - r.left - b.clientLeft - (z.w - v[2] * k) / 2) / k, y: v[1] + (py - r.top - b.clientTop - (z.h - v[3] * k) / 2) / k }; }
 function focusHouse(k) {
   var h = MD.H[k]; if (!h) return false;
   if (ST.sec !== 'all' && +ST.sec !== h.s) { ST.sec = String(h.s); X.lsSet('mx_sec', ST.sec); ST.built = false; build(); }
-  var w = 240, svg = document.getElementById('mxsvg'), box = svg.getBoundingClientRect(), hh = w * (box.height / (box.width || 1));
+  var w = 240, svg = document.getElementById('mxsvg'), box = boxSz(), hh = w * (box.h / box.w);
   animVB([h.x - w / 2, -h.y - hh / 2, w, hh], 650);
-  ST.sel = k; ST.flt = 'all'; ST.con = 'all'; paint();
+  ST.sel = k; ST.flt = 'all'; ST.con = 'all'; if (!ST.side) { ST.side = true; var rt = document.getElementById('mxroot'); if (rt) rt.classList.remove('sidehid'); } paint();
   var r = svg.querySelector('rect[data-k="' + k.replace(/"/g, '') + '"]'); if (r) { r.classList.remove('pulse'); void r.getBoundingClientRect(); r.classList.add('pulse'); }
   return true;
 }
 function wire() {
   var svg = document.getElementById('mxsvg'), box = document.getElementById('mxbox'); if (!svg) return;
   var P = {}, start = null, moved = 0, pinch = null;
-  svg.addEventListener('pointerdown', function (e) { svg.setPointerCapture(e.pointerId); P[e.pointerId] = { x: e.clientX, y: e.clientY }; moved = 0; start = { x: e.clientX, y: e.clientY, vb: curVB(), t: e.target };
+  svg.addEventListener('pointerdown', function (e) { try { svg.setPointerCapture(e.pointerId); } catch (x) {} ST.held = true; P[e.pointerId] = { x: e.clientX, y: e.clientY }; moved = 0; start = { x: e.clientX, y: e.clientY, vb: curVB(), t: e.target };
     var ids = Object.keys(P); if (ids.length === 2) { var a = P[ids[0]], b = P[ids[1]]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), vb: curVB(), c: toSVG(svg, (a.x + b.x) / 2, (a.y + b.y) / 2) }; } });
   svg.addEventListener('pointermove', function (e) {
     if (!P[e.pointerId]) return; P[e.pointerId] = { x: e.clientX, y: e.clientY };
@@ -501,17 +552,17 @@ function wire() {
     if (!start) return;
     var dx = e.clientX - start.x, dy = e.clientY - start.y; moved = Math.max(moved, Math.abs(dx) + Math.abs(dy));
     if (moved < 4) return;
-    var rect = svg.getBoundingClientRect(), v = start.vb, upp = Math.max(v[2] / rect.width, v[3] / rect.height);
+    var v = start.vb, upp = 1 / fitK(v, boxSz());
     setVB([v[0] - dx * upp, v[1] - dy * upp, v[2], v[3]]);
   });
   function up(e) {
-    var t = start && start.t, wasPinch = !!pinch; delete P[e.pointerId]; if (Object.keys(P).length < 2) pinch = null;
+    var t = start && start.t, wasPinch = !!pinch; delete P[e.pointerId]; if (Object.keys(P).length < 2) pinch = null; if (!Object.keys(P).length) { ST.held = false; if (ST.cT) applyVB(); }
     // بعد التكبير بإصبعين: الإصبع الباقي يكمل من الزوم الجديد (ما يرجع للقديم)
     var rest = Object.keys(P); if (wasPinch && rest.length === 1) { var q = P[rest[0]]; start = { x: q.x, y: q.y, vb: curVB(), t: null }; moved = 99; return; }
     if (Object.keys(P).length === 0) { if (moved < 6 && t && t.closest) { var sb = t.closest('.snb'); if (sb) { ST.sec = sb.getAttribute('data-v'); X.lsSet('mx_sec', ST.sec); ST.built = false; build(); wave(); start = null; return; } }
       if (moved < 6 && t && t.getAttribute && t.getAttribute('data-k')) tapHouse(t.getAttribute('data-k')); start = null; }
   }
-  svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', function (e) { delete P[e.pointerId]; pinch = null; var rest = Object.keys(P); start = rest.length ? { x: P[rest[0]].x, y: P[rest[0]].y, vb: curVB(), t: null } : null; });
+  svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', function (e) { delete P[e.pointerId]; pinch = null; if (!Object.keys(P).length) { ST.held = false; if (ST.cT) applyVB(); } var rest = Object.keys(P); start = rest.length ? { x: P[rest[0]].x, y: P[rest[0]].y, vb: curVB(), t: null } : null; });
   svg.addEventListener('wheel', function (e) { e.preventDefault(); var p = toSVG(svg, e.clientX, e.clientY); ST.wheeling = true; zoomAt(e.deltaY > 0 ? 1.18 : 1 / 1.18, p.x, p.y); ST.wheeling = false; }, { passive: false });
   // بطاقة صغيرة فوق الدار عند المرور عليها
   var tip = document.getElementById('mxtip');
@@ -524,7 +575,6 @@ function wire() {
   svg.addEventListener('pointerleave', function () { if (tip) tip.hidden = true; });
 }
 function tapHouse(k) {
-  if (ST.edit) { ST.sel = k; paint(); editBlock(k); return; }
   ST.sel = ST.sel === k ? null : k; if (ST.sel && !ST.side) { ST.side = true; var rt = document.getElementById('mxroot'); if (rt) rt.classList.remove('sidehid'); } paint();
 }
 
@@ -543,16 +593,14 @@ document.addEventListener('click', function (e) {
   else if (a === 'unsel') { ST.sel = null; paint(); }
   else if (a === 'side') { ST.side = !ST.side; var rt = document.getElementById('mxroot'); if (rt) rt.classList.toggle('sidehid', !ST.side); }
   else if (a === 'open') X.openHouse(v);
-  else if (a === 'edit') { ST.edit = !ST.edit; syncToolbar(); paint(); }
-  else if (a === 'eblock') editBlock(v);
+  else if (a === 'srch') { S.q = v; S.sel = null; X.ACT.go({ v: 'search' }); }
+  else if (a === 'lgt') { ST.lgc = !ST.lgc; X.lsSet('mx_lgc', ST.lgc ? 1 : 0); var lg = document.getElementById('mxlg'); if (lg) lg.classList.toggle('cl', ST.lgc); }
   else if (a === 'check') checkModal();
   else if (a === 'count') countModal();
   else if (a === 'print') printMap();
   else if (a === 'go') { X.closeModal(); setTimeout(function () { focusHouse(v); }, 60); }
   else if (a === 'xcheck') exportCheck();
   else if (a === 'xcount') exportCount();
-  else if (a === 'saveb') saveBlock(false);
-  else if (a === 'resetb') saveBlock(true);
 });
 document.addEventListener('change', function (e) {
   if (e.target.id === 'mxcon') { ST.con = e.target.value; paint(); }
@@ -569,49 +617,22 @@ function search(q, quiet) {
   if (!focusHouse(k) && !quiet) X.toast('⚠️ الدار ' + q + ' ما موجودة بالخريطة', false);
 }
 
-/* ---------- تعديل التوزيع (تجريبي ومنفصل) ---------- */
-function editBlock(k) {
-  var h = MD.H[k]; if (!h) return;
-  var ec = effCon(h), names = {};
-  function addN(n) { if (!n) return; var k = X.arN(n); if (!Object.keys(names).some(function (m) { return X.arN(m) === k; })) names[n] = 1; }
-  MD.legend.forEach(function (l) { addN(l.name); }); Object.keys(MD.H).forEach(function (x) { addN(MD.H[x].con0); }); (X.contractorsList() || []).forEach(addN);
-  var n = (MD.byS[h.s] || []).filter(function (x) { return x.b === h.b; }).length;
-  var cons = {}; (MD.byS[h.s] || []).forEach(function (x) { if (x.b === h.b) { var e2 = effCon(x); cons[e2.label] = (cons[e2.label] || 0) + 1; } });
-  ST.eb = { s: h.s, b: h.b };
-  X.openModal('<header><h3>✏️ مقاول البلوك ' + esc(h.b) + ' · ' + esc(sectorName(h.s)) + '</h3><button class="iconbtn" data-act="closeModal" aria-label="إغلاق">' + X.ico('close') + '</button></header><div class="bd">' +
-    '<p class="muted" style="margin:0 0 10px;font-size:13px">البلوك بيه ' + n + ' دار. حالياً: ' + Object.keys(cons).map(function (c) { return esc(c) + ' (' + cons[c] + ')'; }).join('، ') + '. التعديل يطبق على كل دور البلوك وينحفظ كتجربة منفصلة.</p>' +
-    '<label class="fld">المقاول<select class="inp" id="mxbcon"><option value="">غير محدد</option>' + Object.keys(names).sort().map(function (c) { return '<option' + (c === ec.con ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select></label>' +
-    '<label class="row" style="gap:8px;margin-top:10px"><input type="checkbox" id="mxbdir"' + (ec.direct ? ' checked' : '') + '> تنفيذ مباشر (الشركة تنفذه)</label></div>' +
-    '<footer><button class="btn pri" data-mx="saveb">💾 حفظ (تجريبي)</button>' + (trialBlocks()[bKey(h.s, h.b)] ? '<button class="btn" data-mx="resetb">↩️ إرجاع لأصل الخريطة</button>' : '') + '<button class="btn" data-act="closeModal">إلغاء</button></footer>');
-}
-function saveBlock(reset, sure) {
-  var e = ST.eb; if (!e) return;
-  if (!sure) { var con = (document.getElementById('mxbcon') || {}).value || 'غير محدد', dir = !!(document.getElementById('mxbdir') || {}).checked;
-    ST.ebv = { con: (document.getElementById('mxbcon') || {}).value || '', dir: dir };
-    askSure(reset ? 'إرجاع البلوك ' + e.b + ' لأصل الخريطة' : 'تغيير مقاول البلوك ' + e.b + ' إلى: ' + (dir ? 'تنفيذ مباشر' : con), function () { saveBlock(reset, true); }); return; }
-  var path = X.ROOT + '/mapTrial/blocks/' + bKey(e.s, e.b);
-  if (reset) X.W('remove', path, null);
-  else X.W('set', path, { con: ST.ebv.con, direct: ST.ebv.dir, by: (S.user && S.user.name) || '', at: Date.now() });
-  X.closeModal(); X.toast(reset ? '↩️ رجع البلوك لأصل الخريطة' : '✅ انحفظ التوزيع (تجريبي)'); paint();
-}
-
 /* ---------- فحص التطابق ---------- */
 function checks() {
   var I = index(), notOnMap = [], conDiff = [], secDiff = [], vip = 0, seen = {};
   function chk(no, src, sec) {
     var k = mk(no); if (!k || seen[k + src]) return; seen[k + src] = 1;
     if (MD.H[k]) return;
-    if (/VIP/i.test(sec || '') || /VIP/i.test(k)) { vip++; return; }
     notOnMap.push({ h: no, src: src, sec: sec || '' });
   }
   S.wsAll.forEach(function (u) { chk(u.unit, 'الموقف الأسبوعي', u.sector); });
   S.del.forEach(function (x) { chk(x.houseNo, 'شيت تواريخ الاستلام', x.sector); });
   X.oldRecs().forEach(function (r) { chk(r.houseNo, 'المراجعات', r.sectorNo); });
+  ST.I = I; ST.dn = null;
   X.wsUnits().forEach(function (u) {
     var h = MD.H[mk(u.unit)]; if (!h) return;
-    var ec = effCon(h), sc = X.unitCon(u);
-    var ok = (ec.direct && X.isDirectExec(sc)) || (!ec.direct && !X.isDirectExec(sc) && sameCon(ec.con, sc));
-    if (!ok) conDiff.push({ h: u.unit, k: mk(u.unit), map: ec.label, sheet: sc || '-' });
+    var sc = X.unitCon(u);
+    if (conDiffers(h, sc)) conDiff.push({ h: u.unit, k: mk(u.unit), map: effCon(h).draw, sheet: sc || '-' });
     if (u.sector && u.sector !== sectorName(h.s)) secDiff.push({ h: u.unit, k: mk(u.unit), map: sectorName(h.s), sheet: u.sector });
   });
   // ملاحظات الرسم نفسه
@@ -624,17 +645,20 @@ function checks() {
   MD.blocks.forEach(function (b) { if (b[0].indexOf('؟') === 0) draw.push(sectorName(b[1]) + ': بلوك مكتوب بالرسم بصيغة غير طبيعية (' + b[0].replace('؟', '') + ') ورقمه يتكرر ويه بلوك ثاني — يحتاج تأكيد'); });
   return { notOnMap: notOnMap, conDiff: conDiff, secDiff: secDiff, vip: vip, draw: draw };
 }
+function conDiffers(h, sc) { // هل مقاول الشيت غير مقاول المخطط؟
+  if (!sc) return false; var dd = h.dir0 || isDirectCon(h.con0), ds = isDirectCon(sc);
+  if (dd || ds) return dd !== ds; if (!h.con0) return true; return !sameCon(h.con0, sc); }
 function uniq(a) { var o = {}; a.forEach(function (x) { o[x] = 1; }); return Object.keys(o); }
 function checkModal() {
   var C = checks();
   function sec(t, n, body) { return '<h3 class="mxsec">' + t + ' <span class="pill ' + (n ? 'p-not' : 'p-ok') + '">' + n + '</span></h3>' + (n ? body : '<p class="muted" style="margin:0">✅ ماكو</p>'); }
-  var h = '<p class="muted" style="margin:0 0 6px;font-size:13px">مقارنة بيانات الشيتات بالنظام ويه خريطة القطاعات. اضغط أي دار حتى تروح عليها بالخريطة.</p>' +
-    sec('أرقام دور بالشيتات ما موجودة بالخريطة (غلط كتابة أو بلوك ناقص بالرسم)', C.notOnMap.length, '<div class="mxlist">' + C.notOnMap.map(function (x) { return '<button disabled><b class="ltr">' + esc(x.h) + '</b><small>' + esc(x.src) + (x.sec ? ' · ' + esc(x.sec) : '') + '</small></button>'; }).join('') + '</div>') +
-    sec('دور قيد التسليم مقاولها بالشيت غير مقاولها بالخريطة', C.conDiff.length, '<div class="mxlist">' + C.conDiff.map(function (x) { return '<button data-mx="go" data-v="' + esc(x.k) + '"><b class="ltr">' + esc(x.h) + '</b><small>الخريطة: ' + esc(x.map) + ' · الشيت: ' + esc(x.sheet) + '</small></button>'; }).join('') + '</div>') +
-    sec('دور قطاعها بالشيت غير قطاعها بالخريطة', C.secDiff.length, '<div class="mxlist">' + C.secDiff.map(function (x) { return '<button data-mx="go" data-v="' + esc(x.k) + '"><b class="ltr">' + esc(x.h) + '</b><small>الخريطة: ' + esc(x.map) + ' · الشيت: ' + esc(x.sheet) + '</small></button>'; }).join('') + '</div>') +
+  var h = '<p class="muted" style="margin:0 0 6px;font-size:13px;line-height:1.7">الخريطة تاخذ الحالة والمقاول من الشيت (النظام)، والمخطط يعطي مكان الدار ومقاولها الأصلي. هنا تطلع الأماكن اللي الاثنين ما متفقين بيها. اضغط أي دار حتى تروح عليها.</p>' +
+    sec('أرقام دور بالشيتات ما موجودة بالمخطط (غلط كتابة بالشيت أو دار ناقصة بالمخطط) — هذي ما تطلع على الخريطة', C.notOnMap.length, '<div class="mxlist">' + C.notOnMap.map(function (x) { return '<button disabled><b class="ltr">' + esc(x.h) + '</b><small>' + esc(x.src) + (x.sec ? ' · ' + esc(x.sec) : '') + '</small></button>'; }).join('') + '</div>') +
+    sec('دور قيد التسليم مقاولها بالشيت غير مقاولها بالمخطط — الخريطة تعتمد الشيت', C.conDiff.length, '<div class="mxlist">' + C.conDiff.map(function (x) { return '<button data-mx="go" data-v="' + esc(x.k) + '"><b class="ltr">' + esc(x.h) + '</b><small>الخريطة: ' + esc(x.map) + ' · الشيت: ' + esc(x.sheet) + '</small></button>'; }).join('') + '</div>') +
+    sec('دور قطاعها بالشيت غير قطاعها بالمخطط', C.secDiff.length, '<div class="mxlist">' + C.secDiff.map(function (x) { return '<button data-mx="go" data-v="' + esc(x.k) + '"><b class="ltr">' + esc(x.h) + '</b><small>الخريطة: ' + esc(x.map) + ' · الشيت: ' + esc(x.sheet) + '</small></button>'; }).join('') + '</div>') +
     sec('ملاحظات على الرسم نفسه (تحتاج مراجعتك)', C.draw.length, '<ul style="margin:0;padding-inline-start:18px;font-size:13px;line-height:1.8">' + C.draw.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>') +
-    (C.vip ? '<p class="muted" style="font-size:12.5px">' + C.vip + ' دار من دور VIP ما داخلة بالفحص لأن ماكو خريطة إلها بالملف.</p>' : '');
-  X.openModal('<header><h3>🔎 فحص التطابق بين الشيتات والخريطة · تجريبي</h3><button class="iconbtn" data-act="closeModal" aria-label="إغلاق">' + X.ico('close') + '</button></header><div class="bd">' + h + '</div><footer><button class="btn wa" data-mx="xcheck">' + X.ico('xls', 16) + ' تصدير Excel</button><button class="btn" data-act="closeModal">إغلاق</button></footer>', true);
+''; 
+  X.openModal('<header><h3>🔎 الفرق بين الشيت والمخطط</h3><button class="iconbtn" data-act="closeModal" aria-label="إغلاق">' + X.ico('close') + '</button></header><div class="bd">' + h + '</div><footer><button class="btn wa" data-mx="xcheck">' + X.ico('xls', 16) + ' تصدير Excel</button><button class="btn" data-act="closeModal">إغلاق</button></footer>', true);
 }
 function exportCheck() {
   var C = checks(), rows = [];
@@ -648,10 +672,10 @@ function exportCheck() {
 
 /* ---------- الحصر الحقيقي ---------- */
 function counts(list) {
-  var I = index(), T = {};
+  var I = index(), T = {}; ST.I = I; ST.cc = null;
   list.forEach(function (s) {
     (MD.byS[s] || []).forEach(function (h) {
-      var g = effCon(h).group, st = statusOf(h, I), key = s + '|' + g;
+      var g = effCon(h).group, st = statusOf(h, I), key = s + '|' + g; // ST.I مضبوط بالأعلى
       var o = T[key] = T[key] || { s: s, g: g, all: 0, del: 0, ready: 0, not: 0, late: 0, rev: 0, nw: 0, none: 0 };
       o.all++; o[st]++;
     });
@@ -674,7 +698,7 @@ function countModal() {
         return '<tr><td>' + esc(r.g) + '</td><td><b>' + r.all + '</b></td><td>' + r.del + '</td><td>' + r.ready + '</td><td>' + r.not + '</td><td>' + r.late + '</td><td>' + r.rev + '</td><td>' + (r.none + r.nw) + '</td><td>' + Math.round(r.del * 100 / r.all) + '٪</td><td' + (diff ? ' class="bad" title="يختلف عن الخريطة"' : '') + '>' + (cw == null ? '—' : cw) + '</td></tr>'; }).join('') +
       '<tr class="tot"><td>المجموع</td><td>' + t.all + '</td><td>' + t.del + '</td><td>' + t.ready + '</td><td>' + t.not + '</td><td>' + t.late + '</td><td>' + t.rev + '</td><td>' + (t.none + t.nw) + '</td><td>' + Math.round(t.del * 100 / (t.all || 1)) + '٪</td><td>—</td></tr></tbody></table></div>';
   });
-  X.openModal('<header><h3>📊 الحصر الحقيقي · ' + esc(ST.sec === 'all' ? 'كل القطاعات' : sectorName(+ST.sec)) + ' · تجريبي</h3><button class="iconbtn" data-act="closeModal" aria-label="إغلاق">' + X.ico('close') + '</button></header><div class="bd">' + h + '</div><footer><button class="btn wa" data-mx="xcount">' + X.ico('xls', 16) + ' تصدير Excel</button><button class="btn" data-act="closeModal">إغلاق</button></footer>', true);
+  X.openModal('<header><h3>📊 الحصر الحقيقي · ' + esc(ST.sec === 'all' ? 'كل القطاعات' : sectorName(+ST.sec)) + '</h3><button class="iconbtn" data-act="closeModal" aria-label="إغلاق">' + X.ico('close') + '</button></header><div class="bd">' + h + '</div><footer><button class="btn wa" data-mx="xcount">' + X.ico('xls', 16) + ' تصدير Excel</button><button class="btn" data-act="closeModal">إغلاق</button></footer>', true);
 }
 function exportCount() {
   var list = secList(), rows = counts(list).sort(function (a, b) { return a.s - b.s || b.all - a.all; }), T = { all: 0, del: 0, ready: 0, not: 0, late: 0, rev: 0, none: 0 };
