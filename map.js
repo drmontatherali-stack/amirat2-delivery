@@ -5,7 +5,7 @@
 (function () {
 'use strict';
 var X = window.A2X; if (!X || !X.VIEWS) return;
-var V = '2.7.0';
+var V = '2.7.2';
 var S = X.S, esc = X.esc;
 var MD = null, MDerr = '', loading = false;
 var ST = { lgc: +X.lsGet('mx_lgc', innerWidth < 640 ? 1 : 0) === 1, side: false, sec: X.lsGet('mx_sec', 'all'), mode: X.lsGet('mx_mode', 'status'), con: 'all', flt: 'all', year: String(new Date().getFullYear()), q: '', sel: null, edit: false, vb: {}, zoomed: false };
@@ -54,7 +54,7 @@ if (MAPAPP) Object.keys(CONFIRM).forEach(function (n) {
 X.afterRender = function (view) { document.body.classList.toggle('mxon', view === 'map'); if (view === 'map') build(); };
 
 /* ---------- أدوات ---------- */
-function mk(h) { return String(h == null ? '' : h).toUpperCase().replace(/\s+/g, '').replace(/[-_]/g, '.'); }
+function mk(h) { return String(h == null ? '' : h).toUpperCase().replace(/\s+/g, '').replace(/[-_]/g, '.').replace(/^AV\.?VIP/, 'VIP'); } // AVVIP بالشيتات = VIP
 function arTok(n) { return X.arN(n).split(' ').filter(Boolean); }
 function sameCon(a, b) { // "اوات" = "اوات جمال" ، "علي الكوفي" = "علي محمد الكوفي"
   var A = arTok(a), B = arTok(b); if (!A.length || !B.length) return false;
@@ -747,6 +747,10 @@ function cxMatch(name, cands) { // يطابق اسم الشيت الأسبوعي
   var last = arTok(name).pop(), l2 = sub.filter(function (c) { return arTok(c).pop() === last; }); if (l2.length === 1) return l2[0];
   var f2 = sub.filter(function (c) { return arTok(c)[0] === arTok(name)[0] && arTok(c).length === arTok(name).length; }); return f2.length === 1 ? f2[0] : sub[0];
 }
+// جهات التنفيذ المباشر (نفس التقسيم المعتمد بالنظام — المشالة من كفاءة المقاولين)
+var DIRECT_CW = ['احمد عواد', 'عادل محمد عرار', 'يوسف حسن', 'دياري كريم', 'جاسم زراك'];
+var DIRG = 'التنفيذ المباشر';
+function cwDirect(n) { return DIRECT_CW.some(function (d) { return X.arN(d).replace(/ /g, '') === X.arN(n).replace(/ /g, '') || sameCon(d, n); }); }
 function cxBlank(s) { return { s: s, cw: { all: 0, del: 0, ws: 0, rem: 0 }, cwHas: false, ws: [], wsOk: [], wsOverR: [], wsOverN: [], wsOverNRev: [], mAll: [], mDel: [], mRem: [] }; }
 function conData() {
   var now = X.todayStr();
@@ -767,7 +771,7 @@ function conData() {
   X.wsUnits().forEach(function (u) {
     var s = secNo(u.sector), nm = u.sheetContractor || u.contractor || '', h = MD.H[mk(u.unit)];
     if (!s && h) s = h.s;
-    var g = cxMatch(nm, bySec[s] || []) || ('⚠️ ' + (nm || 'بدون مقاول') + ' (بالموقف الأسبوعي وما موجود بموقف المقاولين)');
+    var g = cxMatch(nm, bySec[s] || []) || (X.isDirectExec(u.executionType) ? 'تنفيذ مباشر (اسمه بالأسبوعي ما يطابق الموقف: ' + (nm || '—') + ')' : '⚠️ ' + (nm || 'بدون مقاول') + ' (بالموقف الأسبوعي وما موجود بموقف المقاولين)');
     var it = { id: u.unit, s: s, u: u, inc: u.incomingDate || '', dlv: u.deliveryDate || '', dd: X.daysDiff(u.deliveryDate), ready: X.isReady(u.unit), rv: rvN(I.rv[mk(u.unit)]), off: !h };
     var key = it.dd !== null && it.dd <= 0 ? (it.ready ? 'wsOverR' : (it.rv ? 'wsOverNRev' : 'wsOverN')) : 'wsOk';
     [grp(g), sec(g, s)].forEach(function (z) { z.ws.push(it); z[key].push(it); });
@@ -775,16 +779,23 @@ function conData() {
   // 3) أماكن الدور من المخطط (للعرض والقوائم) — القطاعات اللي المخطط بيه توزيع مقاولينها
   allSecs().forEach(function (s) { (MD.byS[s] || []).forEach(function (h) {
     if (!h.con0) return; var g = cxMatch(h.con0, bySec[s] || []); if (!g) return;
-    var k = mk(h.id), u = I.ws[k], dd = X.getSheetDate(h.id), it = { id: h.id, s: s, u: u || null, ddate: dd || '', rv: rvN(I.rv[k]), dlv: u ? u.deliveryDate || '' : '', dd: u ? X.daysDiff(u.deliveryDate) : null, ready: u ? X.isReady(u.unit) : false };
+    var k = mk(h.id), u = I.ws[k], dd = I.del[k] ? (I.del[k].date || '✓') : X.getSheetDate(h.id), it = { id: h.id, s: s, u: u || null, ddate: dd || '', rv: rvN(I.rv[k]), dlv: u ? u.deliveryDate || '' : '', dd: u ? X.daysDiff(u.deliveryDate) : null, ready: u ? X.isReady(u.unit) : false };
     [grp(g), sec(g, s)].forEach(function (z) { z.mAll.push(it); if (dd) z.mDel.push(it); else if (!u) z.mRem.push(it); });
   }); });
+  // التنفيذ المباشر بخانة وحدها: كل جهاته تنجمع بكارت واحد
+  var members = [], dir = cxBlank(0); dir.g = DIRG; dir.sec = {}; dir.isDir = true;
+  order = order.filter(function (g) { if (!(cwDirect(g) || /^تنفيذ مباشر/.test(g))) return true; members.push(G[g]); return false; });
+  function merge(a, b) { if (b.cwHas) a.cwHas = true; ['all', 'del', 'ws', 'rem'].forEach(function (k) { a.cw[k] += b.cw[k]; }); ['ws', 'wsOk', 'wsOverR', 'wsOverN', 'wsOverNRev', 'mAll', 'mDel', 'mRem'].forEach(function (k) { a[k] = a[k].concat(b[k]); }); }
+  members.forEach(function (o) { merge(dir, o); Object.keys(o.sec).forEach(function (s) { dir.sec[s] = dir.sec[s] || cxBlank(+s); merge(dir.sec[s], o.sec[s]); }); });
+  dir.members = members.sort(function (a, b) { return b.cw.all - a.cw.all; });
   var list = order.map(function (g) { return G[g]; }).sort(function (a, b) { return (a.cwHas === b.cwHas ? 0 : a.cwHas ? -1 : 1) || b.cw.all - a.cw.all; });
+  if (members.length) list.push(dir);
   var tot = cxBlank(0); tot.cwHas = true; list.forEach(function (o) { ['all', 'del', 'ws', 'rem'].forEach(function (k) { tot.cw[k] += o.cw[k]; }); ['ws', 'wsOk', 'wsOverR', 'wsOverN', 'wsOverNRev', 'mAll', 'mDel', 'mRem'].forEach(function (k) { tot[k] = tot[k].concat(o[k]); }); });
   var d = { list: list, tot: tot }; CX.cache = { t: now, n: X.S._metaT, db: X.S.db, ws: X.S.wsAll, del: X.S.del, cw: X.S.cw, d: d }; return d;
 }
 function cxVal(z, k) { return k === 'all' || k === 'del' || k === 'rem' ? z.cw[k] : k === 'wsCw' ? z.cw.ws : z[k].length; }
 function cxNum(g, s, k, z, cls) { var v = k === 'ws' ? z.cw.ws : cxVal(z, k), bad = k === 'ws' && z.cwHas && z.cw.ws !== z.ws.length;
-  return '<button class="cxn ' + (cls || '') + (bad ? ' bad' : '') + '" data-cx="list" data-g="' + esc(g) + '" data-s="' + s + '" data-k="' + k + '"><b>' + v + '</b><span>' + esc(cxLbl(k)) + '</span>' + (k === 'ws' ? '<small>' + (bad ? '⚠️ الأسبوعي ' + z.ws.length : '✓ يطابق الأسبوعي') + '</small>' : '') + '</button>'; }
+  return '<button class="cxn ' + (cls || '') + (bad ? ' bad' : '') + '" data-cx="list" data-g="' + esc(g) + '" data-s="' + s + '" data-k="' + k + '"><b>' + v + '</b><span>' + esc(cxLbl(k)) + '</span>' + (k === 'ws' ? '<small>' + (bad ? '⚠️ بالأسبوعي ' + z.ws.length + ' (غير مطابق)' : '✓ يطابق الأسبوعي') + '</small>' : '') + '</button>'; }
 function cxCss() {
   if (document.getElementById('cxcss')) return; var st = document.createElement('style'); st.id = 'cxcss';
   st.textContent = [
@@ -824,15 +835,18 @@ X.VIEWS.cons = function () {
     function cell(s, k, cls) { var z = o.sec[s], v = k === 'wsCw' ? z.cw.ws : cxVal(z, k), bad = k === 'ws' && z.cwHas && z.cw.ws !== z.ws.length;
       return '<td><button class="' + (cls || '') + (bad ? ' bad' : '') + '" data-cx="list" data-g="' + esc(o.g) + '" data-s="' + s + '" data-k="' + (k === 'wsCw' ? 'ws' : k) + '"' + (v ? '' : ' disabled') + '>' + v + '</button></td>'; }
     var wsw = function (k) { return (o[k].length * 100 / N) + '%'; };
-    return '<div class="card cxc"><div class="cxh"><b>👷 ' + esc(o.g) + (isDirectCon(o.g) ? ' <span class="pill">تنفيذ مباشر</span>' : '') + '</b><small>' + (o.cwHas ? o.cw.all + ' دار · مسلّم ' + pd + '٪' : 'ما موجود بموقف المقاولين') + '</small></div>' +
+    var mem = o.isDir ? '<div class="scroll"><table class="cxt"><thead><tr><th>الجهة</th><th>الكلي</th><th>المسلّمة</th><th>المتبقية</th><th>قيد التسليم (موقف المقاولين)</th><th>قيد التسليم (الأسبوعي)</th></tr></thead><tbody>' + o.members.map(function (m) { var bad = m.cwHas && m.cw.ws !== m.ws.length;
+      return '<tr><td>' + esc(m.g) + '</td><td>' + m.cw.all + '</td><td class="g">' + m.cw.del + '</td><td>' + m.cw.rem + '</td><td class="w">' + m.cw.ws + '</td><td' + (bad ? ' class="o"' : '') + '>' + m.ws.length + (bad ? ' ⚠️' : '') + '</td></tr>'; }).join('') + '</tbody></table></div>' : '';
+    return (o.isDir ? '<h2 style="margin:10px 4px 0;font-size:17px">🏢 التنفيذ المباشر</h2>' : '') + '<div class="card cxc"><div class="cxh"><b>' + (o.isDir ? '🏢 ' : '👷 ') + esc(o.g) + '</b><small>' + (o.cwHas ? o.cw.all + ' دار · مسلّم ' + pd + '٪' : 'ما موجود بموقف المقاولين') + '</small></div>' +
       (o.cwHas ? '<div class="cxbar" title="أخضر مسلّمة · أزرق غير عابر · أصفر عابر جاهز · أحمر عابر غير جاهز · بنفسجي مع مراجعات · رمادي متبقية"><i class="d" style="width:' + (o.cw.del * 100 / N) + '%"></i><i class="w" style="width:' + wsw('wsOk') + '"></i><i class="y" style="width:' + wsw('wsOverR') + '"></i><i class="o" style="width:' + wsw('wsOverN') + '"></i><i class="p" style="width:' + wsw('wsOverNRev') + '"></i><i class="r" style="width:' + (o.cw.rem * 100 / N) + '%"></i></div>' : '') +
       '<div class="cxrow">' + (o.cwHas ? cxNum(o.g, 0, 'all', o, 't') + cxNum(o.g, 0, 'del', o, 'g') + cxNum(o.g, 0, 'rem', o, 'r') : '') +
-      '<button class="cxn w tg' + (open ? ' on' : '') + (o.cwHas && o.cw.ws !== o.ws.length ? ' bad' : '') + '" data-cx="tog" data-g="' + esc(o.g) + '"><b>' + (o.cwHas ? o.cw.ws : o.ws.length) + '</b><span>قيد التسليم</span><small>' + (!o.cwHas ? 'بالأسبوعي بس' : o.cw.ws === o.ws.length ? '✓ يطابق الأسبوعي' : '⚠️ الأسبوعي ' + o.ws.length) + '</small></button></div>' +
+      '<button class="cxn w tg' + (open ? ' on' : '') + (o.cwHas && o.cw.ws !== o.ws.length ? ' bad' : '') + '" data-cx="tog" data-g="' + esc(o.g) + '"><b>' + (o.cwHas ? o.cw.ws : o.ws.length) + '</b><span>قيد التسليم</span><small>' + (!o.cwHas ? 'بالأسبوعي بس' : o.cw.ws === o.ws.length ? '✓ يطابق الأسبوعي' : '⚠️ بالأسبوعي ' + o.ws.length + ' (غير مطابق)') + '</small></button></div>' +
       (sumBad ? '<div class="warnl" style="font-size:12.5px">⚠️ بموقف المقاولين: المسلّمة + قيد التسليم + المتبقية = ' + sum + ' مو ' + o.cw.all + '</div>' : '') +
       (open ? '<div class="cxsub">' + cxNum(o.g, 0, 'wsOk', o, 'g') + cxNum(o.g, 0, 'wsOverR', o, 'y') + cxNum(o.g, 0, 'wsOverN', o, 'o') + cxNum(o.g, 0, 'wsOverNRev', o, 'p') + '</div>' : '') +
-      '<div class="scroll"><table class="cxt"><thead><tr><th>القطاع</th><th>الكلي</th><th>المسلّمة</th><th>المتبقية</th><th>قيد التسليم</th><th>بالأسبوعي</th><th>غير عابر</th><th>عابر جاهز</th><th>عابر غير جاهز</th><th>مع مراجعات</th></tr></thead><tbody>' +
+      '<div class="scroll"><table class="cxt"><thead><tr><th>القطاع</th><th>الكلي</th><th>المسلّمة</th><th>المتبقية</th><th>قيد التسليم (موقف المقاولين)</th><th>قيد التسليم (الأسبوعي)</th><th>غير عابر</th><th>عابر جاهز</th><th>عابر غير جاهز</th><th>مع مراجعات</th></tr></thead><tbody>' +
       secs.map(function (s) { return '<tr><td>' + esc(secLbl(s)) + '</td>' + cell(s, 'all') + cell(s, 'del', 'g') + cell(s, 'rem') + cell(s, 'wsCw', 'w') + cell(s, 'ws', 'w') + cell(s, 'wsOk', 'g') + cell(s, 'wsOverR', 'y') + cell(s, 'wsOverN', 'o') + cell(s, 'wsOverNRev', 'p') + '</tr>'; }).join('') +
-      '</tbody></table></div></div>';
+      '</tbody></table></div>' + (o.isDir ? '<b style="font-size:13px">حسب الجهة</b>' + mem : '') +
+      '<p class="muted" style="margin:0;font-size:11.5px">🔴 رقم «قيد التسليم (الأسبوعي)» بالأحمر = عدد دور المقاول بشيت الموقف الأسبوعي مو نفس رقم قيد التسليم المكتوب بموقف المقاولين لنفس القطاع.</p></div>';
   }).join('');
   return h + '</div>';
 };
