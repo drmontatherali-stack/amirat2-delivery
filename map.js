@@ -5,7 +5,7 @@
 (function () {
 'use strict';
 var X = window.A2X; if (!X || !X.VIEWS) return;
-var V = '2.5.1';
+var V = '2.5.2';
 var S = X.S, esc = X.esc;
 var MD = null, MDerr = '', loading = false;
 var ST = { side: false, sec: X.lsGet('mx_sec', 'all'), mode: X.lsGet('mx_mode', 'status'), con: 'all', flt: 'all', year: String(new Date().getFullYear()), q: '', sel: null, edit: false, vb: {}, zoomed: false };
@@ -125,8 +125,8 @@ function css() {
     '.mx .tb{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:58px;padding:6px 8px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:17px;cursor:pointer;text-decoration:none;transition:transform .2s,background .2s}',
     '.mx .tb span{font-size:10.5px;color:var(--muted)}.mx .tb:hover{transform:translateY(-2px);background:var(--soft)}.mx .tb.on{border-color:var(--gold,#E2C47A);background:color-mix(in srgb,var(--gold,#E2C47A) 14%,var(--card))}',
     '.mx .mxlayers{position:absolute;top:8px;inset-inline-end:8px;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;z-index:3;padding:4px;border-radius:16px;background:color-mix(in srgb,var(--card-solid,#0b1430) 72%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--line);width:max-content;max-width:calc(100% - 20px)}',
-    '.mx .mxlayers button{display:flex;align-items:center;gap:4px;white-space:nowrap;border:0;border-radius:10px;padding:5px 8px;background:transparent;color:var(--muted);font:inherit;font-size:11.5px;cursor:pointer;transition:background .25s,color .25s}',
-    '.mx .mxlayers button em{font-style:normal;display:none}.mx .mxlayers button.on em{display:inline}.mx .mxlayers button span{font-size:15px}',
+    '.mx .mxlayers button{display:flex;align-items:center;gap:3px;white-space:nowrap;border:0;border-radius:9px;padding:4px 7px;background:transparent;color:var(--muted);font:inherit;font-size:11px;cursor:pointer;transition:background .25s,color .25s}',
+    '.mx .mxlayers button em{font-style:normal}.mx .mxlayers button span{font-size:12px}.mx .mxlayers{gap:2px;padding:3px}',
     '.mx .mxlayers button.on{background:var(--brand);color:#06121f;font-weight:700;box-shadow:0 4px 14px -6px var(--brand)}',
     '.mx .mxtip{position:absolute;z-index:4;pointer-events:none;min-width:150px;max-width:220px;padding:8px 10px;border-radius:12px;background:color-mix(in srgb,var(--card-solid,#0b1430) 92%,transparent);border:1px solid var(--line);box-shadow:0 10px 30px -10px #000;display:flex;flex-direction:column;gap:2px;font-size:12.5px;color:var(--ink)}',
     '.mx .mxtip span{display:flex;align-items:center;gap:6px}.mx .mxtip i{width:10px;height:10px;border-radius:3px;display:inline-block}.mx .mxtip small{color:var(--muted);font-size:11px}',
@@ -163,7 +163,7 @@ function css() {
     '.mx.compact .trial{display:none}.mx.compact{gap:8px}',
     '.mx.compact .kpis{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}.mx.compact .kpis::-webkit-scrollbar{display:none}',
     '.mx.compact .kpi{flex:none;min-width:104px;padding:6px 10px;grid-template-areas:"i n" "l l";gap:0 8px}.mx.compact .kpi .kb{display:none}.mx.compact .kpi b{font-size:17px}.mx.compact .kpi .ki{font-size:14px}.mx.compact .kpi .kl{font-size:11px;white-space:nowrap}',
-    '.mx.compact .sc{padding:5px 8px;min-width:62px}.mx.compact .bar{gap:6px}.mx.compact .srch input{padding:8px 0}.mx.compact .tb{padding:4px 6px}',
+    '.mx.compact .sc{flex-direction:row;align-items:center;gap:5px;padding:5px 9px;min-width:0;border-radius:11px}.mx.compact .sc b{font-size:12.5px}.mx.compact .sc small{font-size:10px}.mx.compact .sc .pb{display:none}.mx.compact .tb{min-width:40px}.mx.compact .tb span{display:none}.mx.compact .bar{gap:6px}.mx.compact .srch input{padding:8px 0}.mx.compact .tb{padding:4px 6px}',
     'body.mxon #topbar .credit{display:none}body.mxon #topbar h1 small{display:none}body.mxon #topbar{padding-block:6px}',
     '@media (max-width:640px){.mx .mxlayers{inset-inline:8px;max-width:none;width:auto}.mx .sidetg{top:auto;bottom:10px;inset-inline-start:auto;inset-inline-end:10px}.mx .side{top:52px}.mx .bar .srch{flex-basis:100%}body.mxon #topbar .chip.net{display:none}}',
     '.mx .mapbox{position:relative;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:radial-gradient(1200px 600px at 50% 0%,color-mix(in srgb,var(--brand) 7%,transparent),transparent 60%),var(--card-solid,var(--card));height:calc(100vh - 300px);min-height:440px;touch-action:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.02),0 20px 50px -30px #000}',
@@ -178,8 +178,7 @@ function css() {
     '@keyframes mxp{50%{opacity:.2}}',
     '.mx svg.mxs .blg rect{fill:var(--brand);fill-opacity:.92;stroke:#0b1430;stroke-width:.6;pointer-events:none}',
     '.mx svg.mxs .bl{font:800 7.2px "Readex Pro","IBM Plex Sans Arabic",sans-serif;fill:#06121f;pointer-events:none;text-anchor:middle;dominant-baseline:central;letter-spacing:.2px}',
-    '.mx svg.mxs.big.mv .blg,.mx svg.mxs.big.mv .fac,.mx svg.mxs.big.mv .snb,.mx svg.mxs.big.mv .hn{visibility:hidden}',
-    '.mx svg.mxs.big .hn{display:none}.mx svg.mxs.big.zoomed .hn{display:block}',
+    '.mx svg.mxs.big.mv .blg,.mx svg.mxs.big.mv .fac,.mx svg.mxs.big.mv .snb,.mx svg.mxs.big.mv .hn{display:none}',
     '.mx svg.mxs .hn{font-family:"Readex Pro","IBM Plex Sans Arabic",sans-serif;font-weight:700;fill:#1b2440;fill-opacity:.85;pointer-events:none;text-anchor:middle;dominant-baseline:central}',
     '.mx svg.mxs .sn{font:800 19px "IBM Plex Sans Arabic",sans-serif;fill:var(--ink);text-anchor:middle;pointer-events:none}',
     '.mx .zbtn{position:absolute;inset-inline-start:10px;bottom:10px;display:flex;flex-direction:column;gap:6px}',
@@ -234,7 +233,7 @@ function build() {
 function fitMap() { var b = document.getElementById('mxbox'); if (!b) return; var t = b.getBoundingClientRect().top + (window.scrollY || 0); var h = Math.max(380, Math.round((window.visualViewport ? visualViewport.height : innerHeight) - t - 12)); b.style.height = h + 'px'; }
 window.addEventListener('resize', function () { if (document.getElementById('mxbox')) { fitMap(); applyVB(); } });
 function trialBar() { return '<div class="trial">🧪 ' + (MAPAPP ? 'نظام الخريطة التجريبي — نفس بيانات مكتب التسليم. أي إجراء على دار (جاهز، مراجعة…) ينحفظ بالنظام نفسه؛ وتعديل توزيع المقاولين ينحفظ بشكل منفصل لحين الاعتماد.' : 'قسم تجريبي — يقرا بيانات النظام بس، وتعديل توزيع المقاولين هنا ينحفظ بشكل منفصل وما يأثر على أي حساب لحين الاعتماد.') + '</div>'; }
-var MODES = [['status', 'الحالة', '🏠'], ['con', 'المقاولين', '👷'], ['eff', 'الكفاءة', '📈'], ['alert', 'التنبيهات', '🔔'], ['rev', 'المراجعات', '🔍'], ['period', 'التسليم بالأشهر', '📅'], ['wait', 'مدة الانتظار', '⏳'], ['today', 'حركات اليوم', '🕘']];
+var MODES = [['status', 'الحالة', '🏠'], ['alert', 'التنبيهات', '🔔'], ['rev', 'المراجعات', '🔍'], ['wait', 'الانتظار', '⏳'], ['con', 'المقاولين', '👷'], ['eff', 'الكفاءة', '📈'], ['period', 'بالأشهر', '📅'], ['today', 'اليوم', '🕘']];
 var MODE_VIEW = { status: 'ws', con: 'weekly', eff: 'weekly', alert: 'today', rev: 'rvsum', period: 'annual', wait: 'ws', today: 'agenda' };
 function toolbar() {
   var secs = [['all', 'الكل']].concat(allSecs().map(function (s) { return [String(s), sectorName(s).replace('القطاع ', '')]; }));
@@ -270,7 +269,7 @@ function svgHTML(forPrint) {
     L.forEach(function (h) {
       var dly = Math.round(Math.hypot(h.x - cx, h.y - cy) / R * 900);
       hs += '<rect class="hs' + (h.s === 7 ? ' vip' : '') + '" data-k="' + esc(mk(h.id)) + '" rx="0.6" x="' + (h.x - h.w / 2 + 0.35).toFixed(1) + '" y="' + (-h.y - h.h / 2 + 0.35).toFixed(1) + '" width="' + Math.max(1, h.w - 0.7).toFixed(1) + '" height="' + Math.max(1, h.h - 0.7).toFixed(1) + '"' + (forPrint ? '' : ' style="--d:' + dly + 'ms"') + '/>';
-      if (!forPrint) hn += '<text class="hn" style="font-size:' + Math.max(3, Math.min(h.w, h.h) * 0.46).toFixed(1) + 'px" x="' + h.x.toFixed(1) + '" y="' + (-h.y + 0.3).toFixed(1) + '">' + esc(h.id.split('.')[1]) + '</text>';
+      if (!forPrint) hn += '<text class="hn" font-size="' + Math.max(3, Math.min(h.w, h.h) * 0.46).toFixed(1) + '" x="' + h.x.toFixed(1) + '" y="' + (-h.y + 0.3).toFixed(1) + '">' + esc(h.id.split('.')[1]) + '</text>';
     });
   });
   var bb = {}; list.forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { var o = bb[h.b] = bb[h.b] || [1e9, 1e9, -1e9, -1e9]; o[0] = Math.min(o[0], h.x - h.w / 2); o[1] = Math.min(o[1], h.y - h.h / 2); o[2] = Math.max(o[2], h.x + h.w / 2); o[3] = Math.max(o[3], h.y + h.h / 2); }); });
@@ -506,11 +505,13 @@ function wire() {
     setVB([v[0] - dx * upp, v[1] - dy * upp, v[2], v[3]]);
   });
   function up(e) {
-    var t = start && start.t; delete P[e.pointerId]; if (Object.keys(P).length < 2) pinch = null;
+    var t = start && start.t, wasPinch = !!pinch; delete P[e.pointerId]; if (Object.keys(P).length < 2) pinch = null;
+    // بعد التكبير بإصبعين: الإصبع الباقي يكمل من الزوم الجديد (ما يرجع للقديم)
+    var rest = Object.keys(P); if (wasPinch && rest.length === 1) { var q = P[rest[0]]; start = { x: q.x, y: q.y, vb: curVB(), t: null }; moved = 99; return; }
     if (Object.keys(P).length === 0) { if (moved < 6 && t && t.closest) { var sb = t.closest('.snb'); if (sb) { ST.sec = sb.getAttribute('data-v'); X.lsSet('mx_sec', ST.sec); ST.built = false; build(); wave(); start = null; return; } }
       if (moved < 6 && t && t.getAttribute && t.getAttribute('data-k')) tapHouse(t.getAttribute('data-k')); start = null; }
   }
-  svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', function (e) { delete P[e.pointerId]; pinch = null; start = null; });
+  svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', function (e) { delete P[e.pointerId]; pinch = null; var rest = Object.keys(P); start = rest.length ? { x: P[rest[0]].x, y: P[rest[0]].y, vb: curVB(), t: null } : null; });
   svg.addEventListener('wheel', function (e) { e.preventDefault(); var p = toSVG(svg, e.clientX, e.clientY); ST.wheeling = true; zoomAt(e.deltaY > 0 ? 1.18 : 1 / 1.18, p.x, p.y); ST.wheeling = false; }, { passive: false });
   // بطاقة صغيرة فوق الدار عند المرور عليها
   var tip = document.getElementById('mxtip');
