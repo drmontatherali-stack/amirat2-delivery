@@ -5,7 +5,7 @@
 (function () {
 'use strict';
 var X = window.A2X; if (!X || !X.VIEWS) return;
-var V = '2.5.0';
+var V = '2.5.1';
 var S = X.S, esc = X.esc;
 var MD = null, MDerr = '', loading = false;
 var ST = { side: false, sec: X.lsGet('mx_sec', 'all'), mode: X.lsGet('mx_mode', 'status'), con: 'all', flt: 'all', year: String(new Date().getFullYear()), q: '', sel: null, edit: false, vb: {}, zoomed: false };
@@ -131,18 +131,19 @@ function css() {
     '.mx .mxtip{position:absolute;z-index:4;pointer-events:none;min-width:150px;max-width:220px;padding:8px 10px;border-radius:12px;background:color-mix(in srgb,var(--card-solid,#0b1430) 92%,transparent);border:1px solid var(--line);box-shadow:0 10px 30px -10px #000;display:flex;flex-direction:column;gap:2px;font-size:12.5px;color:var(--ink)}',
     '.mx .mxtip span{display:flex;align-items:center;gap:6px}.mx .mxtip i{width:10px;height:10px;border-radius:3px;display:inline-block}.mx .mxtip small{color:var(--muted);font-size:11px}',
     '.mx svg.mxs .hs{transform-box:fill-box;transform-origin:center}',
-    '.mx svg.mxs.wave .hs{animation:mxw .7s cubic-bezier(.2,.9,.3,1.25) both;animation-delay:var(--d,0ms)}',
+    '.mx svg.mxs.wave:not(.big) .hs{animation:mxw .7s cubic-bezier(.2,.9,.3,1.25) both;animation-delay:var(--d,0ms)}',
+    '.mx svg.mxs.big.wave #mxh{animation:mxf2 .6s ease both}@keyframes mxf2{from{opacity:0}}',
     '@keyframes mxw{from{opacity:0;transform:scale(.15)}to{opacity:1;transform:none}}',
-    '.mx svg.mxs .ctx{fill:none;stroke:var(--muted);stroke-width:.6;opacity:.32;vector-effect:non-scaling-stroke}',
+    '.mx svg.mxs .ctx{fill:none;stroke:var(--muted);stroke-width:.45;opacity:.32}',
     '.mx svg.mxs .fac{font:600 6.5px "IBM Plex Sans Arabic",sans-serif;fill:var(--muted);opacity:.85;text-anchor:middle;pointer-events:none;paint-order:stroke;stroke:var(--card-solid,#0b1430);stroke-width:1.6px}',
     '.mx svg.mxs .hs.vip{stroke:#E2C47A;stroke-width:1.4}',
     '.mx svg.mxs .hs.brth{animation:mxbr 2.6s ease-in-out infinite}',
-    '@keyframes mxbr{0%,100%{opacity:1;filter:none}50%{opacity:.55;filter:drop-shadow(0 0 2.5px #ff4d5e)}}',
+    '@keyframes mxbr{0%,100%{opacity:1}50%{opacity:.45}}',
     '.mx svg.mxs .sweep{transform-box:fill-box;pointer-events:none;mix-blend-mode:screen;animation:mxsw 9s linear infinite}',
     '@keyframes mxsw{0%{transform:translateX(0)}60%,100%{transform:translateX(430%)}}',
     '.mx svg.mxs .snb{transition:opacity .25s}.mx svg.mxs.zoomed .snb{opacity:.35}',
     '@media (prefers-reduced-motion:reduce){.mx svg.mxs .hs.brth,.mx svg.mxs .sweep{animation:none}}',
-    '.mx svg.mxs .hs:hover{stroke:#fff;stroke-width:1.6;transform:scale(1.18);transition:transform .18s}',
+    '.mx svg.mxs .hs:hover{stroke:#fff;stroke-width:1.6}','.mx svg.mxs:not(.big) .hs:hover{transform:scale(1.18);transition:transform .18s}',
     '.mx svg.mxs .snb{cursor:pointer}.mx svg.mxs .snb rect{fill:color-mix(in srgb,var(--brand) 30%,var(--card-solid,#0b1430));fill-opacity:.92;stroke:var(--brand);stroke-width:1;vector-effect:non-scaling-stroke}',
     '#mxsure{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:rgba(3,6,18,.55);backdrop-filter:blur(3px);animation:mxf .18s ease}',
     '#mxsure .box{width:min(92vw,380px);padding:22px;border-radius:20px;background:var(--card-solid,#101a3a);border:1px solid var(--line);box-shadow:0 30px 80px -20px #000;text-align:center;animation:mxpop .25s cubic-bezier(.2,.9,.3,1.2)}',
@@ -168,8 +169,8 @@ function css() {
     '.mx .mapbox{position:relative;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:radial-gradient(1200px 600px at 50% 0%,color-mix(in srgb,var(--brand) 7%,transparent),transparent 60%),var(--card-solid,var(--card));height:calc(100vh - 300px);min-height:440px;touch-action:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.02),0 20px 50px -30px #000}',
     '.mx .mapbox::before{content:"";position:absolute;inset:0;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:44px 44px;opacity:.18;pointer-events:none}',
     '.mx svg.mxs{width:100%;height:100%;margin-top:0;display:block;user-select:none;-webkit-user-select:none;cursor:grab}',
-    '.mx svg.mxs .geo{fill:none;stroke:var(--muted);stroke-width:.7;opacity:.55;vector-effect:non-scaling-stroke}',
-    '.mx svg.mxs .hs{stroke:rgba(0,0,0,.38);stroke-width:.5;vector-effect:non-scaling-stroke;transition:opacity .35s,fill .45s ease}',
+    '.mx svg.mxs .geo{fill:none;stroke:var(--muted);stroke-width:.4;opacity:.55}',
+    '.mx svg.mxs .hs{stroke:rgba(0,0,0,.38);stroke-width:.3;transition:opacity .35s,fill .45s ease}',
     '.mx svg.mxs .hs.dim{opacity:.12}',
     '.mx svg.mxs .hs.rvm{stroke:#a77bff;stroke-width:2}',
     '.mx svg.mxs .hs.sel{stroke:#fff;stroke-width:3;filter:url(#mxglow)}',
@@ -177,6 +178,8 @@ function css() {
     '@keyframes mxp{50%{opacity:.2}}',
     '.mx svg.mxs .blg rect{fill:var(--brand);fill-opacity:.92;stroke:#0b1430;stroke-width:.6;pointer-events:none}',
     '.mx svg.mxs .bl{font:800 7.2px "Readex Pro","IBM Plex Sans Arabic",sans-serif;fill:#06121f;pointer-events:none;text-anchor:middle;dominant-baseline:central;letter-spacing:.2px}',
+    '.mx svg.mxs.big.mv .blg,.mx svg.mxs.big.mv .fac,.mx svg.mxs.big.mv .snb,.mx svg.mxs.big.mv .hn{visibility:hidden}',
+    '.mx svg.mxs.big .hn{display:none}.mx svg.mxs.big.zoomed .hn{display:block}',
     '.mx svg.mxs .hn{font-family:"Readex Pro","IBM Plex Sans Arabic",sans-serif;font-weight:700;fill:#1b2440;fill-opacity:.85;pointer-events:none;text-anchor:middle;dominant-baseline:central}',
     '.mx svg.mxs .sn{font:800 19px "IBM Plex Sans Arabic",sans-serif;fill:var(--ink);text-anchor:middle;pointer-events:none}',
     '.mx .zbtn{position:absolute;inset-inline-start:10px;bottom:10px;display:flex;flex-direction:column;gap:6px}',
@@ -276,8 +279,8 @@ function svgHTML(forPrint) {
   if (!forPrint && MD.fac) MD.fac.forEach(function (f) { if (f[1] < e[0] - 40 || f[1] > e[2] + 40 || f[2] < e[1] - 40 || f[2] > e[3] + 40) return; fc += '<text class="fac" x="' + f[1] + '" y="' + (-f[2]) + '">' + esc(f[0]) + '</text>'; });
   var pad = all ? 16 : 10, vb = [e[0] - pad, -e[3] - pad, e[2] - e[0] + pad * 2, e[3] - e[1] + pad * 2];
   if (!forPrint) ST.full = vb;
-  var sweep = forPrint ? '' : '<defs><linearGradient id="mxsw" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".09"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs><rect class="sweep" x="' + (vb[0] - vb[2] * .3).toFixed(1) + '" y="' + vb[1].toFixed(1) + '" width="' + (vb[2] * .3).toFixed(1) + '" height="' + vb[3].toFixed(1) + '" fill="url(#mxsw)"/>';
-  return '<svg class="mxs" id="mxsvg" xmlns="http://www.w3.org/2000/svg" viewBox="' + vb.join(' ') + '" preserveAspectRatio="xMidYMid meet"><defs><filter id="mxglow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>' + g + fc + '<g id="mxh">' + hs + '</g>' + sweep + hn + bl + sn + '</svg>';
+  var sweep = '';
+  return '<svg class="mxs' + (all ? ' big' : '') + '" id="mxsvg" xmlns="http://www.w3.org/2000/svg" viewBox="' + vb.join(' ') + '" preserveAspectRatio="xMidYMid meet"><defs><filter id="mxglow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>' + g + fc + '<g id="mxh">' + hs + '</g>' + sweep + hn + bl + sn + '</svg>';
 }
 
 /* ---------- الطبقات: كل قسم من النظام على الخريطة ---------- */
@@ -463,7 +466,7 @@ function applyVB() {
   var box = svg.getBoundingClientRect(), upp = Math.max(v[2] / (box.width || 1), v[3] / (box.height || 1));
   svg.classList.toggle('zoomed', upp < 0.3);
 }
-function setVB(v) { ST.vb[String(ST.sec)] = v; applyVB(); }
+function setVB(v) { ST.vb[String(ST.sec)] = v; var sv = document.getElementById('mxsvg'); if (sv && sv.classList.contains('big')) { sv.classList.add('mv'); clearTimeout(ST.mvT); ST.mvT = setTimeout(function () { sv.classList.remove('mv'); }, 160); } applyVB(); }
 function animVB(t, ms) { // حركة ناعمة للتكبير والتنقل
   var a = curVB(), t0 = performance.now(), d = ms || 420; cancelAnimationFrame(ST.raf);
   if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { setVB(t); return; }
