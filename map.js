@@ -5,7 +5,7 @@
 (function () {
 'use strict';
 var X = window.A2X; if (!X || !X.VIEWS) return;
-var V = '2.6.0';
+var V = '2.7.0';
 var S = X.S, esc = X.esc;
 var MD = null, MDerr = '', loading = false;
 var ST = { lgc: +X.lsGet('mx_lgc', innerWidth < 640 ? 1 : 0) === 1, side: false, sec: X.lsGet('mx_sec', 'all'), mode: X.lsGet('mx_mode', 'status'), con: 'all', flt: 'all', year: String(new Date().getFullYear()), q: '', sel: null, edit: false, vb: {}, zoomed: false };
@@ -83,7 +83,7 @@ function load() {
     ids.forEach(function (id, i) { x += C.x[i]; y += C.y[i];
       var h = { id: id, s: +C.s[i], x: x / 2, y: y / 2, w: C.w[i] / 2, h: C.h[i] / 2, con0: d.cons[C.c.charCodeAt(i) - 48], dir0: C.d[i] === '1', b: blockOf(id) };
       MD.H[mk(h.id)] = h; (MD.byS[h.s] = MD.byS[h.s] || []).push(h); });
-    loading = false; ST.built = false; build(); setTimeout(wave, 60);
+    loading = false; ST.built = false; build(); setTimeout(wave, 60); if (X.S.view !== 'map') X.scheduleRender();
   }).catch(function (e) { loading = false; MDerr = String(e && e.message || e); build(); });
 }
 
@@ -724,6 +724,120 @@ function printMap() {
   document.body.classList.add('mxprinting');
   setTimeout(function () { window.print(); setTimeout(function () { document.body.classList.remove('mxprinting'); }, 500); }, 80);
 }
+
+/* ---------- دائرة المقاولين: لكل مقاول الكلي (من المخطط) وقيد التسليم والمتبقية، ومقسّمة حسب القطاع ---------- */
+var CX = { open: {} };
+X.ICONS.cons = 'M4 20v-2a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v2M12 11a4 4 0 1 0 0-8a4 4 0 0 0 0 8z';
+X.HUB_LBL.cons = 'المقاولين';
+X.TITLES.cons = 'المقاولين';
+if (X.HUB.indexOf('cons') < 0) X.HUB.splice(Math.max(0, X.HUB.indexOf('weekly')), 0, 'cons');
+if (!X.NAV.some(function (n) { return n[0] === 'cons'; })) { var wi = X.NAV.map(function (n) { return n[0]; }).indexOf('weekly'); X.NAV.splice(wi >= 0 ? wi : X.NAV.length - 1, 0, ['cons', 'المقاولين']); }
+(function () { var hs = X.hubStats; X.hubStats = function () { var o = hs ? hs() : {}; o.cons = { c: MD ? (conData().list.length + ' جهة منفذة') : 'لكل مقاول دوره', p: null }; return o; }; })();
+var CXK = [['all', 'عدد الدور الكلي'], ['ws', 'قيد التسليم'], ['wsOk', 'قيد التسليم · غير عابر موعدها'], ['wsOverR', 'قيد التسليم · عابر جاهز'], ['wsOverN', 'قيد التسليم · عابر غير جاهز'], ['wsOverNRev', 'قيد التسليم · عابر غير جاهز مع مراجعات'], ['rem', 'الدور المتبقية (بعدها ما وصلت)'], ['del', 'المسلّمة']];
+function cxLbl(k) { for (var i = 0; i < CXK.length; i++) if (CXK[i][0] === k) return CXK[i][1]; return k; }
+function conData() {
+  var I = index(); ST.I = I; ST.cc = null; var G = {}, now = X.todayStr();
+  if (CX.cache && CX.cache.t === now && CX.cache.n === X.S._metaT && CX.cache.db === X.S.db && CX.cache.ws === X.S.wsAll && CX.cache.del === X.S.del) return CX.cache.d;
+  function grp(g) { return G[g] = G[g] || { g: g, sec: {}, all: [], ws: [], wsOk: [], wsOverR: [], wsOverN: [], wsOverNRev: [], rem: [], del: [] }; }
+  function add(g, s, key, it) { var o = grp(g), q = o.sec[s] = o.sec[s] || { s: s, all: [], ws: [], wsOk: [], wsOverR: [], wsOverN: [], wsOverNRev: [], rem: [], del: [] };
+    [o, q].forEach(function (z) { z.all.push(it); z[key].push(it); if (key.indexOf('ws') === 0) z.ws.push(it); if (key === 'wsOverN' && it.rv) z.wsOverNRev.push(it); }); }
+  function item(id, s, u, r, d, off) { var dd = u ? X.daysDiff(u.deliveryDate) : null; return { id: id, s: s, u: u, inc: u ? u.incomingDate || '' : '', dlv: u ? u.deliveryDate || '' : '', dd: dd, ready: u ? X.isReady(u.unit) : false,
+    rv: r ? X.rvRounds(r).filter(function (x, i) { return i === 0 || x.reviewDate || x.completionDate; }).length : 0, rdone: !!(r && r.notesCompleted === true), ddate: d || '', off: !!off }; }
+  allSecs().forEach(function (s) { (MD.byS[s] || []).forEach(function (h) {
+    var k = mk(h.id), st = statusOf(h, I), u = I.ws[k], r = I.rv[k], g = effCon(h).group;
+    if (st === 'del') { var dl = delDate(h, I); add(g, s, 'del', item(h.id, s, null, r, dl ? dl.raw : (I.del[k] && I.del[k].date) || '')); return; }
+    if (u) { var it = item(h.id, s, u, r); add(g, s, it.dd !== null && it.dd <= 0 ? (it.ready ? 'wsOverR' : 'wsOverN') : 'wsOk', it); return; }
+    add(g, s, 'rem', item(h.id, s, null, r));
+  }); });
+  // دور قيد التسليم بالشيت وما موجودة بالمخطط (حتى الأرقام تطابق النظام)
+  X.wsUnits().forEach(function (u) { var k = mk(u.unit); if (MD.H[k] || X.getSheetDate(u.unit)) return;
+    var sc = X.unitCon(u), g = isDirectCon(sc) ? CO_LBL : (canonCon(sc) || 'غير محدد'), s = 0; allSecs().forEach(function (x) { if (sectorName(x) === u.sector) s = x; });
+    var it = item(u.unit, s, u, I.rv[k], '', true); add(g, s, it.dd !== null && it.dd <= 0 ? (it.ready ? 'wsOverR' : 'wsOverN') : 'wsOk', it); });
+  var list = Object.keys(G).map(function (g) { return G[g]; }).sort(function (a, b) { var A = a.g === CO_LBL || a.g === 'غير محدد', B = b.g === CO_LBL || b.g === 'غير محدد'; return A !== B ? (A ? 1 : -1) : b.all.length - a.all.length; });
+  var tot = { all: 0, ws: 0, wsOk: 0, wsOverR: 0, wsOverN: 0, wsOverNRev: 0, rem: 0, del: 0 }; list.forEach(function (o) { Object.keys(tot).forEach(function (k) { tot[k] += o[k].length; }); });
+  var d = { list: list, tot: tot }; CX.cache = { t: now, n: X.S._metaT, db: X.S.db, ws: X.S.wsAll, del: X.S.del, d: d }; return d;
+}
+function cxNum(g, s, k, n, cls) { return '<button class="cxn ' + (cls || '') + '" data-cx="list" data-g="' + esc(g) + '" data-s="' + s + '" data-k="' + k + '"' + (n ? '' : ' disabled') + '><b>' + n + '</b><span>' + esc(cxLbl(k).replace('قيد التسليم · ', '').replace(' (بعدها ما وصلت)', '')) + '</span></button>'; }
+function cxCss() {
+  if (document.getElementById('cxcss')) return; var st = document.createElement('style'); st.id = 'cxcss';
+  st.textContent = [
+    '.cx{display:flex;flex-direction:column;gap:12px}',
+    '.cx .cxtop{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.cx .cxtop .inp{flex:1 1 220px}',
+    '.cx .cxc{padding:14px 16px;display:flex;flex-direction:column;gap:10px}',
+    '.cx .cxh{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}.cx .cxh b{font-size:17px}.cx .cxh small{color:var(--muted);font-size:12.5px}',
+    '.cx .cxbar{display:flex;height:12px;border-radius:7px;overflow:hidden;background:var(--soft2)}.cx .cxbar i{display:block;height:100%;transition:width .8s cubic-bezier(.2,.8,.2,1)}',
+    '.cx .cxbar .d{background:#2ecc71}.cx .cxbar .w{background:#3fa9f5}.cx .cxbar .y{background:#f5a623}.cx .cxbar .o{background:#ff4d5e}.cx .cxbar .r{background:#b8c0d4}',
+    '.cx .cxrow{display:flex;flex-wrap:wrap;gap:6px}',
+    '.cx .cxn{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:84px;padding:7px 10px;border-radius:12px;border:1px solid var(--line);background:var(--soft2);color:var(--ink);font:inherit;cursor:pointer;transition:transform .15s,border-color .2s}',
+    '.cx .cxn:hover{transform:translateY(-2px);border-color:var(--brand)}.cx .cxn:disabled{opacity:.45;cursor:default;transform:none}',
+    '.cx .cxn b{font-family:"Readex Pro";font-size:19px;font-variant-numeric:tabular-nums}.cx .cxn span{font-size:11.5px;color:var(--muted);white-space:nowrap}',
+    '.cx .cxn.t b{color:var(--ink)}.cx .cxn.w b{color:#3fa9f5}.cx .cxn.g b{color:#2ecc71}.cx .cxn.y b{color:#f5a623}.cx .cxn.o b{color:#ff4d5e}.cx .cxn.p b{color:#a77bff}.cx .cxn.r b{color:var(--muted)}',
+    '.cx .cxn.tg{border-color:#3fa9f5}.cx .cxn.tg span::after{content:" ▾"}.cx .cxn.tg.on span::after{content:" ▴"}',
+    '.cx .cxsub{display:flex;flex-wrap:wrap;gap:6px;padding:8px;border-radius:12px;background:color-mix(in srgb,#3fa9f5 8%,transparent);border:1px dashed color-mix(in srgb,#3fa9f5 45%,transparent)}',
+    '.cx .cxt{width:100%;border-collapse:collapse;font-size:13px}.cx .cxt th,.cx .cxt td{border-top:1px solid var(--line);padding:5px 6px;text-align:center}.cx .cxt th{color:var(--muted);font-weight:600;font-size:12px}.cx .cxt td:first-child,.cx .cxt th:first-child{text-align:right}',
+    '.cx .cxt button{border:0;background:transparent;color:inherit;font:inherit;font-family:"Readex Pro";font-weight:700;cursor:pointer;padding:2px 8px;border-radius:8px}.cx .cxt button:hover{background:var(--soft)}.cx .cxt button:disabled{color:var(--muted);font-weight:400;cursor:default;background:none}',
+    '.cx .cxt .y{color:#f5a623}.cx .cxt .o{color:#ff4d5e}.cx .cxt .p{color:#a77bff}.cx .cxt .w{color:#3fa9f5}.cx .cxt .g{color:#2ecc71}',
+    '.cxl{display:flex;flex-direction:column;gap:4px;max-height:58vh;overflow:auto}.cxl button{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;border:1px solid var(--line);background:var(--soft2);color:var(--ink);border-radius:10px;padding:8px 10px;font:inherit;font-size:13px;cursor:pointer;text-align:right}.cxl small{color:var(--muted)}'
+  ].join('\n'); document.head.appendChild(st);
+}
+X.VIEWS.cons = function () {
+  cxCss();
+  if (!MD) { if (!MDerr) load(); return '<div class="card empty">' + (MDerr ? '⚠️ تعذّر تحميل المخطط: ' + esc(MDerr) : '⏳ جاري تحميل توزيع المقاولين…') + '</div>'; }
+  var D = conData(), q = X.arN(CX.q || '');
+  var list = D.list.filter(function (o) { return !q || X.arN(o.g).indexOf(q) >= 0; });
+  var T = D.tot;
+  var h = '<div class="cx"><div class="card cxc"><div class="cxtop"><input class="inp" id="cxq" type="search" data-cxin="q" value="' + esc(CX.q || '') + '" placeholder="🔍 اسم المقاول"><button class="btn wa" data-cx="xsum">' + X.ico('xls', 16) + ' تصدير الملخص Excel</button></div>' +
+    '<div class="cxrow">' + cxNum('*', 0, 'all', T.all, 't') + cxNum('*', 0, 'ws', T.ws, 'w') + cxNum('*', 0, 'wsOk', T.wsOk, 'g') + cxNum('*', 0, 'wsOverR', T.wsOverR, 'y') + cxNum('*', 0, 'wsOverN', T.wsOverN, 'o') + cxNum('*', 0, 'wsOverNRev', T.wsOverNRev, 'p') + cxNum('*', 0, 'rem', T.rem, 'r') + cxNum('*', 0, 'del', T.del, 'g') + '</div>' +
+    '<p class="muted" style="margin:0;font-size:12.5px;line-height:1.7">الكلي من المخطط، والحالة والمقاول من الشيت. «عابر» = موعد التسليم اليوم أو فات، وينقسم جاهز وغير جاهز. «المتبقية» = بالمخطط وبعدها ما وصلت لقيد التسليم ولا انسلّمت. اضغط أي رقم حتى تطلع دوره وتصدّرها Excel.</p></div>';
+  h += list.map(function (o) {
+    var n = o.all.length || 1, open = !!CX.open[o.g], pd = Math.round(o.del.length * 100 / n);
+    var secs = Object.keys(o.sec).map(Number).sort(function (a, b) { return a - b; });
+    function cell(s, k, cls) { var c = (s == null ? o : o.sec[s])[k].length; return '<td><button class="' + (cls || '') + '" data-cx="list" data-g="' + esc(o.g) + '" data-s="' + (s == null ? 0 : s) + '" data-k="' + k + '"' + (c ? '' : ' disabled') + '>' + c + '</button></td>'; }
+    return '<div class="card cxc"><div class="cxh"><b>' + esc(o.g === CO_LBL ? '🏢 ' + o.g : '👷 ' + o.g) + '</b><small>' + o.all.length + ' دار · مسلّم ' + pd + '٪</small></div>' +
+      '<div class="cxbar" title="أخضر مسلّمة · أزرق قيد التسليم غير عابر · أصفر عابر جاهز · أحمر عابر غير جاهز · رمادي متبقية"><i class="d" style="width:' + (o.del.length * 100 / n) + '%"></i><i class="w" style="width:' + (o.wsOk.length * 100 / n) + '%"></i><i class="y" style="width:' + (o.wsOverR.length * 100 / n) + '%"></i><i class="o" style="width:' + (o.wsOverN.length * 100 / n) + '%"></i><i class="r" style="width:' + (o.rem.length * 100 / n) + '%"></i></div>' +
+      '<div class="cxrow">' + cxNum(o.g, 0, 'all', o.all.length, 't') +
+      '<button class="cxn w tg' + (open ? ' on' : '') + '" data-cx="tog" data-g="' + esc(o.g) + '"><b>' + o.ws.length + '</b><span>قيد التسليم</span></button>' +
+      cxNum(o.g, 0, 'rem', o.rem.length, 'r') + cxNum(o.g, 0, 'del', o.del.length, 'g') + '</div>' +
+      (open ? '<div class="cxsub">' + cxNum(o.g, 0, 'ws', o.ws.length, 'w') + cxNum(o.g, 0, 'wsOk', o.wsOk.length, 'g') + cxNum(o.g, 0, 'wsOverR', o.wsOverR.length, 'y') + cxNum(o.g, 0, 'wsOverN', o.wsOverN.length, 'o') + cxNum(o.g, 0, 'wsOverNRev', o.wsOverNRev.length, 'p') + '</div>' : '') +
+      '<div class="scroll"><table class="cxt"><thead><tr><th>القطاع</th><th>الكلي</th><th>قيد التسليم</th><th>غير عابر</th><th>عابر جاهز</th><th>عابر غير جاهز</th><th>عابر غير جاهز + مراجعات</th><th>المتبقية</th><th>المسلّمة</th></tr></thead><tbody>' +
+      secs.map(function (s) { return '<tr><td>' + esc(s ? sectorName(s) : 'قطاع غير معروف') + '</td>' + cell(s, 'all') + cell(s, 'ws', 'w') + cell(s, 'wsOk', 'g') + cell(s, 'wsOverR', 'y') + cell(s, 'wsOverN', 'o') + cell(s, 'wsOverNRev', 'p') + cell(s, 'rem') + cell(s, 'del', 'g') + '</tr>'; }).join('') +
+      '</tbody></table></div></div>';
+  }).join('');
+  return h + '</div>';
+};
+function cxItems(g, s, k) { var D = conData(), out = []; D.list.forEach(function (o) { if (g !== '*' && o.g !== g) return; var src = s ? (o.sec[s] || {})[k] : o[k]; (src || []).forEach(function (it) { out.push([o.g, it]); }); });
+  return out.sort(function (a, b) { return (k.indexOf('ws') === 0 ? ((a[1].dd == null ? 1e9 : a[1].dd) - (b[1].dd == null ? 1e9 : b[1].dd)) : 0) || a[1].s - b[1].s || a[1].id.localeCompare(b[1].id, 'en', { numeric: true }); }); }
+function cxState(it) { if (it.ddate) return 'مسلّمة'; if (it.u) return (it.ready ? 'جاهزة' : 'غير جاهزة') + (it.dd == null ? '' : it.dd > 0 ? ' · باقي ' + it.dd + ' يوم' : it.dd === 0 ? ' · اليوم موعدها' : ' · متجاوز ' + (-it.dd) + ' يوم'); return 'بعدها ما وصلت'; }
+function cxList(g, s, k) {
+  var L = cxItems(g, s, k), title = cxLbl(k) + ' — ' + (g === '*' ? 'كل المقاولين' : g) + (s ? ' — ' + sectorName(s) : '');
+  CX.cur = { g: g, s: s, k: k, title: title };
+  X.openModal('<header><h3>' + esc(title) + ' <span class="pill">' + L.length + '</span></h3><button class="iconbtn" data-act="closeModal" aria-label="إغلاق">' + X.ico('close') + '</button></header><div class="bd"><div class="cxl">' +
+    L.slice(0, 400).map(function (x) { var it = x[1]; return '<button data-cx="house" data-v="' + esc(it.id) + '"><b class="ltr">' + esc(it.id) + '</b><small>' + esc((it.s ? sectorName(it.s) : (it.u && it.u.sector) || '') + (g === '*' ? ' · ' + x[0] : '') + (it.dlv ? ' · 📤 ' + it.dlv : it.ddate ? ' · 📅 ' + it.ddate : '') + (it.off ? ' · ⚠️ مو موجودة بالمخطط' : '')) + '</small><small>' + esc(cxState(it)) + (it.rv ? ' · 🔍 ' + it.rv : '') + '</small></button>'; }).join('') +
+    (L.length > 400 ? '<p class="muted" style="font-size:12px">يطلع أول 400 — التصدير بيه الكل</p>' : '') + '</div><p class="muted" style="font-size:12px;margin:8px 0 0">اضغط الدار حتى تفتحها بالبحث.</p></div>' +
+    '<footer><button class="btn wa" data-cx="xls">' + X.ico('xls', 16) + ' تصدير Excel</button><button class="btn" data-act="closeModal">إغلاق</button></footer>', true);
+}
+function cxExport() {
+  var c = CX.cur; if (!c) return; var L = cxItems(c.g, c.s, c.k);
+  var rows = L.map(function (x, i) { var it = x[1]; return [i + 1, x[0], it.s ? sectorName(it.s) : ((it.u && it.u.sector) || '—'), it.id, it.inc || '—', it.dlv || it.ddate || '—', it.u ? (it.ready ? 'جاهزة' : 'غير جاهزة') : '—', it.dd == null ? '—' : it.dd > 0 ? 'باقي ' + it.dd : it.dd === 0 ? 'اليوم' : 'متجاوز ' + (-it.dd), it.rv || 0, cxState(it)]; });
+  X.xlsxPro([{ name: cxLbl(c.k).slice(0, 28), title: c.title + ' — ' + X.todayStr(), head: ['ت', 'المقاول / الجهة', 'القطاع', 'رقم الدار', 'تاريخ الوارد', 'تاريخ التسليم / الاستلام', 'الجاهزية', 'الأيام', 'عدد المراجعات', 'الموقف'], cols: [6, 22, 14, 12, 13, 15, 11, 12, 10, 24], textCols: [1, 2, 3, 4, 5, 6, 7, 9], rows: rows }], 'Amirat2_Contractors_' + c.k + '_' + X.todayStr() + '.xlsx');
+}
+function cxExportSum() {
+  var D = conData(), rows = [];
+  D.list.forEach(function (o) { Object.keys(o.sec).map(Number).sort(function (a, b) { return a - b; }).forEach(function (s) { var q = o.sec[s]; rows.push([o.g, s ? sectorName(s) : 'غير معروف', q.all.length, q.ws.length, q.wsOk.length, q.wsOverR.length, q.wsOverN.length, q.wsOverNRev.length, q.rem.length, q.del.length]); });
+    rows.push([o.g, 'المجموع', o.all.length, o.ws.length, o.wsOk.length, o.wsOverR.length, o.wsOverN.length, o.wsOverNRev.length, o.rem.length, o.del.length]); });
+  var T = D.tot;
+  X.xlsxPro([{ name: 'المقاولين', title: 'ملخص المقاولين حسب القطاع — ' + X.todayStr(), head: ['المقاول / الجهة', 'القطاع', 'الكلي', 'قيد التسليم', 'غير عابر موعدها', 'عابر جاهز', 'عابر غير جاهز', 'عابر غير جاهز مع مراجعات', 'المتبقية', 'المسلّمة'], cols: [24, 15, 9, 11, 13, 11, 13, 16, 10, 10], textCols: [0, 1], rows: rows,
+    total: ['المجموع الكلي', '', T.all, T.ws, T.wsOk, T.wsOverR, T.wsOverN, T.wsOverNRev, T.rem, T.del], totMerge: [[0, 1]] }], 'Amirat2_Contractors_' + X.todayStr() + '.xlsx');
+}
+document.addEventListener('click', function (e) {
+  var b = e.target.closest && e.target.closest('[data-cx]'); if (!b || !MD) return; var a = b.dataset.cx;
+  if (a === 'tog') { CX.open[b.dataset.g] = !CX.open[b.dataset.g]; X.scheduleRender(); }
+  else if (a === 'list') cxList(b.dataset.g, +b.dataset.s || 0, b.dataset.k);
+  else if (a === 'xls') cxExport();
+  else if (a === 'xsum') cxExportSum();
+  else if (a === 'house') { X.closeModal(); S.q = b.dataset.v; S.sel = null; X.ACT.go({ v: 'search' }); }
+});
+document.addEventListener('input', function (e) { if (e.target.dataset && e.target.dataset.cxin === 'q') { CX.q = e.target.value; clearTimeout(CX.t); CX.t = setTimeout(X.scheduleRender, 200); } });
 
 // لو النظام رسم قبل تحميل هذا الملف
 try { X.scheduleRender(); } catch (e) {}
