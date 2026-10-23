@@ -24,7 +24,7 @@ var USERS = [
 var DEFAULT_CONTRACTORS = ['أحمد عواد', 'عادل عرار', 'محمد عرار', 'جاسم زراك', 'دياري كريم', 'علي الكوفي', 'علي هويدي', 'علي محمد حسين', 'طه عبد الله', 'اكام بهاء', 'ثامر عطار', 'سمير حنون', 'عمر بولات', 'اسعد هادي', 'اوات جمال', 'يوسف حسن'];
 var AR_MONTHS = ['', 'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 var AR_MONTHS_SHORT = ['', 'كانون٢', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران', 'تموز', 'آب', 'أيلول', 'تشرين١', 'تشرين٢', 'كانون١'];
-var VERSION = '2.2.0';
+var VERSION = '2.2.1';
 var ADMIN_UID = 'PsrknBOyOxUU3PM0xqXZvBhRaul1'; // حساب منتظر علي (مدير النظام)
 var BAKROOT = 'amirat2_logs/backups'; // داخل مسار مسموح بقواعد قاعدة البيانات الحالية
 var ACLROOT = 'amirat2_acl';
@@ -34,10 +34,13 @@ function legacyPass(pin) { return 'Am2#' + pin + '#tslim-office'; } // كلمة 
 /* ================= أدوات ================= */
 function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 function cell(v) { return (v == null) ? '' : String(v).trim(); }
-function normH(v) { return String(v == null ? '' : v).trim().replace(/\s+/g, ' ').toLowerCase(); }   // normHouseNo بالنظام الحالي
-function normS(v) { return String(v == null ? '' : v).replace(/\s+/g, '').toLowerCase(); }           // norm بشيت المسلّمة
+// «A VVIP» و«AVVIP» بالشيتات = نفس دور VIP
+function vipC(s) { return s.replace(/^a\s*\.?\s*v\s*\.?\s*vip\s*/, 'vip'); }
+function normH(v) { return vipC(String(v == null ? '' : v).trim().replace(/\s+/g, ' ').toLowerCase()); }   // normHouseNo بالنظام الحالي
+function normS(v) { return vipC(String(v == null ? '' : v).replace(/\s+/g, '').toLowerCase()); }           // norm بشيت المسلّمة
 function enc(s) { return String(s).replace(/\./g, '_dot_'); }
 function dec(s) { return String(s).replace(/_dot_/g, '.'); }
+function ckeys(o) { var k = Object.keys(o); return k.filter(function (x) { return normH(dec(x)) === dec(x); }).concat(k.filter(function (x) { return normH(dec(x)) !== dec(x); })); } // المفاتيح الموحّدة أولاً
 function stripBidi(s) { return String(s == null ? '' : s).replace(/[​-‏‪-‮⁦-⁩﻿]/g, ''); }
 function arDigits(s) { return String(s).replace(/[٠-٩]/g, function (d) { return '٠١٢٣٤٥٦٧٨٩'.indexOf(d); }).replace(/[۰-۹]/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'.indexOf(d); }); }
 function pad2(n) { return (n < 10 ? '0' : '') + n; }
@@ -145,18 +148,18 @@ function D() { return S.db || {}; }
 var MEMO = {}, MEMO_T = 0;
 function bump() { MEMO = {}; MEMO_T = Date.now(); }
 function memo(k, f) { if (Date.now() - MEMO_T > 60000) bump(); var v = MEMO[k]; if (v === undefined) v = MEMO[k] = f(); return v; }
-function readyMap() { return memo('ready', function () { var m = {}, r = D().readyMap || {}; Object.keys(r).forEach(function (k) { m[dec(k)] = r[k]; }); return m; }); }
+function readyMap() { return memo('ready', function () { var m = {}, r = D().readyMap || {}; ckeys(r).forEach(function (k) { var c = normH(dec(k)); if (!(c in m)) m[c] = r[k]; }); return m; }); }
 function isReady(unit) { return !!readyMap()[normH(unit)]; }
 function oldRecs() { return memo('old', function () { return toArr(D().oldRecords); }).slice(); }
 function reviewOf(unit) { var m = memo('oldIdx', function () { var o = {}; oldRecs().forEach(function (r) { var k = normH(r.houseNo); if (!o[k]) o[k] = r; }); return o; }); return m[normH(unit)] || null; }
 function isDeliveredRec(r) { return !!(r && (r.alreadyDelivered || r.status === 'مستلم')); }
-function dismissedMap() { return memo('dis', function () { var m = {}, x = D().dismissed || {}; Object.keys(x).forEach(function (k) { if (x[k]) m[dec(k)] = true; }); return m; }); }
+function dismissedMap() { return memo('dis', function () { var m = {}, x = D().dismissed || {}; Object.keys(x).forEach(function (k) { if (x[k]) m[normH(dec(k))] = true; }); return m; }); }
 function getSheetDate(h) { return S.delMap[normS(h)] || null; }
 // حالة الدور الجديدة الموحّدة — نفس nhStatusMap بالنظام الحالي (القديم للتوافق ثم units يتقدّم)
 function nhStatusMap() { return memo('nh', nhStatusMap0); }
 function nhStatusMap0() {
   var nh = D().newHouseState || {}, m = {};
-  function dm(o) { var r = {}; Object.keys(o || {}).forEach(function (k) { r[dec(k)] = o[k]; }); return r; }
+  function dm(o) { var r = {}; ckeys(o || {}).forEach(function (k) { var c = normH(dec(k)); if (!(c in r)) r[c] = o[k]; }); return r; }
   var known = dm(nh.known), alerts = dm(nh.alerts), dismissed = dm(nh.dismissed), units = dm(nh.units);
   Object.keys(known).forEach(function (k) { m[k] = { status: 'confirmed', rev: 0 }; });
   Object.keys(alerts).forEach(function (k) { if (!dismissed[k]) m[k] = { status: 'pending', unit: alerts[k], detectedAt: (alerts[k] || {}).detectedAt, rev: 0 }; });
