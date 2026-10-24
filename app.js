@@ -24,7 +24,7 @@ var USERS = [
 var DEFAULT_CONTRACTORS = ['أحمد عواد', 'عادل عرار', 'محمد عرار', 'جاسم زراك', 'دياري كريم', 'علي الكوفي', 'علي هويدي', 'علي محمد حسين', 'طه عبد الله', 'اكام بهاء', 'ثامر عطار', 'سمير حنون', 'عمر بولات', 'اسعد هادي', 'اوات جمال', 'يوسف حسن'];
 var AR_MONTHS = ['', 'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 var AR_MONTHS_SHORT = ['', 'كانون٢', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران', 'تموز', 'آب', 'أيلول', 'تشرين١', 'تشرين٢', 'كانون١'];
-var VERSION = '2.4.0';
+var VERSION = '2.4.1';
 var ADMIN_UID = 'PsrknBOyOxUU3PM0xqXZvBhRaul1'; // حساب منتظر علي (مدير النظام)
 var BAKROOT = 'amirat2_logs/backups'; // داخل مسار مسموح بقواعد قاعدة البيانات الحالية
 var ACLROOT = 'amirat2_acl';
@@ -500,18 +500,18 @@ function cwRowsFromWeeklyBook() {
   return fetch(u + (u.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now(), { cache: 'no-store' }).then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.arrayBuffer(); }).then(function (buf) {
     var wb = XLSX.read(new Uint8Array(buf), { type: 'array', raw: true }), best = null;
     wb.SheetNames.forEach(function (n) { if (best && /مقاول/.test(best.n)) return; var rows = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null });
-      for (var i = 0; i < Math.min(rows.length, 10); i++) if (isCwHeader(rows[i])) { if (!best || /مقاول/.test(n)) best = { n: n, rows: rows }; break; } });
+      for (var i = 0; i < Math.min(rows.length, 25); i++) if (isCwHeader(rows[i])) { if (!best || /مقاول/.test(n)) best = { n: n, rows: rows }; break; } });
     if (!best) throw new Error('no-tab'); S.cwSrc = 'ورقة «' + best.n + '» بملف الموقف الأسبوعي'; return best.rows; });
 }
 function syncContractors(manual) {
   if (syncing.cw) return Promise.resolve(); syncing.cw = true;
   return cwRowsFromWeeklyBook().catch(function () { S.cwSrc = 'رابط موقف المقاولين المنفصل (ما لكيت الورقة بملف الموقف الأسبوعي)'; return fetchSheet(settingsUrl('contractors')); }).then(function (rows) {
     var hdr = -1, cC = -1, cSec = -1, cTot = -1, cDel = -1, cProg = -1, cRem = -1;
-    for (var i = 0; i < Math.min(rows.length, 10) && hdr < 0; i++) {
+    for (var i = 0; i < Math.min(rows.length, 25) && hdr < 0; i++) {
       var r = rows[i] || [];
       var cc = r.findIndex(function (c) { return typeof c === 'string' && c.indexOf('المقاول') >= 0; });
       var cs = r.findIndex(function (c) { return typeof c === 'string' && c.indexOf('القطاع') >= 0; });
-      if (cc >= 0 && cs >= 0) {
+      if (cc >= 0 && cs >= 0 && cc !== cs && isCwHeader(r)) { // مو سطر العنوان «موقف المقاولين ... لكل القطاعات»
         hdr = i; cC = cc; cSec = cs;
         cTot = r.findIndex(function (c) { return typeof c === 'string' && c.indexOf('الكلي') >= 0; });
         cDel = r.findIndex(function (c) { return typeof c === 'string' && c.indexOf('المسلمة') >= 0; });
