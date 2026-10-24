@@ -5,13 +5,16 @@
 (function () {
 'use strict';
 var X = window.A2X; if (!X || !X.VIEWS) return;
-var V = '2.9.0';
+var V = '3.0.0';
 var S = X.S, esc = X.esc;
 var MD = null, MDerr = '', loading = false;
 var ST = { tab: X.lsGet('mx_tab', 'view'), fsc: false, lgc: +X.lsGet('mx_lgc', innerWidth < 640 ? 1 : 0) === 1, side: false, sec: X.lsGet('mx_sec', 'all'), mode: X.lsGet('mx_mode', 'status'), con: 'all', flt: 'all', year: String(new Date().getFullYear()), q: '', sel: null, edit: false, vb: {}, zoomed: false };
-var COLORS = { del: '#2ecc71', ready: '#3fa9f5', not: '#f5a623', late: '#ff4d5e', rev: '#a77bff', nw: '#22d3c5', none: null };
-var ST_LBL = { del: 'مسلّمة', ready: 'قيد التسليم · جاهزة', not: 'قيد التسليم · غير جاهزة', late: 'عابر موعدها وغير جاهزة', rev: 'قيد المراجعة', nw: 'جديدة بانتظار التبليغ', none: 'بعدها ما وصلت' };
-var ST_ORD = ['del', 'ready', 'not', 'late', 'rev', 'nw', 'none'];
+// المسلّمة أخضر · قيد التسليم الجاهزة أصفر · غير الجاهزة أحمر — الغامق = عابر موعدها، الفاتح = بعدها بوقتها
+var COLORS = { del: '#2ecc71', rdy: '#ffe37a', rdyL: '#e0a400', nrd: '#ff9ca6', nrdL: '#e1263a', nw: '#22d3c5', none: null };
+var ST_LBL = { del: 'مسلّمة', rdy: 'جاهزة · بعدها بوقتها', rdyL: 'جاهزة · عابر موعدها', nrd: 'غير جاهزة · بعدها بوقتها', nrdL: 'غير جاهزة · عابر موعدها', nw: 'جديدة بانتظار التبليغ', none: 'بعدها ما وصلت' };
+var ST_ORD = ['del', 'rdy', 'rdyL', 'nrd', 'nrdL', 'nw', 'none'];
+function fltHas(key) { return ST.flt === 'all' || ST.flt === key || (ST.flt.indexOf(',') >= 0 && ST.flt.split(',').indexOf(key) >= 0); }
+function openRev(r) { return !!r && r.notesCompleted !== true; }
 var PAL = ['#4FD8E8', '#8E7CFF', '#E2C47A', '#38E2A0', '#FF7AA8', '#68B6FF', '#F2B23E', '#FF8A5B', '#9BE15D', '#D77BFF', '#5BC0BE', '#F6E05E', '#E36B6B', '#7FD1AE'];
 var DIRECT = 'تنفيذ مباشر';
 var CO_LBL = 'الشركة — تنفيذ مباشر';
@@ -111,9 +114,8 @@ function effCon(h) { // الجهة المنفذة حسب النظام (الشي�
 function statusOf(h, I) {
   var k = mk(h.id), u = I.ws[k], r = I.rv[k], d = I.del[k];
   if (d || (r && X.isDeliveredRec(r)) || X.getSheetDate(h.id)) return 'del';
-  if (u) { if (X.isReady(u.unit)) return 'ready'; var dd = X.daysDiff(u.deliveryDate); return dd !== null && dd <= 0 ? 'late' : 'not'; }
+  if (u) { var dd = X.daysDiff(u.deliveryDate), over = dd !== null && dd <= 0; return X.isReady(u.unit) ? (over ? 'rdyL' : 'rdy') : (over ? 'nrdL' : 'nrd'); }
   if (I.nw[k]) return 'nw';
-  if (r) return 'rev';
   return 'none';
 }
 
@@ -149,7 +151,7 @@ function css() {
     '.mx svg.mxs .ctx{fill:none;stroke:var(--muted);stroke-width:.45;opacity:.32}',
     '.mx svg.mxs .fac{font:600 6.5px "IBM Plex Sans Arabic",sans-serif;fill:var(--muted);opacity:.85;text-anchor:middle;pointer-events:none;paint-order:stroke;stroke:var(--card-solid,#0b1430);stroke-width:1.6px}',
     '.mx svg.mxs .hs.vip{stroke:#E2C47A;stroke-width:1.4}',
-    '.mx svg.mxs.zoomed .snb{opacity:.35}',
+    '.mx svg.mxs.zoomed .snb{opacity:.35}.mx svg.mxs:not(.big) .snb{display:none}',
     '.mx svg.mxs .snb{cursor:pointer}.mx svg.mxs .snb rect{fill:color-mix(in srgb,var(--brand) 30%,var(--card-solid,#0b1430));fill-opacity:.92;stroke:var(--brand);stroke-width:1;vector-effect:non-scaling-stroke}',
     '#mxsure{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:rgba(3,6,18,.55);backdrop-filter:blur(3px);animation:mxf .18s ease}',
     '#mxsure .box{width:min(92vw,380px);padding:22px;border-radius:20px;background:var(--card-solid,#101a3a);border:1px solid var(--line);box-shadow:0 30px 80px -20px #000;text-align:center;animation:mxpop .25s cubic-bezier(.2,.9,.3,1.2)}',
@@ -185,7 +187,7 @@ function css() {
     '.mx svg.mxs{width:100%;height:100%;margin-top:0;display:block;user-select:none;-webkit-user-select:none;cursor:grab}',
     '.mx svg.mxs .geo{fill:none;stroke:var(--muted);stroke-width:.4;opacity:.55}',
     '.mx svg.mxs .hs,.mx svg.mxs .hf{stroke:rgba(0,0,0,.38);stroke-width:.3}.mx svg.mxs .hf.dim{opacity:.12}',
-    '.mx svg.mxs .ovv{fill:none;stroke:#E2C47A;stroke-width:1.4}.mx svg.mxs .ovr{fill:none;stroke:#a77bff;stroke-width:1.6}.mx svg.mxs .ovs{fill:none;stroke:#fff;stroke-width:2.4}',
+    '.mx svg.mxs .ovv{fill:none;stroke:#E2C47A;stroke-width:1.4}.mx svg.mxs .ovr{fill:#9b5cff;stroke:#fff;stroke-width:.35}.mx svg.mxs .hf.oth{opacity:.38}.mx svg.mxs .ovs{fill:none;stroke:#fff;stroke-width:2.4}',
     '.mx svg.mxs.wave #mxh{animation:mxf2 .6s ease both}',
     '.mx .mxhov{position:absolute;z-index:3;pointer-events:none;border:2px solid #fff;border-radius:3px;box-shadow:0 0 0 1px rgba(0,0,0,.5),0 0 14px rgba(255,255,255,.35)}.mx .mxhov.pulse{animation:mxpu 1s ease-in-out 3}@keyframes mxpu{50%{transform:scale(1.6);opacity:.3}}',
     '.mx svg.mxs .hs.dim{opacity:.12}',
@@ -274,7 +276,7 @@ function build() {
       '<div class="kpis" id="mxkpi"></div>' +
       '<nav class="ptabs" role="tablist">' + [['view', '🗂️', 'العرض'], ['lg', '🎨', 'الدليل'], ['house', '🏠', 'الدار'], ['tools', '🧰', 'أدوات']].map(function (t) { return '<button role="tab" data-mx="tab" data-v="' + t[0] + '"' + (ST.tab === t[0] ? ' class="on"' : '') + '><span>' + t[1] + '</span>' + t[2] + '</button>'; }).join('') + '</nav>' +
       '<div class="pbody" id="mxpb"></div></aside></div>';
-    ST.built = true; ST.base = null; root.classList.toggle('mxfull', ST.fsc); wire();
+    ST.built = true; ST.base = null; ST.vb = {}; root.classList.toggle('mxfull', ST.fsc); wire();
     paint(); fitMap(); applyVB(); return;
   }
   paint();
@@ -304,11 +306,21 @@ function buildGrid(list) { var G = {}, C = 24; list.forEach(function (s) { (MD.b
   for (var i = x0; i <= x1; i++) for (var j = y0; j <= y1; j++) (G[i + ',' + j] = G[i + ',' + j] || []).push(h); }); }); ST.grid = G; ST.gc = C; }
 function hitAt(cx, cy) { if (!ST.grid) return null; var p = toSVG(null, cx, cy), a = ST.grid[Math.floor(p.x / ST.gc) + ',' + Math.floor(p.y / ST.gc)] || [];
   for (var i = 0; i < a.length; i++) { var h = a[i]; if (Math.abs(p.x - h.x) <= h.w / 2 && Math.abs(p.y + h.y) <= h.h / 2) return h; } return null; }
+function dotD(h) { var r = Math.max(0.9, Math.min(2.2, Math.min(h.w, h.h) * 0.17)), cx = h.x + h.w / 2 - r - 0.9, cy = -h.y - h.h / 2 + r + 0.9;
+  return 'M' + (cx - r).toFixed(2) + ' ' + cy.toFixed(2) + 'a' + r.toFixed(2) + ' ' + r.toFixed(2) + ' 0 1 0 ' + (2 * r).toFixed(2) + ' 0a' + r.toFixed(2) + ' ' + r.toFixed(2) + ' 0 1 0 ' + (-2 * r).toFixed(2) + ' 0z'; }
 function rectD(h) { var x = h.x - h.w / 2 + 0.35, y = -h.y - h.h / 2 + 0.35, w = Math.max(1, h.w - 0.7), hh = Math.max(1, h.h - 0.7); return 'M' + x.toFixed(1) + ' ' + y.toFixed(1) + 'h' + w.toFixed(1) + 'v' + hh.toFixed(1) + 'h' + (-w).toFixed(1) + 'z'; }
 function scrRect(h) { var v = curVB(), z = boxSz(), k = fitK(v, z), ox = (z.w - v[2] * k) / 2, oy = (z.h - v[3] * k) / 2;
   return { l: (h.x - h.w / 2 - v[0]) * k + ox, t: (-h.y - h.h / 2 - v[1]) * k + oy, w: h.w * k, h: h.h * k }; }
+function secVB(sec) { if (sec === 'all' || !MD || !MD.sectors[sec]) return ST.full.slice(); var e = MD.sectors[sec].ext, p = 10; return [e[0] - p, -e[3] - p, e[2] - e[0] + p * 2, e[3] - e[1] + p * 2]; }
+function renderNums() { // أرقام الدور تنرسم للمنطقة الظاهرة بس (أخف بكثير)
+  var g = document.getElementById('mxn'), svg = document.getElementById('mxsvg'); if (!g || !svg) return;
+  if (!svg.classList.contains('nums')) { if (g.firstChild) g.textContent = ''; return; }
+  var v = curVB(), mx = v[2] * 0.15, my = v[3] * 0.15, x0 = v[0] - mx, x1 = v[0] + v[2] + mx, y0 = v[1] - my, y1 = v[1] + v[3] + my, t = '';
+  allSecs().forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { var y = -h.y; if (h.x < x0 || h.x > x1 || y < y0 || y > y1) return;
+    t += '<text class="hn" font-size="' + Math.max(3, Math.min(h.w, h.h) * 0.46).toFixed(1) + '" x="' + h.x.toFixed(1) + '" y="' + (y + 0.3).toFixed(1) + '">' + esc(h.id.split('.')[1]) + '</text>'; }); });
+  g.innerHTML = t; }
 function svgHTML(forPrint) {
-  var list = secList(), e = extOf(list), g = '', hs = '', hn = '', bl = '', sn = '', fc = '', all = list.length > 1;
+  var list = forPrint ? secList() : allSecs(), e = extOf(list), g = '', hs = '', hn = '', bl = '', sn = '', fc = '', all = list.length > 1;
   var cx = (e[0] + e[2]) / 2, cy = (e[1] + e[3]) / 2, R = Math.hypot(e[2] - e[0], e[3] - e[1]) / 2 || 1;
   // سياق المجمع الحقيقي: الشوارع والخدمات (من الخريطة الموحّدة)
   if (MD.ctx && MD.ctx.length) g += '<path class="ctx" d="' + MD.ctx.join(' ') + '"/>';
@@ -317,7 +329,6 @@ function svgHTML(forPrint) {
     var L = MD.byS[s] || [];
     if (all && L.length) { var ax = 0, ay = 0; L.forEach(function (h) { ax += h.x; ay += h.y; }); ax /= L.length; ay /= L.length; var w = s === 7 ? 96 : 150;
       sn += '<g class="snb" data-mx="sec" data-v="' + s + '"><rect x="' + (ax - w / 2).toFixed(1) + '" y="' + (-ay - 17).toFixed(1) + '" width="' + w + '" height="34" rx="17"/><text class="sn" x="' + ax.toFixed(1) + '" y="' + (-ay + 6.5).toFixed(1) + '">' + esc(sectorName(s)) + '</text></g>'; }
-    if (!forPrint) L.forEach(function (h) { hn += '<text class="hn" font-size="' + Math.max(3, Math.min(h.w, h.h) * 0.46).toFixed(1) + '" x="' + h.x.toFixed(1) + '" y="' + (-h.y + 0.3).toFixed(1) + '">' + esc(h.id.split('.')[1]) + '</text>'; });
     if (forPrint) L.forEach(function (h) {
       var dly = 0;
       hs += '<rect class="hs' + (h.s === 7 ? ' vip' : '') + '" data-k="' + esc(mk(h.id)) + '" rx="0.6" x="' + (h.x - h.w / 2 + 0.35).toFixed(1) + '" y="' + (-h.y - h.h / 2 + 0.35).toFixed(1) + '" width="' + Math.max(1, h.w - 0.7).toFixed(1) + '" height="' + Math.max(1, h.h - 0.7).toFixed(1) + '"' + (forPrint || all ? '' : ' style="--d:' + dly + 'ms"') + '/>';
@@ -329,7 +340,7 @@ function svgHTML(forPrint) {
   if (!forPrint && MD.fac) MD.fac.forEach(function (f) { if (f[1] < e[0] - 40 || f[1] > e[2] + 40 || f[2] < e[1] - 40 || f[2] > e[3] + 40) return; fc += '<text class="fac" x="' + f[1] + '" y="' + (-f[2]) + '">' + esc(f[0]) + '</text>'; });
   if (!forPrint) { var cs = []; list.forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { cs.push(Math.min(h.w, h.h)); }); }); cs.sort(function (a, b) { return a - b; }); ST.cell = cs[Math.floor(cs.length / 2)] || 6; }
   var pad = all ? 16 : 10, vb = [e[0] - pad, -e[3] - pad, e[2] - e[0] + pad * 2, e[3] - e[1] + pad * 2];
-  if (!forPrint) { ST.full = vb; buildGrid(list); }
+  if (!forPrint) { ST.full = vb; buildGrid(list); hn = '<g id="mxn"></g>'; }
   var sweep = '';
   return '<svg class="mxs' + (all ? ' big' : '') + '" id="mxsvg" xmlns="http://www.w3.org/2000/svg" viewBox="' + vb.join(' ') + '" preserveAspectRatio="xMidYMid meet"><defs><filter id="mxglow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>' + g + fc + '<g id="mxh">' + hs + '</g>' + (forPrint ? '' : '<path id="mxov-vip" class="ovv"/><path id="mxov-rvm" class="ovr"/><path id="mxov-sel" class="ovs"/>') + sweep + hn + bl + sn + '</svg>';
 }
@@ -402,20 +413,20 @@ function paint() {
   var P = ST.P = pre(I, list);
   allSecs().forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { stc[mk(h.id)] = statusOf(h, I); }); });
   ST.stc = stc;
-  var keys = {}, ecs = {}, houses = [];
-  list.forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { var k = mk(h.id), ec = ecs[k] = effCon(h), key = keyOf(h, I, P); keys[k] = key; colorForCon(ec.group); houses.push(h);
-    cnt[key] = (cnt[key] || 0) + 1; ccnt[ec.group] = (ccnt[ec.group] || 0) + 1; (byKey[key] = byKey[key] || []).push(h); }); });
+  var keys = {}, ecs = {}, houses = [], inL = {}; list.forEach(function (s) { inL[s] = 1; });
+  allSecs().forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { var k = mk(h.id), ec = ecs[k] = effCon(h), key = keyOf(h, I, P); keys[k] = key; colorForCon(ec.group); houses.push(h);
+    if (!inL[s]) return; cnt[key] = (cnt[key] || 0) + 1; ccnt[ec.group] = (ccnt[ec.group] || 0) + 1; (byKey[key] = byKey[key] || []).push(h); }); });
   ST.cnt = cnt; ST.ccnt = ccnt; ST.byKey = byKey; ST.ecs = ecs;
   var cmap = {}; layerKeys(P).forEach(function (x) { cmap[x[0]] = x[2]; }); ST.keys = keys; ST.cmap = cmap;
   // كل لون = مسار واحد (بدل آلاف العناصر) — هذا اللي يخلي الخريطة خفيفة
   var paths = {}, vip = '', rvm = '', sel = '';
   houses.forEach(function (h) { var k = mk(h.id), key = keys[k], ec = ecs[k], d = rectD(h);
     var fill = (ST.mode === 'con' ? colorForCon(key) : cmap[key]) || 'var(--mx-none)';
-    var dim = (ST.flt !== 'all' && key !== ST.flt) || (ST.con !== 'all' && ec.group !== ST.con);
-    var pk = fill + (dim ? '|d' : ''); paths[pk] = (paths[pk] || '') + d;
-    if (h.s === 7) vip += d; if (ST.mode === 'status' && I.rv[k] && key !== 'del' && key !== 'rev') rvm += d; if (ST.sel === k) sel = d; });
-  ST.rvmAny = !!rvm;
-  var g = document.getElementById('mxh'); if (g) g.innerHTML = Object.keys(paths).map(function (pk) { var a = pk.split('|'); return '<path class="hf' + (a[1] ? ' dim' : '') + '" style="fill:' + a[0] + '" d="' + paths[pk] + '"/>'; }).join('');
+    var dim = !fltHas(key) || (ST.con !== 'all' && ec.group !== ST.con), oth = !inL[h.s];
+    var pk = fill + (dim ? '|d' : oth ? '|o' : ''); paths[pk] = (paths[pk] || '') + d;
+    if (h.s === 7 && !oth) vip += d; if (ST.mode === 'status' && openRev(I.rv[k]) && !oth) rvm += dotD(h); if (ST.sel === k) sel = d; });
+  ST.rvmAny = !!rvm; svg.classList.toggle('big', ST.sec === 'all');
+  var g = document.getElementById('mxh'); if (g) g.innerHTML = Object.keys(paths).map(function (pk) { var a = pk.split('|'); return '<path class="hf' + (a[1] === 'd' ? ' dim' : a[1] === 'o' ? ' oth' : '') + '" style="fill:' + a[0] + '" d="' + paths[pk] + '"/>'; }).join('');
   [['mxov-vip', vip], ['mxov-rvm', rvm], ['mxov-sel', sel]].forEach(function (x) { var e = document.getElementById(x[0]); if (e) e.setAttribute('d', x[1] || 'M0 0'); });
   kpis(I, list); panel(); legend();
 }
@@ -423,14 +434,14 @@ function kpis(I, list) {
   var el = document.getElementById('mxkpi'); if (!el) return;
   var c = { all: 0, ws: 0, ready: 0, late: 0, del: 0, rev: 0, nw: 0, none: 0 };
   list.forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { var k = mk(h.id), st = ST.stc[k], u = I.ws[k]; c.all++;
-    if (st === 'del') c.del++; else if (u) { c.ws++; if (st === 'ready') c.ready++; if (st === 'late') c.late++; } else if (st === 'nw') c.nw++; else if (st === 'none') c.none++;
+    if (st === 'del') c.del++; else if (u) { c.ws++; if (st === 'rdy' || st === 'rdyL') c.ready++; if (st === 'nrdL') c.late++; } else if (st === 'nw') c.nw++; else if (st === 'none') c.none++;
     if (I.rv[k] && st !== 'del') c.rev++; }); });
-  var defs = [['all', 'دار بالخريطة', '🗺️', 'status', 'all', '', c.all], ['del', 'مسلّمة', '✅', 'status', 'del', 'g', c.all], ['ws', 'قيد التسليم', '🏗️', 'status', 'all', 'b', c.all], ['ready', 'جاهزة', '🔑', 'status', 'ready', 'b', c.ws],
-    ['late', 'عابر وغير جاهزة', '⏰', 'status', 'late', 'r', c.ws], ['rev', 'بالمراجعة', '🔍', 'rev', 'all', 'p', c.all], ['nw', 'بانتظار التبليغ', '📨', 'status', 'nw', 't', c.all], ['none', 'ما وصلت', '⌛', 'status', 'none', '', c.all]];
+  var defs = [['all', 'دار بالخريطة', '🗺️', 'status', 'all', '', c.all], ['del', 'مسلّمة', '✅', 'status', 'del', 'g', c.all], ['ws', 'قيد التسليم', '🏗️', 'status', 'rdy,rdyL,nrd,nrdL', 'b', c.all], ['ready', 'جاهزة', '🔑', 'status', 'rdy,rdyL', 'b', c.ws],
+    ['late', 'عابر وغير جاهزة', '⏰', 'status', 'nrdL', 'r', c.ws], ['rev', 'بالمراجعة', '🔍', 'rev', 'all', 'p', c.all], ['nw', 'بانتظار التبليغ', '📨', 'status', 'nw', 't', c.all], ['none', 'ما وصلت', '⌛', 'status', 'none', '', c.all]];
   if (!el.firstChild) el.innerHTML = defs.filter(function (d) { return d[0] !== 'nw' || c.nw; }).map(function (d) { return '<button class="kpi ' + d[5] + '" data-mx="kpi" data-v="' + d[3] + '|' + d[4] + '" data-k="' + d[0] + '"><span class="ki">' + d[2] + '</span><b data-n="0">0</b><span class="kl">' + d[1] + '</span><i class="kb"><i></i></i></button>'; }).join('');
   el.querySelectorAll('.kpi').forEach(function (b) { var d = defs.filter(function (x) { return x[0] === b.dataset.k; })[0]; if (!d) return; var n = c[d[0]], base = d[6] || 1;
     countTo(b.querySelector('b'), n); b.querySelector('.kb i').style.width = (d[0] === 'all' ? 100 : Math.round(n * 100 / base)) + '%';
-    b.classList.toggle('on', ST.mode === d[3] && ST.flt === d[4] && d[0] !== 'all' && d[0] !== 'ws'); });
+    b.classList.toggle('on', ST.mode === d[3] && ST.flt === d[4] && d[0] !== 'all'); });
 }
 function countTo(el, n) { // عدّاد متحرك
   var from = +el.getAttribute('data-n') || 0; el.setAttribute('data-n', n); if (from === n) { el.textContent = n; return; }
@@ -459,7 +470,7 @@ function panel() {
     if (MODE_VIEW[ST.mode]) x += '<button class="btn sm" style="width:100%" data-mx="view" data-v="' + MODE_VIEW[ST.mode] + '">📋 فتح الشاشة الكاملة (' + esc({ ws: 'قيد التسليم', weekly: 'كفاءة المقاولين', today: 'التنبيهات', rvsum: 'ملخص المراجعات', annual: 'الجرد السنوي', agenda: 'جدول الأعمال' }[MODE_VIEW[ST.mode]]) + ')</button>';
     h += '<div class="card" style="display:flex;flex-direction:column;gap:8px">' + x + '</div>';
     if ((LD[ST.mode] || {}).list) {
-      var keys = layerKeys(P), ks = ST.flt !== 'all' ? [ST.flt] : keys.map(function (q) { return q[0]; }).filter(function (k) { return k !== 'none'; });
+      var keys = layerKeys(P), ks = ST.flt !== 'all' ? ST.flt.split(',') : keys.map(function (q) { return q[0]; }).filter(function (k) { return k !== 'none'; });
       var items = []; ks.forEach(function (k) { (ST.byKey[k] || []).forEach(function (hh) { if (ST.con === 'all' || effCon(hh).group === ST.con) items.push([k, hh]); }); });
       if (items.length) h += '<h3>الدور (' + items.length + ')</h3><div class="mxlist">' + items.slice(0, 200).map(function (q) {
         var hh = q[1], kk = mk(hh.id), u = ST.I.ws[kk], sub = sectorName(hh.s).replace('القطاع ', '') + ' · ' + effCon(hh).label;
@@ -490,12 +501,14 @@ function legendHTML() {
   var keys = layerKeys(ST.P || {}), tot = 0, list = secList(); Object.keys(ST.cnt).forEach(function (k) { tot += ST.cnt[k]; });
   var title = ST.mode === 'con' ? 'توزيع المقاولين' : ST.mode === 'eff' ? 'كفاءة المقاولين' : ST.mode === 'period' ? 'التسليم بالأشهر ' + ST.year : (LD[ST.mode] || {}).t;
   var rows = keys.map(function (x) { var n = ST.cnt[x[0]] || 0; if (!n) return '';
-    return '<button data-mx="flt" data-v="' + esc(x[0]) + '" class="' + (ST.flt === x[0] ? 'on' : '') + '"><i class="' + (x[2] ? '' : 'none-sw') + '" style="' + (x[2] ? 'background:' + x[2] : '') + '"></i><span>' + esc(x[1]) + '</span><b>' + n + '</b></button>'; }).join('');
+    return '<button data-mx="flt" data-v="' + esc(x[0]) + '" class="' + (ST.flt !== 'all' && fltHas(x[0]) ? 'on' : '') + '"><i class="' + (x[2] ? '' : 'none-sw') + '" style="' + (x[2] ? 'background:' + x[2] : '') + '"></i><span>' + esc(x[1]) + '</span><b>' + n + '</b></button>'; }).join('');
   var fr = '';
   function f(style, t) { fr += '<div class="fr"><i style="' + style + '"></i><span>' + t + '</span></div>'; }
-  if (ST.mode === 'status' && ST.rvmAny) f('border:2px solid #a77bff;background:transparent', 'إطار بنفسجي: الدار بيها مراجعة (وهي بعدها قيد التسليم أو ما وصلت)');
+  if (ST.mode === 'status') f('background:linear-gradient(90deg,#ffe37a 50%,#e0a400 50%)', 'الفاتح = بعدها بوقتها · الغامق = عابر موعدها (نفس الشي للأحمر)');
+  if (ST.mode === 'status' && ST.rvmAny) f('background:#9b5cff;border-radius:50%;border:1px solid #fff', 'نقطة بنفسجية بزاوية الدار = عليها مراجعة ملاحظاتها بعدها ما مكتملة');
   if (list.indexOf(7) >= 0) f('border:2px solid #E2C47A;background:transparent', 'إطار ذهبي: دور VIP');
   if (ST.sel) f('border:2px solid #fff;background:transparent;box-shadow:0 0 0 1px #000', 'إطار أبيض عريض: الدار اللي اخترتها');
+  if (ST.sec !== 'all') f('background:var(--mx-none);opacity:.4', 'باهتة شوية: قطاعات ثانية غير المختار');
   if (ST.flt !== 'all' || ST.con !== 'all') f('background:var(--mx-none);opacity:.25', 'باهتة: خارج الاختيار الحالي (اضغط البند مرة ثانية حتى ترجع الكل)');
   f('background:var(--brand);border-radius:6px', 'شريط أزرق فوق الدور: رقم البلوك');
   if (list.length > 1) f('background:color-mix(in srgb,var(--brand) 30%,#0b1430);border:1px solid var(--brand);border-radius:6px', 'اسم القطاع: اضغطه حتى تفتح القطاع');
@@ -542,7 +555,7 @@ function housePanel(h) {
 }
 
 /* ---------- التكبير والسحب ---------- */
-function curVB() { var k = String(ST.sec); return ST.vb[k] || ST.full.slice(); }
+function curVB() { var k = String(ST.sec); return ST.vb[k] || secVB(k === 'all' ? 'all' : +k); }
 function boxSz() { var b = document.getElementById('mxbox'); return b ? { w: b.clientWidth || 1, h: b.clientHeight || 1 } : { w: 1, h: 1 }; }
 function fitK(v, z) { return Math.min(z.w / v[2], z.h / v[3]); }
 // السحب والتكبير يتحرك كصورة وحدة (سريع جداً)، وبعد ما توكف ينرسم المخطط من جديد بدقة كاملة
@@ -552,7 +565,7 @@ function applyVB() {
   svg.style.transform = ''; svg.setAttribute('viewBox', v.map(function (n) { return n.toFixed(2); }).join(' ')); ST.base = v.slice();
   var k = fitK(v, z); svg.classList.toggle('zoomed', 1 / k < 0.3);
   // أرقام الدور تطلع كلما صار حجمها مقروء على الشاشة (بعرض المجمع كامل تكون أصغر من نقطة فتنخفي حتى ما تثقّل)
-  svg.classList.toggle('nums', k * (ST.cell || 6) * 0.46 >= 4.2);
+  svg.classList.toggle('nums', k * (ST.cell || 6) * 0.46 >= 4.2); renderNums();
 }
 function showVB(v) {
   var svg = document.getElementById('mxsvg'); if (!svg) return; var b = ST.base; if (!b) { applyVB(); return; }
@@ -578,7 +591,7 @@ function toSVG(svg, px, py) { var b = document.getElementById('mxbox'), r = b.ge
   return { x: v[0] + (px - r.left - b.clientLeft - (z.w - v[2] * k) / 2) / k, y: v[1] + (py - r.top - b.clientTop - (z.h - v[3] * k) / 2) / k }; }
 function focusHouse(k) {
   var h = MD.H[k]; if (!h) return false;
-  if (ST.sec !== 'all' && +ST.sec !== h.s) { ST.sec = String(h.s); X.lsSet('mx_sec', ST.sec); ST.built = false; build(); }
+  if (ST.sec !== 'all' && +ST.sec !== h.s) { var cur = curVB(); ST.sec = String(h.s); X.lsSet('mx_sec', ST.sec); ST.vb[ST.sec] = cur; }
   var w = 240, svg = document.getElementById('mxsvg'), box = boxSz(), hh = w * (box.h / box.w);
   animVB([h.x - w / 2, -h.y - hh / 2, w, hh], 650);
   ST.sel = k; ST.flt = 'all'; ST.con = 'all'; setTab('house'); paint();
@@ -605,7 +618,7 @@ function wire() {
     var t = start && start.t, wasPinch = !!pinch; delete P[e.pointerId]; if (Object.keys(P).length < 2) pinch = null; if (!Object.keys(P).length) { ST.held = false; if (ST.cT) applyVB(); }
     // بعد التكبير بإصبعين: الإصبع الباقي يكمل من الزوم الجديد (ما يرجع للقديم)
     var rest = Object.keys(P); if (wasPinch && rest.length === 1) { var q = P[rest[0]]; start = { x: q.x, y: q.y, vb: curVB(), t: null }; moved = 99; return; }
-    if (Object.keys(P).length === 0) { if (moved < 6 && t && t.closest) { var sb = t.closest('.snb'); if (sb) { ST.sec = sb.getAttribute('data-v'); X.lsSet('mx_sec', ST.sec); ST.built = false; build(); wave(); start = null; return; } }
+    if (Object.keys(P).length === 0) { if (moved < 6 && t && t.closest) { var sb = t.closest('.snb'); if (sb) { selSec(sb.getAttribute('data-v')); start = null; return; } }
       if (moved < 6 && t) { var hh = hitAt(e.clientX, e.clientY); if (hh) tapHouse(mk(hh.id)); } start = null; }
   }
   svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', function (e) { delete P[e.pointerId]; pinch = null; if (!Object.keys(P).length) { ST.held = false; if (ST.cT) applyVB(); } var rest = Object.keys(P); start = rest.length ? { x: P[rest[0]].x, y: P[rest[0]].y, vb: curVB(), t: null } : null; });
@@ -627,13 +640,15 @@ function wire() {
 function tapHouse(k) {
   ST.sel = ST.sel === k ? null : k; if (ST.sel) setTab('house'); paint();
 }
+function selSec(v) { // التنقل بين القطاعات = حركة كاميرا ناعمة على نفس الخريطة (بدون إعادة بناء)
+  v = String(v); var cur = curVB(); ST.sec = v; X.lsSet('mx_sec', v); ST.sel = null; ST.vb[v] = cur; paint(); animVB(secVB(v === 'all' ? 'all' : +v), 650); }
 function setTab(t) { ST.tab = t; X.lsSet('mx_tab', t); }
 
 /* ---------- الأحداث ---------- */
 document.addEventListener('click', function (e) {
   var b = e.target.closest && e.target.closest('[data-mx]'); if (!b || !MD) return;
   var a = b.dataset.mx, v = b.dataset.v;
-  if (a === 'sec') { ST.sec = v; X.lsSet('mx_sec', v); ST.built = false; ST.sel = null; build(); wave(); }
+  if (a === 'sec') selSec(v);
   else if (a === 'mode') { ST.mode = v; ST.flt = 'all'; X.lsSet('mx_mode', v); paint(); wave(); }
   else if (a === 'tab') { setTab(v); panel(); }
   else if (a === 'fs') setFull(!ST.fsc);
@@ -642,7 +657,7 @@ document.addEventListener('click', function (e) {
   else if (a === 'kpi') { var kv = v.split('|'); ST.mode = kv[0]; ST.flt = kv[1]; X.lsSet('mx_mode', ST.mode); setTab('lg'); paint(); wave(); }
   else if (a === 'year') { ST.year = v; ST.flt = 'all'; paint(); }
   else if (a === 'go2') focusHouse(v);
-  else if (a === 'zin') zoomAt(1 / 1.4); else if (a === 'zout') zoomAt(1.4); else if (a === 'zfit') animVB(ST.full.slice(), 450);
+  else if (a === 'zin') zoomAt(1 / 1.4); else if (a === 'zout') zoomAt(1.4); else if (a === 'zfit') animVB(secVB(ST.sec === 'all' ? 'all' : +ST.sec), 450);
   else if (a === 'unsel') { ST.sel = null; paint(); }
   else if (a === 'open') X.openHouse(v);
   else if (a === 'srch') { S.q = v; S.sel = null; X.ACT.go({ v: 'search' }); }
@@ -729,7 +744,7 @@ function counts(list) {
     (MD.byS[s] || []).forEach(function (h) {
       var g = effCon(h).group, st = statusOf(h, I), key = s + '|' + g; // ST.I مضبوط بالأعلى
       var o = T[key] = T[key] || { s: s, g: g, all: 0, del: 0, ready: 0, not: 0, late: 0, rev: 0, nw: 0, none: 0 };
-      o.all++; o[st]++;
+      o.all++; o[{ del: 'del', rdy: 'ready', rdyL: 'ready', nrd: 'not', nrdL: 'late', nw: 'nw', none: 'none' }[st]]++; if (openRev(I.rv[mk(h.id)]) && st !== 'del') o.rev++;
     });
   });
   return Object.keys(T).map(function (k) { return T[k]; });

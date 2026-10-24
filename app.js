@@ -24,7 +24,7 @@ var USERS = [
 var DEFAULT_CONTRACTORS = ['أحمد عواد', 'عادل عرار', 'محمد عرار', 'جاسم زراك', 'دياري كريم', 'علي الكوفي', 'علي هويدي', 'علي محمد حسين', 'طه عبد الله', 'اكام بهاء', 'ثامر عطار', 'سمير حنون', 'عمر بولات', 'اسعد هادي', 'اوات جمال', 'يوسف حسن'];
 var AR_MONTHS = ['', 'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 var AR_MONTHS_SHORT = ['', 'كانون٢', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران', 'تموز', 'آب', 'أيلول', 'تشرين١', 'تشرين٢', 'كانون١'];
-var VERSION = '2.2.1';
+var VERSION = '2.4.0';
 var ADMIN_UID = 'PsrknBOyOxUU3PM0xqXZvBhRaul1'; // حساب منتظر علي (مدير النظام)
 var BAKROOT = 'amirat2_logs/backups'; // داخل مسار مسموح بقواعد قاعدة البيانات الحالية
 var ACLROOT = 'amirat2_acl';
@@ -191,9 +191,19 @@ function wsUnits0() { // المعروض بالنظام = كل صفوف الشي�
 // دار جهتها المنفذة "تنفيذ مباشر" تنعزل عن المقاول بكل مكان: بدل اسم المقاول ينكتب "تنفيذ مباشر"
 var DIRECT_LBL = 'تنفيذ مباشر';
 function isDirectExec(t) { return String(t || '').indexOf('مباشر') >= 0; }
-function normU(u) { if (u && isDirectExec(u.executionType) && u.contractor !== DIRECT_LBL) { u.sheetContractor = u.contractor || ''; u.contractor = DIRECT_LBL; } return u; }
+// تقسيم التنفيذ المباشر المعتمد (قاعدة عامة لكل النظام): كل القطاع الأول والثاني · احمد عواد بالثالث والسادس ·
+// جاسم زراك بالرابع والخامس · عادل ومحمد عرار بالرابع · دياري كريم بدور VIP
+function nameIs(a, b) { var A = arN(a).split(' ').filter(Boolean), B = arN(b).split(' ').filter(Boolean); if (!A.length || !B.length) return false; if (A.join('') === B.join('')) return true;
+  var sh = A.length <= B.length ? A : B, lo = A.length <= B.length ? B : A; return sh.every(function (w) { return lo.indexOf(w) >= 0; }); }
+function dirRule(name, sector) { var s = SECTOR_NAMES.indexOf(String(sector || '').trim()) + 1; if (s === 1 || s === 2) return true; if (!name) return false;
+  return (nameIs(name, 'احمد عواد') && (s === 3 || s === 6)) || (nameIs(name, 'جاسم زراك') && (s === 4 || s === 5)) || ((nameIs(name, 'عادل عرار') || nameIs(name, 'محمد عرار')) && s === 4) || (nameIs(name, 'دياري كريم') && s === 7); }
+function normU(u) {
+  if (!u) return u;
+  if (!isDirectExec(u.executionType) && dirRule(u.contractor, u.sector)) { u.sheetExec = u.executionType || ''; u.executionType = 'تنفيذ مباشر'; }
+  if (isDirectExec(u.executionType) && u.contractor !== DIRECT_LBL) { u.sheetContractor = u.contractor || ''; u.contractor = DIRECT_LBL; }
+  return u; }
 function unitCon(u) { return !u ? '' : (isDirectExec(u.executionType) ? DIRECT_LBL : (u.contractor || u.executionType || '')); }
-function recCon(rec) { if (!rec) return ''; var u = wsByKey(rec.houseNo); if (u) return unitCon(u); return isDirectExec(rec.executionType) ? DIRECT_LBL : (rec.contractorName || rec.executionType || ''); }
+function recCon(rec) { if (!rec) return ''; var u = wsByKey(rec.houseNo); if (u) return unitCon(u); return isDirectExec(rec.executionType) || dirRule(rec.contractorName, rec.sectorNo) ? DIRECT_LBL : (rec.contractorName || rec.executionType || ''); }
 S.wsAll.forEach(function (u) { normU(u); }); // الكاش القديم
 function wsByKey(unit) { var m = memo('wsIdx', function () { var o = {}; wsUnits().forEach(function (u) { var k = normH(u.unit); if (!o[k]) o[k] = u; }); return o; }); return m[normH(unit)] || null; }
 function notifiedBadge(unit) {
@@ -481,9 +491,21 @@ function syncDelivered(manual) {
   }).catch(function (e) { S.delErr = e.message; if (manual) toast('⚠️ تعذّر تحديث شيت المسلّمة: ' + e.message, false); })
     .then(function () { syncing.del = false; scheduleRender(); });
 }
+// موقف المقاولين: المعتمد هو ورقة «موقف المقاولين» داخل ملف الموقف الأسبوعي نفسه،
+// وإذا ما انلكت (الملف منشور ورقة وحدة بس) نرجع للرابط المنفصل بالإعدادات
+function isCwHeader(r) { r = r || []; function has(t) { return r.some(function (c) { return typeof c === 'string' && c.indexOf(t) >= 0; }); } return has('المقاول') && has('القطاع') && has('الكلي'); }
+function cwRowsFromWeeklyBook() {
+  var u = settingsUrl('weekly'); if (!/output=csv/.test(u)) return Promise.reject(new Error('no-book'));
+  u = u.replace(/[?&](gid|single)=[^&]*/g, '').replace(/output=csv/, 'output=xlsx'); if (u.indexOf('?') < 0) u = u.replace('&', '?');
+  return fetch(u + (u.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now(), { cache: 'no-store' }).then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.arrayBuffer(); }).then(function (buf) {
+    var wb = XLSX.read(new Uint8Array(buf), { type: 'array', raw: true }), best = null;
+    wb.SheetNames.forEach(function (n) { if (best && /مقاول/.test(best.n)) return; var rows = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null });
+      for (var i = 0; i < Math.min(rows.length, 10); i++) if (isCwHeader(rows[i])) { if (!best || /مقاول/.test(n)) best = { n: n, rows: rows }; break; } });
+    if (!best) throw new Error('no-tab'); S.cwSrc = 'ورقة «' + best.n + '» بملف الموقف الأسبوعي'; return best.rows; });
+}
 function syncContractors(manual) {
   if (syncing.cw) return Promise.resolve(); syncing.cw = true;
-  return fetchSheet(settingsUrl('contractors')).then(function (rows) {
+  return cwRowsFromWeeklyBook().catch(function () { S.cwSrc = 'رابط موقف المقاولين المنفصل (ما لكيت الورقة بملف الموقف الأسبوعي)'; return fetchSheet(settingsUrl('contractors')); }).then(function (rows) {
     var hdr = -1, cC = -1, cSec = -1, cTot = -1, cDel = -1, cProg = -1, cRem = -1;
     for (var i = 0; i < Math.min(rows.length, 10) && hdr < 0; i++) {
       var r = rows[i] || [];
@@ -921,6 +943,10 @@ VIEWS.search = function () {
     return h;
   }
   if (!res.length) return h + '<div class="card empty">لا نتائج مطابقة ضمن أي قائمة (قيد التسليم / المراجعة / المسلّمة).</div>';
+  // إذا الرقم المكتوب هو رقم دار بالضبط: تطلع هاي الدار بس، بدون مقترحات
+  var qq = normH(arDigits(S.q || '')), qc = qq.replace(/[.\-\/\s]/g, '');
+  var ex = res.filter(function (r) { var k = normH(r.houseNo); return k === qq || k.replace(/[.\-\/\s]/g, '') === qc; })[0];
+  if (ex) { S.sel = ex.key; return h + houseCardHTML(Object.assign(houseInfo(ex.houseNo), { key: ex.key })); }
   h += '<div class="split"><div class="l"><div class="muted" style="font-size:13px">' + res.length + ' نتيجة</div>' + (res.length > 1 ? grpBar('srch') : '') + groupedHTML('srch', res.map(function (r) {
     var st = statusLabel(r), rd = r.inWS ? (isReady(r.houseNo) ? '<span class="pill p-ready">جاهز</span>' : '<span class="pill p-not">غير جاهز</span>') : '<span class="pill ' + st.c + '">' + (r.inDelivered ? 'مستلمة' : 'مراجعة') + '</span>';
     return { h: r.houseNo, html: '<button class="res' + (r.key === S.sel ? ' on' : '') + '" data-act="pick" data-k="' + esc(r.key) + '"><span><span class="no">' + esc(r.houseNo) + '</span><small>' + esc(r.sector || '-') + ' · ' + esc(r.contractor || r.executionType || r.delName || '-') + '</small></span>' + rd + '</button>' };
@@ -962,7 +988,7 @@ function hubStats() {
     ws: { c: wsN + ' دار', p: wsN ? rdy / wsN : 0 },
     delivered: { c: dn + ' دار', p: cwT ? cwD / cwT : null },
     dash: { c: wsN ? 'جاهزة ' + Math.round(rdy * 100 / wsN) + '٪' : '—', p: wsN ? rdy / wsN : 0 },
-    weekly: { c: cwT ? 'منجز ' + Math.round(cwD * 100 / cwT) + '٪' : 'حسب المقاول', p: cwT ? cwD / cwT : null },
+    weekly: { c: cwT ? 'منجز ' + Math.round(S.del.length * 100 / cwT) + '٪' : 'حسب المقاول', p: cwT ? Math.min(1, S.del.length / cwT) : null },
     annual: { c: yN + ' دار بـ' + nowY, p: null },
     agenda: { c: mv ? mv + ' حركة اليوم' : 'حركات اليوم', p: null },
     rvsum: (function () { var rs = oldRecs(), n = 0; rs.forEach(function (r) { n += rvRounds(r).length; }); return { c: rs.length + ' دار · ' + n + ' مراجعة', p: null }; })()
@@ -1166,8 +1192,9 @@ VIEWS.dash = function () {
   if (S.cw.length) {
     var agg = {}, ord = [];
     S.cw.forEach(function (r) { var k = r.contractor || 'غير محدد'; if (!agg[k]) { agg[k] = { n: k, t: 0, d: 0, p: 0 }; ord.push(k); } agg[k].t += Number(r.total) || 0; agg[k].d += Number(r.delivered) || 0; agg[k].p += Number(r.inProgress) || 0; });
+    var MRd = conRows(); if (MRd) { agg = {}; ord = []; MRd.forEach(function (g) { if (g.warn) return; agg[g.n] = { n: g.n, t: g.t, d: g.d, p: g.p }; ord.push(g.n); }); }
     var rows = ord.map(function (k) { return agg[k]; }).filter(function (a) { return a.t > 0; }).sort(function (a, b) { return b.d / b.t - a.d / a.t; });
-    h += '<div class="card"><h2>نسبة إنجاز المقاولين <small>من ملف موقف المقاولين — مسلّمة من الكلي</small></h2><div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(min(330px,100%),1fr));gap:6px 22px">' +
+    h += '<div class="card"><h2>نسبة إنجاز المقاولين <small>الكلي من موقف المقاولين · المسلّمة من شيت تواريخ الاستلام · قيد التسليم من الأسبوعي</small></h2><div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(min(330px,100%),1fr));gap:6px 22px">' +
       rows.map(function (a) { var pc = Math.round(a.d / a.t * 100); return '<button class="hbar" data-act="go" data-v="weekly"><span class="nm">' + esc(a.n) + '</span><span class="tr"><i style="width:' + pc + '%;background:var(--ok)"></i><i style="width:' + (a.p / a.t * 100) + '%;background:var(--ready)"></i></span><b>' + pc + '٪</b></button>'; }).join('') +
       '</div><div class="legend" style="margin-top:10px"><span><i style="background:var(--ok)"></i>مسلّمة</span><span><i style="background:var(--ready)"></i>قيد التسليم</span><span><i style="background:var(--soft)"></i>متبقية</span></div></div>';
   }
@@ -1332,13 +1359,15 @@ function conStats(units) {
   return o;
 }
 VIEWS.weekly = function () {
-  var h = '<div class="card" style="padding:14px 16px"><div class="row" style="justify-content:space-between"><span class="muted" style="font-size:13px">' + (S.cwErr ? '❌ ' + esc(S.cwErr) : '✅ آخر تحديث: ' + esc(S.cwLast || 'لم يتم بعد') + ' — ' + S.cw.length + ' صف') + ' · المصدر: ملف موقف المقاولين + قيد التسليم</span>' +
+  var h = '<div class="card" style="padding:14px 16px"><div class="row" style="justify-content:space-between"><span class="muted" style="font-size:13px">' + (S.cwErr ? '❌ ' + esc(S.cwErr) : '✅ آخر تحديث: ' + esc(S.cwLast || 'لم يتم بعد') + ' — ' + S.cw.length + ' صف') + ' · المصدر: ' + esc(S.cwSrc || 'موقف المقاولين') + '</span>' +
     '<button class="btn sm" data-act="syncCw">🔄 تحديث</button></div></div>';
   if (!S.cw.length) return h + '<div class="card empty">لا توجد بيانات بعد — بانتظار أول مزامنة.</div>';
   function N(v) { return Number(v) || 0; }
   var IX = conIndex(); S.cwIX = IX;
   var by = {}, ord = [], T = { t: 0, d: 0, p: 0, r: 0 };
-  S.cw.forEach(function (r) {
+  var MR = conRows(); S.cwRows = MR;
+  if (!MR) return h + '<div class="card empty">⏳ جاري تجهيز توزيع المقاولين…</div>';
+  if (false) S.cw.forEach(function (r) {
     var k = r.contractor || 'غير محدد';
     if (cwHidden(k)) return;
     if (!by[k]) { by[k] = { n: k, t: 0, d: 0, p: 0, r: 0, secs: [] }; ord.push(k); }
@@ -1346,10 +1375,9 @@ VIEWS.weekly = function () {
     g.t += t; g.d += d; g.p += p; g.r += rm; g.secs.push({ s: r.sector || '-', t: t, d: d, p: p, r: rm });
     T.t += t; T.d += d; T.p += p; T.r += rm;
   });
-  var list = ord.map(function (k) { var g = by[k]; g.k = conKey(k); g.units = IX.ws[g.k] || []; g.st = conStats(g.units); return g; });
-  var CK = conKey(CO_NAME), co = null;
-  if ((IX.ws[CK] || []).length || (IX.del[CK] || []).length) { var cu = IX.ws[CK] || [], cs2 = {}; cu.forEach(function (u) { cs2[u.sector || '-'] = 1; }); co = { n: CO_NAME, k: CK, co: true, t: 0, d: (IX.del[CK] || []).length, p: cu.length, r: 0, secs: Object.keys(cs2), units: cu, st: conStats(cu) }; }
-  var cUnits = []; list.forEach(function (g) { cUnits = cUnits.concat(g.units); });
+  MR.forEach(function (g) { g.st = conStats(g.units); T.t += g.t; T.d += g.d; T.p += g.p; T.r += g.r; });
+  var list = MR.filter(function (g) { return !g.co; }), co = MR.filter(function (g) { return g.co; })[0] || null;
+  var cUnits = []; MR.forEach(function (g) { cUnits = cUnits.concat(g.units); }); // التنفيذ المباشر داخل بكل الحسابات
   var all = conStats(cUnits), allR = effRate(all.eff);
   var sort = S.cwSort || 'eff';
   function effv(g) { return g.st.eff == null ? -1 : g.st.eff; }
@@ -1364,10 +1392,10 @@ VIEWS.weekly = function () {
   // ---- الملخص: حلقة الكفاءة العامة + الأرقام
   var Lg = 2 * Math.PI * 46, cA = effC[allR.c];
   h += '<div class="card cwtop2"><span class="bigring"><svg viewBox="0 0 110 110" aria-hidden="true"><circle cx="55" cy="55" r="46" class="tk"/><circle cx="55" cy="55" r="46" class="ar" style="stroke:' + cA + ';stroke-dasharray:' + Lg.toFixed(1) + ';--full:' + Lg.toFixed(1) + ';--off:' + (Lg * (1 - (all.eff || 0) / 100)).toFixed(1) + '"/></svg><b style="color:' + cA + '">' + (all.eff == null ? '—' : all.eff + '٪') + '</b><small>' + allR.t + '</small></span>' +
-    '<div class="tops"><h2 style="margin:0">الكفاءة العامة للمقاولين <small>' + all.due.length + ' دار عابر موعدها وغير جاهزة من ' + all.all.length + ' دار قيد التسليم</small></h2>' +
-    '<div class="cwnums"><span><b>' + list.length + '</b>مقاول</span><span class="p"><b>' + all.all.length + '</b>قيد التسليم</span><span class="d"><b>' + all.ready.length + '</b>جاهزة</span><span class="r"><b>' + all.notready.length + '</b>غير جاهزة</span><span class="o"><b>' + all.due.length + '</b>عابر موعدها وغير جاهزة · ' + (all.over || 0) + '٪</span><span class="d"><b>' + T.d + '</b>مسلّمة · إنجاز ' + pc(T.d, T.t) + '٪</span></div>' + split(all.ready.length, all.notready.length) + '</div></div>';
+    '<div class="tops"><h2 style="margin:0">الكفاءة العامة (المقاولين + التنفيذ المباشر) <small>' + all.due.length + ' دار عابر موعدها وغير جاهزة من ' + all.all.length + ' دار قيد التسليم</small></h2>' +
+    '<div class="cwnums"><span><b>' + list.filter(function (g) { return !g.warn; }).length + '</b>مقاول</span><span class="p"><b>' + all.all.length + '</b>قيد التسليم</span><span class="d"><b>' + all.ready.length + '</b>جاهزة</span><span class="r"><b>' + all.notready.length + '</b>غير جاهزة</span><span class="o"><b>' + all.due.length + '</b>عابر موعدها وغير جاهزة · ' + (all.over || 0) + '٪</span><span class="d"><b>' + T.d + '</b>مسلّمة · إنجاز ' + pc(T.d, T.t) + '٪</span></div>' + split(all.ready.length, all.notready.length) + '</div></div>';
   // ---- منصة: الأعلى، الأقل، الأكثر قيد التسليم
-  var withU = list.filter(function (g) { return g.st.all.length; });
+  var withU = list.filter(function (g) { return g.st.all.length && !g.warn; });
   if (withU.length) {
     var byE = withU.slice().sort(function (a, b) { return b.st.eff - a.st.eff || b.st.all.length - a.st.all.length; }), best = byE[0], worst = byE[byE.length - 1];
     var most = withU.slice().sort(function (a, b) { return b.st.all.length - a.st.all.length; })[0];
@@ -1380,7 +1408,7 @@ VIEWS.weekly = function () {
     list.concat(co ? [co] : []).map(function (g, i) {
       var st = g.st, R2 = effRate(st.eff), c = effC[R2.c], open = S.cwSel === g.n;
       var row = '<button class="crow' + (open ? ' open' : '') + (g.co ? ' co' : '') + '" data-act="cwSel" data-c="' + esc(g.n) + '" style="--i:' + i + '" aria-expanded="' + open + '">' + av(g.co ? '🏢' : g.n, st.eff, c) +
-        '<span class="cn"><b>' + esc(g.n) + '</b><small>' + (g.co ? 'ما تنحسب على المقاولين' : 'إنجاز ' + pc(g.d, g.t) + '٪') + ' · ' + g.secs.length + (g.secs.length === 1 ? ' قطاع' : ' قطاعات') + '</small></span><span class="cv">' + st.all.length + '</span><span class="cv ok">' + st.ready.length + '</span><span class="cv no">' + st.notready.length + '</span><span class="cv ov">' + st.due.length + (st.over == null ? '' : '<small>' + st.over + '٪</small>') + '</span>' +
+        '<span class="cn"><b>' + esc(g.n) + '</b><small>' + (g.warn ? 'ما موجود بموقف المقاولين' : 'إنجاز ' + pc(g.d, g.t) + '٪') + ' · ' + g.secs.length + (g.secs.length === 1 ? ' قطاع' : ' قطاعات') + (!g.warn && g.pcw !== g.p ? ' · <span style="color:var(--notready)">⚠️ موقف المقاولين ' + g.pcw + '</span>' : '') + '</small></span><span class="cv">' + st.all.length + '</span><span class="cv ok">' + st.ready.length + '</span><span class="cv no">' + st.notready.length + '</span><span class="cv ov">' + st.due.length + (st.over == null ? '' : '<small>' + st.over + '٪</small>') + '</span>' +
         '<span class="ce">' + split(st.ready.length, st.notready.length) + '<b style="color:' + c + '">' + (st.eff == null ? '—' : st.eff + '٪') + '</b><span class="chip2" style="--c:' + c + '">' + R2.t + '</span></span></button>';
       var more = '';
       if (open) {
@@ -1389,20 +1417,30 @@ VIEWS.weekly = function () {
         more = '<div class="cmore">' +
           '<div class="cwk">' + nb('k od', st.all.length, 'قيد التسليم', g.n, 'p') + nb('k odr', st.ready.length, 'جاهزة', g.n, 'ready') + nb('k odn', st.notready.length, 'غير جاهزة', g.n, 'notready') + nb('k ov', st.due.length, 'عابر وغير جاهزة · ' + (st.over || 0) + '٪', g.n, 'due') + nb('k dl', g.d, 'مسلّمة', g.n, 'd') + '</div>' +
           (so.length ? '<div class="csecs"><div class="cs h"><span>القطاع</span><span>قيد التسليم</span><span>جاهزة</span><span>غير جاهزة</span><span>عابر وغير جاهزة</span><span></span></div>' + so.map(function (k, j) { var x = bs[k]; return '<div class="cs" style="--i:' + j + '"><span>' + esc(k) + '</span><span class="cv">' + x.a + '</span><span class="cv ok">' + x.r + '</span><span class="cv no">' + x.n + '</span><span class="cv ov">' + (x.o || 0) + '</span>' + split(x.r, x.n) + '</div>'; }).join('') + '</div>' : '') +
-          '<div class="muted" style="font-size:12.5px">' + (st.all.length ? 'النسبة ' + st.over + '٪ = ' + st.due.length + ' عابر وغير جاهزة ÷ ' + st.all.length + ' قيد التسليم · الكفاءة ' + st.eff + '٪ · ' : '') + (g.co ? 'دور التنفيذ المباشر (الجهة المنفذة بالموقف الأسبوعي "تنفيذ مباشر") ما تنحسب على أي مقاول' : 'نسبة الإنجاز ' + pc(g.d, g.t) + '٪ (' + g.d + ' مسلّمة من ' + g.t + ')') + ' · اضغط أي رقم حتى تطلع دوره</div></div>';
+          '<div class="muted" style="font-size:12.5px">' + (st.all.length ? 'النسبة ' + st.over + '٪ = ' + st.due.length + ' عابر وغير جاهزة ÷ ' + st.all.length + ' قيد التسليم · الكفاءة ' + st.eff + '٪ · ' : '') + (g.co ? 'التنفيذ المباشر = الشركة تنفذ الدور (القطاع الأول والثاني كامل، احمد عواد بالثالث والسادس، جاسم زراك بالرابع والخامس، عادل ومحمد عرار بالرابع، دياري كريم VIP5 و6) — محسوب بكل الأرقام ككيان واحد · ' : '') + 'نسبة الإنجاز ' + pc(g.d, g.t) + '٪ (' + g.d + ' مسلّمة من ' + g.t + ') · قيد التسليم: الأسبوعي ' + g.p + ' / موقف المقاولين ' + g.pcw + ' · اضغط أي رقم حتى تطلع دوره</div></div>';
       }
       return row + more;
     }).join('') + '</div>';
-  h += '<p class="muted" style="margin:0;font-size:12.5px;text-align:center">النسبة = دور قيد التسليم العابر موعدها وغير الجاهزة ÷ كل دور قيد التسليم · الكفاءة = 100 − النسبة (كل ما قلّت المتأخرة زادت الكفاءة). دور التنفيذ المباشر محسوبة على الشركة مو على المقاول. دون 50٪ دون المستوى · 50–60 مقبول · 60–70 متوسط · 70–80 جيد · 80–90 جيد جداً · 90 فما فوق ممتاز.</p>';
+  h += '<p class="muted" style="margin:0;font-size:12.5px;text-align:center">النسبة = دور قيد التسليم العابر موعدها وغير الجاهزة ÷ كل دور قيد التسليم · الكفاءة = 100 − النسبة (كل ما قلّت المتأخرة زادت الكفاءة). الكلي والمتبقية من موقف المقاولين · المسلّمة من شيت تواريخ الاستلام · قيد التسليم من الموقف الأسبوعي ويتطابق ويّا موقف المقاولين · الجاهزية والعبور من النظام · التنفيذ المباشر كيان واحد داخل بكل الأرقام. دون 50٪ دون المستوى · 50–60 مقبول · 60–70 متوسط · 70–80 جيد · 80–90 جيد جداً · 90 فما فوق ممتاز.</p>';
   return h;
 };
+// صفوف المقاولين الموحّدة لكل النظام (من نموذج الخريطة): الكلي والمتبقية من موقف المقاولين، المسلّمة من شيت تواريخ الاستلام،
+// قيد التسليم من الموقف الأسبوعي (ويّا رقم موقف المقاولين للمطابقة)، والتنفيذ المباشر كيان واحد
+function conRows() {
+  var M = window.A2X && A2X.conModel ? A2X.conModel() : null; if (!M) return null;
+  return M.list.map(function (o) { var n = o.isDir ? CO_NAME : String(o.g).replace(/^§/, '');
+    return { n: n, k: conKey(n), co: !!o.isDir, warn: !o.cwHas, t: o.cw.all, r: o.cw.rem, pcw: o.cw.ws, p: o.ws.length, d: o.dl.length, units: o.wsU, dels: o.dlR,
+      secs: Object.keys(o.sec).map(Number).sort(function (a, b) { return a - b; }).map(function (x) { return SECTOR_NAMES[x - 1] || 'غير محدد'; }) }; });
+}
 function cwList(con, t) {
-  var IX = S.cwIX || conIndex(), k = conKey(con), units = IX.ws[k] || [], st = conStats(units), title, items;
+  var IX = S.cwIX || conIndex(), k = conKey(con), units = IX.ws[k] || [], title, items;
+  var MRow = (S.cwRows || []).filter(function (g) { return g.n === con; })[0]; if (MRow) units = MRow.units;
+  var st = conStats(units);
   var T = { d: 'المسلّمة', p: 'قيد التسليم', due: 'العابر موعدها وغير جاهزة', ready: 'قيد التسليم الجاهزة', notready: 'قيد التسليم غير الجاهزة' };
   title = T[t] + ' — ' + con;
   if (t === 'd') {
-    var dl = (IX.del[k] || []).slice().sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); });
-    var tot = 0; (S.cw || []).forEach(function (r) { if (conKey(r.contractor) === k) tot += Number(r.delivered) || 0; });
+    var dl = (MRow ? MRow.dels : (IX.del[k] || [])).slice().sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); });
+    var tot = MRow ? dl.length : 0; if (!MRow) (S.cw || []).forEach(function (r) { if (conKey(r.contractor) === k) tot += Number(r.delivered) || 0; });
     items = dl.length ? grpBar('cw') + groupedHTML('cw', dl.map(function (x) { return { h: x.houseNo, html: '<button class="aitem" data-act="house" data-h="' + esc(x.houseNo) + '"><span class="m"><b class="ltr" style="text-align:right">' + esc(x.houseNo) + '</b><small>تاريخ الاستلام: ' + esc(x.date || '-') + (x.sector ? ' · ' + esc(x.sector) : '') + '</small></span><span class="pill p-ok">🏠 مسلّمة</span></button>' }; }), 'alist') : '';
     items = (dl.length < tot ? '<p class="muted" style="margin:0 0 8px;font-size:13px">يطلع ' + dl.length + ' من ' + tot + ' دار — الباقي انسلّم قبل ما يبدأ النظام يسجّل مقاول كل دار، فما معروف مقاوله بشيت تواريخ الاستلام.</p>' : '') + (items || '<div class="empty">ما أكو دور معروفة لهذا المقاول.</div>');
   } else {
