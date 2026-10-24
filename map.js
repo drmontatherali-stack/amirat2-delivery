@@ -5,10 +5,10 @@
 (function () {
 'use strict';
 var X = window.A2X; if (!X || !X.VIEWS) return;
-var V = '2.8.1';
+var V = '2.9.0';
 var S = X.S, esc = X.esc;
 var MD = null, MDerr = '', loading = false;
-var ST = { lgc: +X.lsGet('mx_lgc', innerWidth < 640 ? 1 : 0) === 1, side: false, sec: X.lsGet('mx_sec', 'all'), mode: X.lsGet('mx_mode', 'status'), con: 'all', flt: 'all', year: String(new Date().getFullYear()), q: '', sel: null, edit: false, vb: {}, zoomed: false };
+var ST = { tab: X.lsGet('mx_tab', 'view'), fsc: false, lgc: +X.lsGet('mx_lgc', innerWidth < 640 ? 1 : 0) === 1, side: false, sec: X.lsGet('mx_sec', 'all'), mode: X.lsGet('mx_mode', 'status'), con: 'all', flt: 'all', year: String(new Date().getFullYear()), q: '', sel: null, edit: false, vb: {}, zoomed: false };
 var COLORS = { del: '#2ecc71', ready: '#3fa9f5', not: '#f5a623', late: '#ff4d5e', rev: '#a77bff', nw: '#22d3c5', none: null };
 var ST_LBL = { del: 'مسلّمة', ready: 'قيد التسليم · جاهزة', not: 'قيد التسليم · غير جاهزة', late: 'عابر موعدها وغير جاهزة', rev: 'قيد المراجعة', nw: 'جديدة بانتظار التبليغ', none: 'بعدها ما وصلت' };
 var ST_ORD = ['del', 'ready', 'not', 'late', 'rev', 'nw', 'none'];
@@ -144,14 +144,12 @@ function css() {
     '.mx .mxtip span{display:flex;align-items:center;gap:6px}.mx .mxtip i{width:10px;height:10px;border-radius:3px;display:inline-block}.mx .mxtip small{color:var(--muted);font-size:11px}',
     '.mx svg.mxs{transform-origin:0 0;will-change:transform}',
     '.mx svg.mxs .hs{transform-box:fill-box;transform-origin:center}',
-    '.mx svg.mxs.wave:not(.big) .hs{animation:mxw .7s cubic-bezier(.2,.9,.3,1.25) both;animation-delay:var(--d,0ms)}',
     '.mx svg.mxs.big.wave #mxh{animation:mxf2 .6s ease both}@keyframes mxf2{from{opacity:0}}',
     '@keyframes mxw{from{opacity:0;transform:scale(.15)}to{opacity:1;transform:none}}',
     '.mx svg.mxs .ctx{fill:none;stroke:var(--muted);stroke-width:.45;opacity:.32}',
     '.mx svg.mxs .fac{font:600 6.5px "IBM Plex Sans Arabic",sans-serif;fill:var(--muted);opacity:.85;text-anchor:middle;pointer-events:none;paint-order:stroke;stroke:var(--card-solid,#0b1430);stroke-width:1.6px}',
     '.mx svg.mxs .hs.vip{stroke:#E2C47A;stroke-width:1.4}',
     '.mx svg.mxs.zoomed .snb{opacity:.35}',
-    '.mx svg.mxs .hs:hover{stroke:#fff;stroke-width:1.6}',
     '.mx svg.mxs .snb{cursor:pointer}.mx svg.mxs .snb rect{fill:color-mix(in srgb,var(--brand) 30%,var(--card-solid,#0b1430));fill-opacity:.92;stroke:var(--brand);stroke-width:1;vector-effect:non-scaling-stroke}',
     '#mxsure{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:rgba(3,6,18,.55);backdrop-filter:blur(3px);animation:mxf .18s ease}',
     '#mxsure .box{width:min(92vw,380px);padding:22px;border-radius:20px;background:var(--card-solid,#101a3a);border:1px solid var(--line);box-shadow:0 30px 80px -20px #000;text-align:center;animation:mxpop .25s cubic-bezier(.2,.9,.3,1.2)}',
@@ -186,7 +184,10 @@ function css() {
     '.mx .mapbox{position:relative;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:radial-gradient(1200px 600px at 50% 0%,color-mix(in srgb,var(--brand) 7%,transparent),transparent 60%),var(--card-solid,var(--card));height:calc(100vh - 300px);min-height:440px;touch-action:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.02),0 20px 50px -30px #000}',
     '.mx svg.mxs{width:100%;height:100%;margin-top:0;display:block;user-select:none;-webkit-user-select:none;cursor:grab}',
     '.mx svg.mxs .geo{fill:none;stroke:var(--muted);stroke-width:.4;opacity:.55}',
-    '.mx svg.mxs .hs{stroke:rgba(0,0,0,.38);stroke-width:.3}.mx svg.mxs:not(.big) .hs{transition:opacity .35s,fill .45s ease}',
+    '.mx svg.mxs .hs,.mx svg.mxs .hf{stroke:rgba(0,0,0,.38);stroke-width:.3}.mx svg.mxs .hf.dim{opacity:.12}',
+    '.mx svg.mxs .ovv{fill:none;stroke:#E2C47A;stroke-width:1.4}.mx svg.mxs .ovr{fill:none;stroke:#a77bff;stroke-width:1.6}.mx svg.mxs .ovs{fill:none;stroke:#fff;stroke-width:2.4}',
+    '.mx svg.mxs.wave #mxh{animation:mxf2 .6s ease both}',
+    '.mx .mxhov{position:absolute;z-index:3;pointer-events:none;border:2px solid #fff;border-radius:3px;box-shadow:0 0 0 1px rgba(0,0,0,.5),0 0 14px rgba(255,255,255,.35)}.mx .mxhov.pulse{animation:mxpu 1s ease-in-out 3}@keyframes mxpu{50%{transform:scale(1.6);opacity:.3}}',
     '.mx svg.mxs .hs.dim{opacity:.12}',
     '.mx svg.mxs .hs.rvm{stroke:#a77bff;stroke-width:1.6}',
     '.mx svg.mxs .hs.sel{stroke:#fff;stroke-width:2.4;paint-order:stroke}',
@@ -225,6 +226,34 @@ function css() {
     '.mx .kpi.g .kb i{background:#2ecc71}.mx .kpi.b .kb i{background:#3fa9f5}.mx .kpi.r .kb i{background:#ff4d5e}.mx .kpi.p .kb i{background:#a77bff}.mx .kpi.t .kb i,.mx .kpi.t b{background:none;color:#22d3c5}.mx .kpi.t .kb i{background:#22d3c5}',
     '.mx .kpi.g b{color:#2ecc71}.mx .kpi.b b{color:#3fa9f5}.mx .kpi.r b{color:#ff4d5e}.mx .kpi.p b{color:#a77bff}',
     '.mx .mxlist button{align-items:center}',
+    /* تخطيط: الخريطة يمين (3/4) واللوحة يسار (1/4) */
+    '.mx .mxg{display:grid;grid-template-columns:minmax(0,1fr) minmax(270px,25%);gap:12px;align-items:start}',
+    '.mx .mapcol{min-width:0}',
+    '.mx .pnl{display:flex;flex-direction:column;gap:10px;min-height:0;overflow:hidden;border:1px solid var(--line);border-radius:18px;background:var(--card-solid,var(--card));padding:10px}',
+    '.mx .pnl .srch{flex:none;min-width:0}',
+    '.mx .pnl .kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.mx .pnl .kpi{padding:6px 9px;grid-template-areas:"i n" "l l";gap:0 6px;border-radius:12px}.mx .pnl .kpi .kb{display:none}.mx .pnl .kpi b{font-size:17px}.mx .pnl .kpi .ki{font-size:14px}.mx .pnl .kpi .kl{font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '.mx .ptabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:4px;border-radius:14px;background:var(--soft2);flex:none}',
+    '.mx .ptabs button{display:flex;flex-direction:column;align-items:center;gap:1px;border:0;border-radius:10px;padding:6px 2px;background:transparent;color:var(--muted);font:inherit;font-size:11.5px;cursor:pointer}.mx .ptabs button span{font-size:16px}',
+    '.mx .ptabs button.on{background:var(--brand);color:#06121f;font-weight:700}',
+    '.mx .pbody{flex:1;min-height:0;overflow:auto;scrollbar-width:thin;display:flex;flex-direction:column;gap:10px;padding:2px}',
+    '.mx .pbody h3{margin:4px 2px 0;font-size:13px;color:var(--muted);font-weight:600}',
+    '.mx .secl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}',
+    '.mx .secl button{display:flex;flex-direction:column;gap:4px;border:1px solid var(--line);border-radius:12px;padding:7px 9px;background:var(--soft2);color:var(--ink);font:inherit;cursor:pointer;text-align:right}.mx .secl button b{font-size:13px}.mx .secl button small{font-size:11px;color:var(--muted)}.mx .secl button.on{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 16%,var(--card))}',
+    '.mx .secl button.all{grid-column:1/-1}',
+    '.mx .layl{display:flex;flex-direction:column;gap:4px}',
+    '.mx .layl button{display:grid;grid-template-columns:26px 1fr;grid-template-areas:"i t" "i d";gap:0 8px;align-items:center;border:1px solid transparent;border-radius:12px;padding:7px 9px;background:transparent;color:var(--ink);font:inherit;cursor:pointer;text-align:right}',
+    '.mx .layl button span{grid-area:i;font-size:18px}.mx .layl button b{grid-area:t;font-size:13.5px}.mx .layl button small{grid-area:d;font-size:11px;color:var(--muted)}',
+    '.mx .layl button:hover{background:var(--soft)}.mx .layl button.on{background:color-mix(in srgb,var(--brand) 16%,var(--card));border-color:var(--brand)}',
+    '.mx .tooll{display:flex;flex-direction:column;gap:6px}.mx .tooll button,.mx .tooll a{display:grid;grid-template-columns:28px 1fr;grid-template-areas:"i t" "i d";gap:0 8px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:9px 10px;background:var(--soft2);color:var(--ink);font:inherit;cursor:pointer;text-align:right;text-decoration:none}.mx .tooll span{grid-area:i;font-size:19px}.mx .tooll b{grid-area:t;font-size:13.5px}.mx .tooll small{grid-area:d;font-size:11px;color:var(--muted)}',
+    '.mx .pbody .card{padding:12px;margin:0}.mx .pbody .lg button{font-size:13px;padding:5px 6px}',
+    '.mx .pbody .fr{display:grid;grid-template-columns:14px 1fr;gap:8px;align-items:center;font-size:12px;padding:3px 6px}.mx .pbody .fr i{width:12px;height:12px;border-radius:3px;display:inline-block;box-sizing:border-box}',
+    '.mx .hint{color:var(--muted);font-size:13px;text-align:center;padding:18px 8px}',
+    '.mx .zbtn .fs{font-size:17px}',
+    '.mx .mxlg{display:none}.mx.mxfull .mxlg{display:flex}',
+    /* ملء الشاشة: الخريطة بس */
+    '.mx.mxfull .mapcol{position:fixed;inset:0;z-index:2000;background:var(--bg)}.mx.mxfull .mapbox{height:100vh!important;border-radius:0;border:0}.mx.mxfull .pnl{display:none}',
+    'body.mxfullon{overflow:hidden}',
+    '@media (max-width:900px){.mx .mxg{grid-template-columns:1fr}.mx .pnl{max-height:none!important;height:auto!important}.mx .pbody{overflow:visible}}',
     '#mxprint{display:none}',
     '@media print{html,body.mxprinting{background:#fff!important}body.mxprinting #app::before{display:none}body.mxprinting>*:not(#mxprint){display:none!important}body.mxprinting #mxprint{display:block!important;color:#000;background:#fff}@page{size:A3 landscape;margin:10mm}#mxprint svg{width:100%;height:auto;max-height:240mm}#mxprint .pl{display:flex;flex-wrap:wrap;gap:10px 18px;font:12px sans-serif;margin-top:6px}#mxprint .pl i{display:inline-block;width:12px;height:12px;border:1px solid #333;margin-inline-end:4px;vertical-align:middle}#mxprint h2{font:700 18px sans-serif;margin:0 0 4px}#mxprint .geo{fill:none;stroke:#555;stroke-width:.4}#mxprint .hs{stroke:#333;stroke-width:.25}#mxprint .bl{font:700 7px sans-serif;fill:#000;text-anchor:middle}#mxprint .none-p{fill:#fff}}'
   ].join('\n');
@@ -238,38 +267,46 @@ function build() {
     if (!MDerr) load(); return;
   }
   if (!root.querySelector('.mapbox') || ST.built !== true) {
-    root.innerHTML = toolbar() + '<div class="main"><div class="mapbox" id="mxbox">' + svgHTML(false) +
-      '<div class="mxlayers" role="group" aria-label="الطبقة">' + MODES.map(function (m) { return '<button data-mx="mode" data-v="' + m[0] + '" class="' + (ST.mode === m[0] ? 'on' : '') + '"><span>' + m[2] + '</span><em>' + m[1] + '</em></button>'; }).join('') + '</div>' +
-      '<div class="mxtip" id="mxtip" hidden></div><button class="sidetg" data-mx="side">☰ التفاصيل</button><div class="mxlg' + (ST.lgc ? ' cl' : '') + '" id="mxlg"></div>' +
-      '<div class="zbtn"><button data-mx="zin" aria-label="تكبير">+</button><button data-mx="zout" aria-label="تصغير">−</button><button data-mx="zfit" aria-label="عرض القطاع كامل">⤢</button></div></div><div class="side" id="mxside"></div></div>';
-    ST.built = true; ST.base = null; ST.rects = null; root.classList.add('compact'); root.classList.toggle('sidehid', !ST.side); wire();
+    root.innerHTML = '<div class="mxg"><div class="mapcol"><div class="mapbox" id="mxbox">' + svgHTML(false) +
+      '<div class="mxhov" id="mxhov" hidden></div><div class="mxtip" id="mxtip" hidden></div><div class="mxlg' + (ST.lgc ? ' cl' : '') + '" id="mxlg"></div>' +
+      '<div class="zbtn"><button data-mx="zin" aria-label="تكبير">+</button><button data-mx="zout" aria-label="تصغير">−</button><button data-mx="zfit" aria-label="عرض القطاع كامل">⤢</button><button class="fs" data-mx="fs" id="mxfs" aria-label="ملء الشاشة" title="ملء الشاشة">⛶</button></div></div></div>' +
+      '<aside class="pnl" id="mxpnl"><label class="srch"><span>🔍</span><input id="mxq" type="search" placeholder="رقم الدار مثل B40.2" value="' + esc(ST.q) + '" enterkeyhint="search"></label>' +
+      '<div class="kpis" id="mxkpi"></div>' +
+      '<nav class="ptabs" role="tablist">' + [['view', '🗂️', 'العرض'], ['lg', '🎨', 'الدليل'], ['house', '🏠', 'الدار'], ['tools', '🧰', 'أدوات']].map(function (t) { return '<button role="tab" data-mx="tab" data-v="' + t[0] + '"' + (ST.tab === t[0] ? ' class="on"' : '') + '><span>' + t[1] + '</span>' + t[2] + '</button>'; }).join('') + '</nav>' +
+      '<div class="pbody" id="mxpb"></div></aside></div>';
+    ST.built = true; ST.base = null; root.classList.toggle('mxfull', ST.fsc); wire();
     paint(); fitMap(); applyVB(); return;
-  } else syncToolbar();
+  }
   paint();
 }
-function fitMap() { var b = document.getElementById('mxbox'); if (!b) return; var t = b.getBoundingClientRect().top + (window.scrollY || 0); var h = Math.max(380, Math.round((window.visualViewport ? visualViewport.height : innerHeight) - t - 12)); b.style.height = h + 'px'; }
+function fitMap() { var b = document.getElementById('mxbox'), pn = document.getElementById('mxpnl'); if (!b) return;
+  if (ST.fsc) { b.style.height = (window.visualViewport ? visualViewport.height : innerHeight) + 'px'; return; }
+  var narrow = innerWidth <= 900, t = b.getBoundingClientRect().top + (window.scrollY || 0), vh = window.visualViewport ? visualViewport.height : innerHeight;
+  var h = narrow ? Math.max(340, Math.round(vh * 0.62)) : Math.max(420, Math.round(vh - t - 12)); b.style.height = h + 'px'; if (pn) pn.style.height = narrow ? '' : h + 'px'; }
 window.addEventListener('resize', function () { if (document.getElementById('mxbox')) { fitMap(); applyVB(); } });
+function setFull(on) { ST.fsc = on; var rt = document.getElementById('mxroot'); if (rt) rt.classList.toggle('mxfull', on); document.body.classList.toggle('mxfullon', on);
+  var fb = document.getElementById('mxfs'); if (fb) { fb.textContent = on ? '✕' : '⛶'; fb.title = on ? 'خروج من ملء الشاشة' : 'ملء الشاشة'; }
+  try { var de = document.documentElement; if (on && !document.fullscreenElement && de.requestFullscreen) de.requestFullscreen().catch(function () {}); else if (!on && document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(function () {}); } catch (e) {}
+  setTimeout(function () { fitMap(); applyVB(); }, 60); }
+document.addEventListener('fullscreenchange', function () { if (!document.fullscreenElement && ST.fsc) setFull(false); });
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && ST.fsc) setFull(false); });
 var MODES = [['status', 'الحالة', '🏠'], ['alert', 'التنبيهات', '🔔'], ['rev', 'المراجعات', '🔍'], ['wait', 'الانتظار', '⏳'], ['con', 'المقاولين', '👷'], ['eff', 'الكفاءة', '📈'], ['period', 'بالأشهر', '📅'], ['today', 'اليوم', '🕘']];
 var MODE_VIEW = { status: 'ws', con: 'weekly', eff: 'weekly', alert: 'today', rev: 'rvsum', period: 'annual', wait: 'ws', today: 'agenda' };
-function toolbar() {
-  var secs = [['all', 'الكل']].concat(allSecs().map(function (s) { return [String(s), sectorName(s).replace('القطاع ', '')]; }));
-  return '<div class="kpis" id="mxkpi"></div>' +
-    '<div class="bar" id="mxbar"><div class="secs" role="group" aria-label="القطاع">' + secs.map(function (s) { return '<button data-mx="sec" data-v="' + s[0] + '" class="sc' + (String(ST.sec) === s[0] ? ' on' : '') + '"><b>' + esc(s[1]) + '</b><i class="pb"><i></i></i><small></small></button>'; }).join('') + '</div>' +
-    '<label class="srch"><span>🔍</span><input id="mxq" type="search" placeholder="رقم الدار مثل B40.2" value="' + esc(ST.q) + '" enterkeyhint="search"></label>' +
-    '<div class="tools"><button class="tb" data-mx="check" title="الفرق بين الشيت والمخطط">🔎<span>الفرق</span></button><button class="tb" data-mx="count" title="الحصر">📊<span>الحصر</span></button><button class="tb" data-mx="print" title="طباعة">🖨️<span>طباعة</span></button>' +
-    (MAPAPP ? '' : '<a class="tb" href="map.html" title="نظام الخريطة المستقل">🗺️<span>نظام الخريطة</span></a>') + '</div></div>';
-}
-function syncToolbar() {
-  var root = document.getElementById('mxroot'); if (!root) return;
-  root.querySelectorAll('[data-mx="sec"]').forEach(function (b) { b.classList.toggle('on', b.dataset.v === String(ST.sec)); });
-  root.querySelectorAll('[data-mx="mode"]').forEach(function (b) { b.classList.toggle('on', b.dataset.v === ST.mode); });
-}
 function secList() { return ST.sec === 'all' || !MD || !MD.sectors[ST.sec] ? allSecs() : [+ST.sec]; }
 function extOf(list) {
   var e = [1e9, 1e9, -1e9, -1e9];
   list.forEach(function (s) { var x = MD.sectors[s].ext; e = [Math.min(e[0], x[0]), Math.min(e[1], x[1]), Math.max(e[2], x[2]), Math.max(e[3], x[3])]; });
   return e;
 }
+// فهرس مكاني: يعرف أي دار تحت الإصبع/الماوس بدون ما تكون كل دار عنصر لحاله
+function buildGrid(list) { var G = {}, C = 24; list.forEach(function (s) { (MD.byS[s] || []).forEach(function (h) {
+  var x0 = Math.floor((h.x - h.w / 2) / C), x1 = Math.floor((h.x + h.w / 2) / C), y0 = Math.floor((-h.y - h.h / 2) / C), y1 = Math.floor((-h.y + h.h / 2) / C);
+  for (var i = x0; i <= x1; i++) for (var j = y0; j <= y1; j++) (G[i + ',' + j] = G[i + ',' + j] || []).push(h); }); }); ST.grid = G; ST.gc = C; }
+function hitAt(cx, cy) { if (!ST.grid) return null; var p = toSVG(null, cx, cy), a = ST.grid[Math.floor(p.x / ST.gc) + ',' + Math.floor(p.y / ST.gc)] || [];
+  for (var i = 0; i < a.length; i++) { var h = a[i]; if (Math.abs(p.x - h.x) <= h.w / 2 && Math.abs(p.y + h.y) <= h.h / 2) return h; } return null; }
+function rectD(h) { var x = h.x - h.w / 2 + 0.35, y = -h.y - h.h / 2 + 0.35, w = Math.max(1, h.w - 0.7), hh = Math.max(1, h.h - 0.7); return 'M' + x.toFixed(1) + ' ' + y.toFixed(1) + 'h' + w.toFixed(1) + 'v' + hh.toFixed(1) + 'h' + (-w).toFixed(1) + 'z'; }
+function scrRect(h) { var v = curVB(), z = boxSz(), k = fitK(v, z), ox = (z.w - v[2] * k) / 2, oy = (z.h - v[3] * k) / 2;
+  return { l: (h.x - h.w / 2 - v[0]) * k + ox, t: (-h.y - h.h / 2 - v[1]) * k + oy, w: h.w * k, h: h.h * k }; }
 function svgHTML(forPrint) {
   var list = secList(), e = extOf(list), g = '', hs = '', hn = '', bl = '', sn = '', fc = '', all = list.length > 1;
   var cx = (e[0] + e[2]) / 2, cy = (e[1] + e[3]) / 2, R = Math.hypot(e[2] - e[0], e[3] - e[1]) / 2 || 1;
@@ -280,10 +317,10 @@ function svgHTML(forPrint) {
     var L = MD.byS[s] || [];
     if (all && L.length) { var ax = 0, ay = 0; L.forEach(function (h) { ax += h.x; ay += h.y; }); ax /= L.length; ay /= L.length; var w = s === 7 ? 96 : 150;
       sn += '<g class="snb" data-mx="sec" data-v="' + s + '"><rect x="' + (ax - w / 2).toFixed(1) + '" y="' + (-ay - 17).toFixed(1) + '" width="' + w + '" height="34" rx="17"/><text class="sn" x="' + ax.toFixed(1) + '" y="' + (-ay + 6.5).toFixed(1) + '">' + esc(sectorName(s)) + '</text></g>'; }
-    L.forEach(function (h) {
-      var dly = Math.round(Math.hypot(h.x - cx, h.y - cy) / R * 900);
+    if (!forPrint) L.forEach(function (h) { hn += '<text class="hn" font-size="' + Math.max(3, Math.min(h.w, h.h) * 0.46).toFixed(1) + '" x="' + h.x.toFixed(1) + '" y="' + (-h.y + 0.3).toFixed(1) + '">' + esc(h.id.split('.')[1]) + '</text>'; });
+    if (forPrint) L.forEach(function (h) {
+      var dly = 0;
       hs += '<rect class="hs' + (h.s === 7 ? ' vip' : '') + '" data-k="' + esc(mk(h.id)) + '" rx="0.6" x="' + (h.x - h.w / 2 + 0.35).toFixed(1) + '" y="' + (-h.y - h.h / 2 + 0.35).toFixed(1) + '" width="' + Math.max(1, h.w - 0.7).toFixed(1) + '" height="' + Math.max(1, h.h - 0.7).toFixed(1) + '"' + (forPrint || all ? '' : ' style="--d:' + dly + 'ms"') + '/>';
-      if (!forPrint) hn += '<text class="hn" font-size="' + Math.max(3, Math.min(h.w, h.h) * 0.46).toFixed(1) + '" x="' + h.x.toFixed(1) + '" y="' + (-h.y + 0.3).toFixed(1) + '">' + esc(h.id.split('.')[1]) + '</text>';
     });
   });
   var bb = {}; list.forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { var o = bb[h.b] = bb[h.b] || [1e9, 1e9, -1e9, -1e9]; o[0] = Math.min(o[0], h.x - h.w / 2); o[1] = Math.min(o[1], h.y - h.h / 2); o[2] = Math.max(o[2], h.x + h.w / 2); o[3] = Math.max(o[3], h.y + h.h / 2); }); });
@@ -292,9 +329,9 @@ function svgHTML(forPrint) {
   if (!forPrint && MD.fac) MD.fac.forEach(function (f) { if (f[1] < e[0] - 40 || f[1] > e[2] + 40 || f[2] < e[1] - 40 || f[2] > e[3] + 40) return; fc += '<text class="fac" x="' + f[1] + '" y="' + (-f[2]) + '">' + esc(f[0]) + '</text>'; });
   if (!forPrint) { var cs = []; list.forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { cs.push(Math.min(h.w, h.h)); }); }); cs.sort(function (a, b) { return a - b; }); ST.cell = cs[Math.floor(cs.length / 2)] || 6; }
   var pad = all ? 16 : 10, vb = [e[0] - pad, -e[3] - pad, e[2] - e[0] + pad * 2, e[3] - e[1] + pad * 2];
-  if (!forPrint) ST.full = vb;
+  if (!forPrint) { ST.full = vb; buildGrid(list); }
   var sweep = '';
-  return '<svg class="mxs' + (all ? ' big' : '') + '" id="mxsvg" xmlns="http://www.w3.org/2000/svg" viewBox="' + vb.join(' ') + '" preserveAspectRatio="xMidYMid meet"><defs><filter id="mxglow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>' + g + fc + '<g id="mxh">' + hs + '</g>' + sweep + hn + bl + sn + '</svg>';
+  return '<svg class="mxs' + (all ? ' big' : '') + '" id="mxsvg" xmlns="http://www.w3.org/2000/svg" viewBox="' + vb.join(' ') + '" preserveAspectRatio="xMidYMid meet"><defs><filter id="mxglow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>' + g + fc + '<g id="mxh">' + hs + '</g>' + (forPrint ? '' : '<path id="mxov-vip" class="ovv"/><path id="mxov-rvm" class="ovr"/><path id="mxov-sel" class="ovs"/>') + sweep + hn + bl + sn + '</svg>';
 }
 
 /* ---------- الطبقات: كل قسم من النظام على الخريطة ---------- */
@@ -363,24 +400,24 @@ function paint() {
   var svg = document.getElementById('mxsvg'); if (!svg) return;
   var I = index(); ST.I = I; ST.cc = null; var list = secList(), cnt = {}, ccnt = {}, byKey = {}, stc = {};
   var P = ST.P = pre(I, list);
-  if (!ST.rects) { ST.rects = []; svg.querySelectorAll('rect.hs').forEach(function (r) { var k = r.getAttribute('data-k'); if (MD.H[k]) ST.rects.push([r, MD.H[k], '', '']); }); }
-  // حالة كل دار تنحسب مرة وحدة (كل القطاعات) وتنستخدم للأرقام وأزرار القطاعات
   allSecs().forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { stc[mk(h.id)] = statusOf(h, I); }); });
   ST.stc = stc;
-  var keys = {}, ecs = {};
-  ST.rects.forEach(function (x) { var h = x[1], k = mk(h.id), ec = ecs[k] = effCon(h), key = keyOf(h, I, P); keys[k] = key; colorForCon(ec.group);
-    cnt[key] = (cnt[key] || 0) + 1; ccnt[ec.group] = (ccnt[ec.group] || 0) + 1; (byKey[key] = byKey[key] || []).push(h); });
+  var keys = {}, ecs = {}, houses = [];
+  list.forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { var k = mk(h.id), ec = ecs[k] = effCon(h), key = keyOf(h, I, P); keys[k] = key; colorForCon(ec.group); houses.push(h);
+    cnt[key] = (cnt[key] || 0) + 1; ccnt[ec.group] = (ccnt[ec.group] || 0) + 1; (byKey[key] = byKey[key] || []).push(h); }); });
   ST.cnt = cnt; ST.ccnt = ccnt; ST.byKey = byKey; ST.ecs = ecs;
   var cmap = {}; layerKeys(P).forEach(function (x) { cmap[x[0]] = x[2]; }); ST.keys = keys; ST.cmap = cmap;
-  ST.rects.forEach(function (x) {
-    var r = x[0], h = x[1], k = mk(h.id), key = keys[k], ec = ecs[k];
+  // كل لون = مسار واحد (بدل آلاف العناصر) — هذا اللي يخلي الخريطة خفيفة
+  var paths = {}, vip = '', rvm = '', sel = '';
+  houses.forEach(function (h) { var k = mk(h.id), key = keys[k], ec = ecs[k], d = rectD(h);
     var fill = (ST.mode === 'con' ? colorForCon(key) : cmap[key]) || 'var(--mx-none)';
-    if (x[2] !== fill) { r.style.fill = fill; x[2] = fill; }
     var dim = (ST.flt !== 'all' && key !== ST.flt) || (ST.con !== 'all' && ec.group !== ST.con);
-    var cls = 'hs' + (h.s === 7 ? ' vip' : '') + (dim ? ' dim' : '') + (ST.mode === 'status' && I.rv[k] && key !== 'del' && key !== 'rev' ? ' rvm' : '') + (ST.sel === k ? ' sel' : '');
-    if (x[3] !== cls) { r.setAttribute('class', cls); x[3] = cls; }
-  });
-  kpis(I, list); side(); legend();
+    var pk = fill + (dim ? '|d' : ''); paths[pk] = (paths[pk] || '') + d;
+    if (h.s === 7) vip += d; if (ST.mode === 'status' && I.rv[k] && key !== 'del' && key !== 'rev') rvm += d; if (ST.sel === k) sel = d; });
+  ST.rvmAny = !!rvm;
+  var g = document.getElementById('mxh'); if (g) g.innerHTML = Object.keys(paths).map(function (pk) { var a = pk.split('|'); return '<path class="hf' + (a[1] ? ' dim' : '') + '" style="fill:' + a[0] + '" d="' + paths[pk] + '"/>'; }).join('');
+  [['mxov-vip', vip], ['mxov-rvm', rvm], ['mxov-sel', sel]].forEach(function (x) { var e = document.getElementById(x[0]); if (e) e.setAttribute('d', x[1] || 'M0 0'); });
+  kpis(I, list); panel(); legend();
 }
 function kpis(I, list) {
   var el = document.getElementById('mxkpi'); if (!el) return;
@@ -394,48 +431,50 @@ function kpis(I, list) {
   el.querySelectorAll('.kpi').forEach(function (b) { var d = defs.filter(function (x) { return x[0] === b.dataset.k; })[0]; if (!d) return; var n = c[d[0]], base = d[6] || 1;
     countTo(b.querySelector('b'), n); b.querySelector('.kb i').style.width = (d[0] === 'all' ? 100 : Math.round(n * 100 / base)) + '%';
     b.classList.toggle('on', ST.mode === d[3] && ST.flt === d[4] && d[0] !== 'all' && d[0] !== 'ws'); });
-  // تقدّم كل قطاع (نسبة المسلّم) على أزرار القطاعات
-  document.querySelectorAll('#mxbar .sc').forEach(function (b) { var v = b.dataset.v, L = v === 'all' ? allSecs() : [+v], t = 0, dl = 0;
-    L.forEach(function (s) { (MD.byS[s] || []).forEach(function (h) { t++; if (ST.stc[mk(h.id)] === 'del') dl++; }); });
-    var p = t ? Math.round(dl * 100 / t) : 0; b.querySelector('.pb i').style.width = p + '%'; b.querySelector('small').textContent = 'مسلّم ' + p + '٪'; });
 }
 function countTo(el, n) { // عدّاد متحرك
   var from = +el.getAttribute('data-n') || 0; el.setAttribute('data-n', n); if (from === n) { el.textContent = n; return; }
   var t0 = performance.now(), d = 700; (function step(now) { var p = Math.min(1, (now - t0) / d), e = 1 - Math.pow(1 - p, 3); el.textContent = Math.round(from + (n - from) * e); if (p < 1) requestAnimationFrame(step); })(t0);
 }
-function side() {
-  var el = document.getElementById('mxside'); if (!el) return;
-  var h = '', P = ST.P || {};
-  if (ST.sel && MD.H[ST.sel]) h += housePanel(MD.H[ST.sel]);
-  var tot = 0; Object.keys(ST.cnt).forEach(function (k) { tot += ST.cnt[k]; });
-  var title = ST.mode === 'con' ? 'توزيع المقاولين' : ST.mode === 'eff' ? 'كفاءة المقاولين' : ST.mode === 'period' ? 'التسليم بالأشهر' : (LD[ST.mode] || {}).t;
-  h += '<div class="card"><h2 style="margin:0 0 8px;font-size:15px">' + esc(title || '') + ' <small>' + esc(ST.sec === 'all' ? 'كل القطاعات' : sectorName(+ST.sec)) + ' · ' + tot + ' دار</small></h2>';
-  if (ST.mode === 'period') {
-    var ys = {}; Object.keys(MD.H).forEach(function (k) { var d = delDate(MD.H[k], ST.I); if (d) ys[d.y] = 1; });
-    h += '<div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:8px">' + Object.keys(ys).sort().map(function (y) { return '<button class="secchip' + (y === ST.year ? ' on' : '') + '" data-mx="year" data-v="' + y + '">' + y + '</button>'; }).join('') + '</div>';
+var LAYER_SHORT = { status: 'مسلّمة، جاهزة، غير جاهزة، ما وصلت', alert: 'العابرة والقريبة والمراجعات المتأخرة', rev: 'عدد المراجعات وموقف الملاحظات', wait: 'أيام الانتظار من تاريخ الوارد', con: 'الجهة المنفذة لكل دار', eff: 'كفاءة كل مقاول', period: 'التسليم حسب الشهر', today: 'حركات جدول الأعمال' };
+function panel() {
+  var el = document.getElementById('mxpb'); if (!el) return;
+  document.querySelectorAll('#mxpnl [data-mx="tab"]').forEach(function (b) { b.classList.toggle('on', b.dataset.v === ST.tab); });
+  var h = '', P = ST.P || {}, st = el.scrollTop;
+  if (ST.tab === 'view') {
+    var secs = ['all'].concat(allSecs());
+    h += '<h3>📍 القطاع</h3><div class="secl">' + secs.map(function (v) { var L = v === 'all' ? allSecs() : [v], t = 0, dl = 0;
+      L.forEach(function (s) { (MD.byS[s] || []).forEach(function (hh) { t++; if (ST.stc[mk(hh.id)] === 'del') dl++; }); });
+      var p = t ? Math.round(dl * 100 / t) : 0;
+      return '<button class="' + (v === 'all' ? 'all' : '') + (String(ST.sec) === String(v) ? ' on' : '') + '" data-mx="sec" data-v="' + v + '"><b>' + esc(v === 'all' ? 'كل المجمع' : sectorName(v).replace('القطاع ', '')) + '</b><i class="pb"><i style="width:' + p + '%"></i></i><small>' + t + ' دار · مسلّم ' + p + '٪</small></button>'; }).join('') + '</div>';
+    h += '<h3>🗂️ طريقة التلوين</h3><div class="layl">' + MODES.map(function (m) { return '<button data-mx="mode" data-v="' + m[0] + '"' + (ST.mode === m[0] ? ' class="on"' : '') + '><span>' + m[2] + '</span><b>' + m[1] + '</b><small>' + esc(LAYER_SHORT[m[0]] || '') + '</small></button>'; }).join('') + '</div>';
+  } else if (ST.tab === 'lg') {
+    h += legendHTML();
+    var x = '';
+    if (ST.mode === 'period') { var ys = {}; Object.keys(MD.H).forEach(function (k) { var d = delDate(MD.H[k], ST.I); if (d) ys[d.y] = 1; });
+      x += '<div class="row" style="gap:6px;flex-wrap:wrap">' + Object.keys(ys).sort().map(function (y) { return '<button class="secchip' + (y === ST.year ? ' on' : '') + '" data-mx="year" data-v="' + y + '">' + y + '</button>'; }).join('') + '</div>'; }
+    if (ST.mode === 'today' && !Array.isArray(S.agenda)) x += '<p class="muted" style="font-size:12.5px;margin:0">' + (S.agenda === 'err' ? '⚠️ تعذّر تحميل جدول الأعمال' : '⏳ جاري تحميل جدول الأعمال…') + '</p>';
+    x += '<p class="muted" style="font-size:12.5px;margin:0">' + esc(LAYER_HELP[ST.mode] || '') + '</p>';
+    if (ST.mode !== 'con') x += conFilter();
+    if (MODE_VIEW[ST.mode]) x += '<button class="btn sm" style="width:100%" data-mx="view" data-v="' + MODE_VIEW[ST.mode] + '">📋 فتح الشاشة الكاملة (' + esc({ ws: 'قيد التسليم', weekly: 'كفاءة المقاولين', today: 'التنبيهات', rvsum: 'ملخص المراجعات', annual: 'الجرد السنوي', agenda: 'جدول الأعمال' }[MODE_VIEW[ST.mode]]) + ')</button>';
+    h += '<div class="card" style="display:flex;flex-direction:column;gap:8px">' + x + '</div>';
+    if ((LD[ST.mode] || {}).list) {
+      var keys = layerKeys(P), ks = ST.flt !== 'all' ? [ST.flt] : keys.map(function (q) { return q[0]; }).filter(function (k) { return k !== 'none'; });
+      var items = []; ks.forEach(function (k) { (ST.byKey[k] || []).forEach(function (hh) { if (ST.con === 'all' || effCon(hh).group === ST.con) items.push([k, hh]); }); });
+      if (items.length) h += '<h3>الدور (' + items.length + ')</h3><div class="mxlist">' + items.slice(0, 200).map(function (q) {
+        var hh = q[1], kk = mk(hh.id), u = ST.I.ws[kk], sub = sectorName(hh.s).replace('القطاع ', '') + ' · ' + effCon(hh).label;
+        if (ST.mode === 'today' && P.agenda[kk]) sub += ' · ' + (P.agenda[kk].last.action || ''); else if (u) sub += ' · 📤 ' + (u.deliveryDate || '-');
+        return '<button data-mx="go2" data-v="' + esc(kk) + '"><b class="ltr">' + esc(hh.id) + '</b><small>' + esc(sub) + '</small><i style="width:10px;height:10px;border-radius:3px;display:inline-block;background:' + (colorOfKey(q[0], P) || 'var(--mx-none)') + '"></i></button>'; }).join('') + (items.length > 200 ? '<p class="muted" style="font-size:12px">يطلع أول 200</p>' : '') + '</div>';
+    }
+  } else if (ST.tab === 'house') {
+    h += ST.sel && MD.H[ST.sel] ? housePanel(MD.H[ST.sel]) : '<div class="hint">👆 اضغط أي دار على الخريطة، أو اكتب رقمها بالبحث فوق، حتى تطلع تفاصيلها هنا.</div>';
+  } else {
+    function tl(a, ic, t, d, extra) { return '<button data-mx="' + a + '"' + (extra || '') + '><span>' + ic + '</span><b>' + t + '</b><small>' + d + '</small></button>'; }
+    h += '<div class="tooll">' + tl('fs', '⛶', 'ملء الشاشة', 'الخريطة بس على كل الشاشة (Esc للخروج)') + tl('check', '🔎', 'الفرق بين الشيت والمخطط', 'أرقام غير مطابقة، اختلاف مقاول أو قطاع') + tl('count', '📊', 'الحصر', 'العدد الحقيقي لكل مقاول وقطاع + Excel') + tl('print', '🖨️', 'طباعة الخريطة', 'بالألوان الحالية ودليلها') +
+      '<button data-mx="view" data-v="cons"><span>👷</span><b>دائرة المقاولين</b><small>موقف كل مقاول بالأرقام والقوائم</small></button>' +
+      (MAPAPP ? '' : '<a href="map.html"><span>🗺️</span><b>نظام الخريطة المستقل</b><small>يفتح الخريطة بصفحة لحالها</small></a>') + '</div>';
   }
-  if (ST.mode === 'today' && !Array.isArray(S.agenda)) h += '<p class="muted" style="font-size:12.5px">' + (S.agenda === 'err' ? '⚠️ تعذّر تحميل جدول الأعمال' : '⏳ جاري تحميل جدول الأعمال…') + '</p>';
-  var keys = layerKeys(P);
-  if (false) h += '<div class="lg">' + (ST.mode === 'con' ? '<button data-mx="flt" data-v="all" class="' + (ST.flt === 'all' ? 'on' : '') + '"><i style="background:transparent"></i><span>الكل</span><b>' + tot + '</b></button>' : '') +
-    keys.map(function (x) { var n = ST.cnt[x[0]] || 0; if (!n && (ST.mode === 'period' || ST.mode === 'eff')) return '';
-      var extra = ''; if (ST.mode === 'eff') { var gs = Object.keys(P.eff).filter(function (g) { return effKey(P.eff[g].eff) === x[0]; }); if (gs.length) extra = '<small class="muted" style="grid-column:2/4;font-size:11.5px">' + gs.map(function (g) { return esc(g) + ' ' + P.eff[g].eff + '٪'; }).join(' · ') + '</small>'; }
-      return '<button data-mx="flt" data-v="' + esc(x[0]) + '" class="' + (ST.flt === x[0] ? 'on' : '') + '"><i class="' + (x[2] ? '' : 'none-sw') + '" style="' + (x[2] ? 'background:' + x[2] : '') + '"></i><span>' + esc(x[1]) + '</span><b>' + n + '</b>' + extra + '</button>'; }).join('') + '</div>';
-  h += '<p class="muted" style="font-size:12.5px;margin:0">' + esc(LAYER_HELP[ST.mode] || '') + '</p>';
-  if (ST.mode === 'eff') h += '<p class="muted" style="font-size:12px;margin:8px 0 0">الكفاءة = 100 − (العابر موعدها وغير الجاهزة ÷ كل قيد التسليم)، لكل مقاول ضمن القطاع المعروض.</p>';
-  if (ST.mode !== 'con') h += conFilter();
-  if (MODE_VIEW[ST.mode]) h += '<button class="btn sm" style="margin-top:10px;width:100%" data-mx="view" data-v="' + MODE_VIEW[ST.mode] + '">📋 فتح الشاشة الكاملة (' + esc({ ws: 'قيد التسليم', weekly: 'كفاءة المقاولين', today: 'التنبيهات', rvsum: 'ملخص المراجعات', annual: 'الجرد السنوي', agenda: 'جدول الأعمال' }[MODE_VIEW[ST.mode]]) + ')</button>';
-  h += '</div>';
-  // قائمة الدور للطبقات اللي إلها قائمة
-  if ((LD[ST.mode] || {}).list) {
-    var ks = ST.flt !== 'all' ? [ST.flt] : keys.map(function (x) { return x[0]; }).filter(function (k) { return k !== 'none'; });
-    var items = []; ks.forEach(function (k) { (ST.byKey[k] || []).forEach(function (hh) { if (ST.con === 'all' || effCon(hh).group === ST.con) items.push([k, hh]); }); });
-    if (items.length) h += '<div class="card"><b style="font-size:14px">الدور (' + items.length + ')</b><div class="mxlist" style="margin-top:8px">' + items.slice(0, 200).map(function (x) {
-      var hh = x[1], kk = mk(hh.id), u = ST.I.ws[kk], sub = sectorName(hh.s).replace('القطاع ', '') + ' · ' + effCon(hh).label;
-      if (ST.mode === 'today' && P.agenda[kk]) sub += ' · ' + (P.agenda[kk].last.action || '');
-      else if (u) sub += ' · 📤 ' + (u.deliveryDate || '-');
-      return '<button data-mx="go2" data-v="' + esc(kk) + '"><b class="ltr">' + esc(hh.id) + '</b><small>' + esc(sub) + '</small><i style="width:10px;height:10px;border-radius:3px;display:inline-block;background:' + (colorOfKey(x[0], P) || 'var(--mx-none)') + '"></i></button>'; }).join('') + (items.length > 200 ? '<p class="muted" style="font-size:12px">يطلع أول 200</p>' : '') + '</div></div>';
-  }
-  el.innerHTML = h;
+  el.innerHTML = h; el.scrollTop = ST.tab === ST.lastTab ? st : 0; ST.lastTab = ST.tab;
 }
 var LAYER_HELP = {
   status: 'لون كل دار = حالتها بالنظام الآن (من شيت قيد التسليم والمسلّمة والمراجعات).',
@@ -447,23 +486,26 @@ var LAYER_HELP = {
   period: 'الدور المسلّمة ملوّنة حسب شهر الاستلام.',
   today: 'الدور اللي صارت عليها حركة بجدول الأعمال.'
 };
-function legend() { // دليل الألوان والإطارات — دايماً ظاهر على الخريطة
-  var el = document.getElementById('mxlg'); if (!el) return;
+function legendHTML() {
   var keys = layerKeys(ST.P || {}), tot = 0, list = secList(); Object.keys(ST.cnt).forEach(function (k) { tot += ST.cnt[k]; });
   var title = ST.mode === 'con' ? 'توزيع المقاولين' : ST.mode === 'eff' ? 'كفاءة المقاولين' : ST.mode === 'period' ? 'التسليم بالأشهر ' + ST.year : (LD[ST.mode] || {}).t;
   var rows = keys.map(function (x) { var n = ST.cnt[x[0]] || 0; if (!n) return '';
     return '<button data-mx="flt" data-v="' + esc(x[0]) + '" class="' + (ST.flt === x[0] ? 'on' : '') + '"><i class="' + (x[2] ? '' : 'none-sw') + '" style="' + (x[2] ? 'background:' + x[2] : '') + '"></i><span>' + esc(x[1]) + '</span><b>' + n + '</b></button>'; }).join('');
   var fr = '';
   function f(style, t) { fr += '<div class="fr"><i style="' + style + '"></i><span>' + t + '</span></div>'; }
-  if (ST.mode === 'status' && ST.rects && ST.rects.some(function (x) { return x[3].indexOf('rvm') >= 0; })) f('border:2px solid #a77bff;background:transparent', 'إطار بنفسجي: الدار بيها مراجعة (وهي بعدها قيد التسليم أو ما وصلت)');
+  if (ST.mode === 'status' && ST.rvmAny) f('border:2px solid #a77bff;background:transparent', 'إطار بنفسجي: الدار بيها مراجعة (وهي بعدها قيد التسليم أو ما وصلت)');
   if (list.indexOf(7) >= 0) f('border:2px solid #E2C47A;background:transparent', 'إطار ذهبي: دور VIP');
   if (ST.sel) f('border:2px solid #fff;background:transparent;box-shadow:0 0 0 1px #000', 'إطار أبيض عريض: الدار اللي اخترتها');
   if (ST.flt !== 'all' || ST.con !== 'all') f('background:var(--mx-none);opacity:.25', 'باهتة: خارج الاختيار الحالي (اضغط البند مرة ثانية حتى ترجع الكل)');
   f('background:var(--brand);border-radius:6px', 'شريط أزرق فوق الدور: رقم البلوك');
   if (list.length > 1) f('background:color-mix(in srgb,var(--brand) 30%,#0b1430);border:1px solid var(--brand);border-radius:6px', 'اسم القطاع: اضغطه حتى تفتح القطاع');
   f('border-top:1px solid var(--muted);background:transparent;border-radius:0;height:6px', 'خطوط رفيعة: حدود البلوكات والشوارع من المخطط');
-  el.innerHTML = '<button class="hd" data-mx="lgt">🎨 ' + esc(title || '') + ' <small>' + tot + ' دار</small><i>▾</i></button><div class="bdy"><div class="lg">' + rows + '</div><h4>الإطارات والإشارات</h4>' + fr +
-    (ST.mode === 'con' ? '<p>الألوان = الجهة المنفذة حسب الشيت؛ الدار اللي مو بالشيت حسب المخطط. «غير محدد» = ماكو مقاول لا بالشيت ولا بالمخطط.</p>' : '<p>اضغط أي لون حتى تبيّن دوره بس.</p>') + '</div>';
+  return '<h3>🎨 ' + esc(title || '') + ' · ' + tot + ' دار</h3><div class="lg">' + rows + '</div><h3>الإطارات والإشارات</h3>' + fr +
+    (ST.mode === 'con' ? '<p class="muted" style="font-size:11.5px;margin:4px 6px 0">الألوان = الجهة المنفذة حسب الشيت؛ الدار اللي مو بالشيت حسب المخطط.</p>' : '<p class="muted" style="font-size:11.5px;margin:4px 6px 0">اضغط أي لون حتى تبيّن دوره بس.</p>');
+}
+function legend() { // نسخة مصغّرة تطلع فوق الخريطة بوضع ملء الشاشة
+  var el = document.getElementById('mxlg'); if (!el) return; var tot = 0; Object.keys(ST.cnt).forEach(function (k) { tot += ST.cnt[k]; });
+  el.innerHTML = '<button class="hd" data-mx="lgt">🎨 دليل الألوان <small>' + tot + ' دار</small><i>▾</i></button><div class="bdy">' + legendHTML() + '</div>';
 }
 function conFilter() {
   var names = Object.keys(ST.ccnt).sort();
@@ -539,8 +581,8 @@ function focusHouse(k) {
   if (ST.sec !== 'all' && +ST.sec !== h.s) { ST.sec = String(h.s); X.lsSet('mx_sec', ST.sec); ST.built = false; build(); }
   var w = 240, svg = document.getElementById('mxsvg'), box = boxSz(), hh = w * (box.h / box.w);
   animVB([h.x - w / 2, -h.y - hh / 2, w, hh], 650);
-  ST.sel = k; ST.flt = 'all'; ST.con = 'all'; if (!ST.side) { ST.side = true; var rt = document.getElementById('mxroot'); if (rt) rt.classList.remove('sidehid'); } paint();
-  var r = svg.querySelector('rect[data-k="' + k.replace(/"/g, '') + '"]'); if (r) { r.classList.remove('pulse'); void r.getBoundingClientRect(); r.classList.add('pulse'); }
+  ST.sel = k; ST.flt = 'all'; ST.con = 'all'; setTab('house'); paint();
+  setTimeout(function () { var hv = document.getElementById('mxhov'); if (!hv) return; var r = scrRect(h); hv.style.cssText = 'left:' + r.l.toFixed(1) + 'px;top:' + r.t.toFixed(1) + 'px;width:' + r.w.toFixed(1) + 'px;height:' + r.h.toFixed(1) + 'px'; hv.className = 'mxhov'; hv.hidden = false; requestAnimationFrame(function () { hv.className = 'mxhov pulse'; }); setTimeout(function () { hv.hidden = true; }, 3200); }, 700);
   return true;
 }
 function wire() {
@@ -564,38 +606,44 @@ function wire() {
     // بعد التكبير بإصبعين: الإصبع الباقي يكمل من الزوم الجديد (ما يرجع للقديم)
     var rest = Object.keys(P); if (wasPinch && rest.length === 1) { var q = P[rest[0]]; start = { x: q.x, y: q.y, vb: curVB(), t: null }; moved = 99; return; }
     if (Object.keys(P).length === 0) { if (moved < 6 && t && t.closest) { var sb = t.closest('.snb'); if (sb) { ST.sec = sb.getAttribute('data-v'); X.lsSet('mx_sec', ST.sec); ST.built = false; build(); wave(); start = null; return; } }
-      if (moved < 6 && t && t.getAttribute && t.getAttribute('data-k')) tapHouse(t.getAttribute('data-k')); start = null; }
+      if (moved < 6 && t) { var hh = hitAt(e.clientX, e.clientY); if (hh) tapHouse(mk(hh.id)); } start = null; }
   }
   svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', function (e) { delete P[e.pointerId]; pinch = null; if (!Object.keys(P).length) { ST.held = false; if (ST.cT) applyVB(); } var rest = Object.keys(P); start = rest.length ? { x: P[rest[0]].x, y: P[rest[0]].y, vb: curVB(), t: null } : null; });
   svg.addEventListener('wheel', function (e) { e.preventDefault(); var p = toSVG(svg, e.clientX, e.clientY); ST.wheeling = true; zoomAt(e.deltaY > 0 ? 1.18 : 1 / 1.18, p.x, p.y); ST.wheeling = false; }, { passive: false });
-  // بطاقة صغيرة فوق الدار عند المرور عليها
-  var tip = document.getElementById('mxtip');
-  svg.addEventListener('pointermove', function (e) {
-    if (e.pointerType !== 'mouse' || !tip) return; var k = e.target.getAttribute && e.target.getAttribute('data-k'); if (!k || !MD.H[k]) { tip.hidden = true; return; }
-    var h = MD.H[k], key = ST.keys && ST.keys[k], bx = box.getBoundingClientRect();
+  // بطاقة صغيرة + إطار فوق الدار عند المرور (خارج الرسم حتى ما يعيد رسم الخريطة)
+  var tip = document.getElementById('mxtip'), hov = document.getElementById('mxhov'), hq = null, lastK = '';
+  svg.addEventListener('pointermove', function (e) { if (e.pointerType !== 'mouse' || !tip) return; var pend = !!hq; hq = e; if (pend) return; requestAnimationFrame(function () { var ev = hq; hq = null; hover(ev); }); });
+  function hover(e) {
+    if (!e) return; if (ST.held && start) { tip.hidden = true; hov.hidden = true; return; }
+    var h = hitAt(e.clientX, e.clientY); if (!h) { tip.hidden = true; hov.hidden = true; lastK = ''; return; }
+    var k = mk(h.id), key = ST.keys && ST.keys[k], bx = box.getBoundingClientRect();
+    if (k !== lastK) { lastK = k; var r = scrRect(h); hov.className = 'mxhov'; hov.style.cssText = 'left:' + r.l.toFixed(1) + 'px;top:' + r.t.toFixed(1) + 'px;width:' + r.w.toFixed(1) + 'px;height:' + r.h.toFixed(1) + 'px'; hov.hidden = false; }
     tip.innerHTML = '<b class="ltr">' + esc(h.id) + '</b><span><i style="background:' + ((ST.mode === 'con' ? colorForCon(key) : (ST.cmap || {})[key]) || 'var(--mx-none)') + '"></i>' + esc(labelOfKey(key)) + '</span><small>' + esc(sectorName(h.s) + ' · ' + effCon(h).label) + '</small>';
     tip.hidden = false; tip.style.left = Math.min(bx.width - 200, e.clientX - bx.left + 14) + 'px'; tip.style.top = Math.max(8, e.clientY - bx.top - 70) + 'px';
-  });
-  svg.addEventListener('pointerleave', function () { if (tip) tip.hidden = true; });
+  }
+  svg.addEventListener('pointerleave', function () { if (tip) tip.hidden = true; if (hov) hov.hidden = true; lastK = ''; });
+  svg.addEventListener('wheel', function () { if (hov) hov.hidden = true; lastK = ''; }, { passive: true });
 }
 function tapHouse(k) {
-  ST.sel = ST.sel === k ? null : k; if (ST.sel && !ST.side) { ST.side = true; var rt = document.getElementById('mxroot'); if (rt) rt.classList.remove('sidehid'); } paint();
+  ST.sel = ST.sel === k ? null : k; if (ST.sel) setTab('house'); paint();
 }
+function setTab(t) { ST.tab = t; X.lsSet('mx_tab', t); }
 
 /* ---------- الأحداث ---------- */
 document.addEventListener('click', function (e) {
   var b = e.target.closest && e.target.closest('[data-mx]'); if (!b || !MD) return;
   var a = b.dataset.mx, v = b.dataset.v;
   if (a === 'sec') { ST.sec = v; X.lsSet('mx_sec', v); ST.built = false; ST.sel = null; build(); wave(); }
-  else if (a === 'mode') { ST.mode = v; ST.flt = 'all'; X.lsSet('mx_mode', v); syncToolbar(); paint(); wave(); }
+  else if (a === 'mode') { ST.mode = v; ST.flt = 'all'; X.lsSet('mx_mode', v); paint(); wave(); }
+  else if (a === 'tab') { setTab(v); panel(); }
+  else if (a === 'fs') setFull(!ST.fsc);
   else if (a === 'view') X.ACT.go({ v: v });
   else if (a === 'flt') { ST.flt = ST.flt === v ? 'all' : v; paint(); }
-  else if (a === 'kpi') { var kv = v.split('|'); ST.mode = kv[0]; ST.flt = kv[1]; X.lsSet('mx_mode', ST.mode); syncToolbar(); paint(); wave(); }
+  else if (a === 'kpi') { var kv = v.split('|'); ST.mode = kv[0]; ST.flt = kv[1]; X.lsSet('mx_mode', ST.mode); setTab('lg'); paint(); wave(); }
   else if (a === 'year') { ST.year = v; ST.flt = 'all'; paint(); }
   else if (a === 'go2') focusHouse(v);
   else if (a === 'zin') zoomAt(1 / 1.4); else if (a === 'zout') zoomAt(1.4); else if (a === 'zfit') animVB(ST.full.slice(), 450);
   else if (a === 'unsel') { ST.sel = null; paint(); }
-  else if (a === 'side') { ST.side = !ST.side; var rt = document.getElementById('mxroot'); if (rt) rt.classList.toggle('sidehid', !ST.side); }
   else if (a === 'open') X.openHouse(v);
   else if (a === 'srch') { S.q = v; S.sel = null; X.ACT.go({ v: 'search' }); }
   else if (a === 'lgt') { ST.lgc = !ST.lgc; X.lsSet('mx_lgc', ST.lgc ? 1 : 0); var lg = document.getElementById('mxlg'); if (lg) lg.classList.toggle('cl', ST.lgc); }
